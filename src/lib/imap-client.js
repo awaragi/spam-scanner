@@ -1,7 +1,6 @@
 import Imap from 'imap';
 import {getConfig} from './util.js';
 import pino from 'pino';
-import {writeScannerState} from './state-manager.js';
 
 const config = getConfig();
 const logger = pino();
