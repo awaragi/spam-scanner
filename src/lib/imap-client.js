@@ -6,7 +6,7 @@ import {writeScannerState} from './state-manager.js';
 const config = getConfig();
 const logger = pino();
 
-function connect() {
+export function connect() {
   return new Imap({
     user: config.IMAP_USER,
     password: config.IMAP_PASSWORD,
@@ -75,7 +75,7 @@ export async function createAppFolders(folders) {
     imap.connect();
   });
 }
-export async function findFirstUIDOnDate(folder, dateString, write) {
+export async function findFirstUIDOnDate(folder, dateString) {
   const imap = connect();
   return new Promise((resolve, reject) => {
     imap.once('ready', () => {
@@ -94,9 +94,6 @@ export async function findFirstUIDOnDate(folder, dateString, write) {
             msg.once('attributes', attrs => {
               const uid = attrs.uid;
               const date = attrs.date;
-              if (write) {
-                writeScannerState({ last_uid: uid, last_seen_date: date.toISOString(), last_checked: new Date().toISOString() });
-              }
               imap.end();
               resolve({ uid, internaldate: date.toISOString() });
             });
