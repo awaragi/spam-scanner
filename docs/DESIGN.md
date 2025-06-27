@@ -23,13 +23,13 @@ This system provides a modular, containerized mail-processing pipeline that conn
 
 ### 2.1 IMAP Folder Structure
 
-| Purpose               | Env Variable           | Default Value         | Created in Init? |
-|------------------------|------------------------|------------------------|------------------|
-| Inbox                  | `FOLDER_INBOX`         | `INBOX`                | No               |
-| Spam destination       | `FOLDER_SPAM`          | `Spam`                 | No               |
-| Spam training folder   | `FOLDER_TRAIN_SPAM`    | `scanner/TrainSpam`    | Yes              |
-| Ham training folder    | `FOLDER_TRAIN_HAM`     | `scanner/TrainHam`     | Yes              |
-| Scanner state folder   | `FOLDER_STATE`         | `scanner/State`        | Yes              |
+| Purpose               | Env Variable           | Default Value              | Created in Init? |
+|------------------------|------------------------|----------------------------|------------------|
+| Inbox                  | `FOLDER_INBOX`         | `INBOX`                    | No               |
+| Spam destination       | `FOLDER_SPAM`          | `INBOX.spam`               | No               |
+| Spam training folder   | `FOLDER_TRAIN_SPAM`    | `INBOX.scanner.train-spam` | Yes              |
+| Ham training folder    | `FOLDER_TRAIN_HAM`     | `INBOX.scanner.train-ham`  | Yes              |
+| Scanner state folder   | `FOLDER_STATE`         | `INBOX.scanner.state`      | Yes              |
 
 ---
 
@@ -49,10 +49,10 @@ Optional (with defaults):
 
 ```
 FOLDER_INBOX=INBOX
-FOLDER_SPAM=Spam
-FOLDER_TRAIN_SPAM=scanner/TrainSpam
-FOLDER_TRAIN_HAM=scanner/TrainHam
-FOLDER_STATE=scanner/State
+FOLDER_SPAM=INBOX.spam
+FOLDER_TRAIN_SPAM=INBOX.scanner.train-spam
+FOLDER_TRAIN_HAM=INBOX.scanner.train-ham
+FOLDER_STATE=INBOX.scanner.state
 INIT_MODE=false
 LOOP_MODE=false
 SCAN_INTERVAL=300

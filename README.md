@@ -21,10 +21,10 @@ Supports UID-based incremental scanning, mailbox-contained state, and both manua
 | Purpose               | Default Folder         |
 |------------------------|------------------------|
 | Inbox to scan          | `INBOX`                |
-| Spam destination       | `Spam`                 |
-| Manual spam training   | `scanner/TrainSpam`    |
-| Manual ham correction  | `scanner/TrainHam`     |
-| Scanner state storage  | `scanner/State`        |
+| Spam destination       | `INBOX.spam`           |
+| Manual spam training   | `INBOX.scanner.train-spam` |
+| Manual ham correction  | `INBOX.scanner.train-ham` |
+| Scanner state storage  | `INBOX.scanner.state`  |
 
 Use `INIT_MODE=true` to auto-create the application folders.
 
@@ -46,10 +46,10 @@ IMAP_TLS=true
 
 ```env
 FOLDER_INBOX=INBOX
-FOLDER_SPAM=Spam
-FOLDER_TRAIN_SPAM=scanner/TrainSpam
-FOLDER_TRAIN_HAM=scanner/TrainHam
-FOLDER_STATE=scanner/State
+FOLDER_SPAM=INBOX.spam
+FOLDER_TRAIN_SPAM=INBOX.scanner.train-spam
+FOLDER_TRAIN_HAM=INBOX.scanner.train-ham
+FOLDER_STATE=INBOX.scanner.state
 
 INIT_MODE=false
 LOOP_MODE=false
