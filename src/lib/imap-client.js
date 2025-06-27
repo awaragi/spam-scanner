@@ -119,15 +119,20 @@ export async function findFirstUIDOnDate(folder, dateString) {
 function readMessage(msg, callback) {
   let raw = '';
   let uid;
+  let attrs;
 
   msg.on('body', stream => stream.on('data', chunk => raw += chunk.toString()));
 
-  msg.once('attributes', attrs => {
-    uid = attrs.uid;
-    logger.debug({uid, flags: attrs.flags, date: attrs.date}, 'Message attributes');
+  msg.once('attributes', _attrs => {
+    attrs = _attrs;
+    uid = _attrs.uid;
+    logger.debug({uid, flags: _attrs.flags, date: _attrs.date}, 'Message attributes');
   });
 
-  msg.once('end', () => callback(raw, uid));
+  msg.once('end', () => {
+    logger.info({uid}, 'Message read');
+    return callback(raw, uid, attrs);
+  });
 }
 
 /**
@@ -185,8 +190,8 @@ export function fetchAllMessages(imap) {
     const f = imap.seq.fetch('1:*', {bodies: ''});
 
     f.on('message', msg => {
-      readMessage(msg, (raw, uid) => {
-        messages.push({uid, raw});
+      readMessage(msg, (raw, uid, attrs) => {
+        messages.push({uid, raw, attrs});
       });
     });
 
@@ -208,8 +213,8 @@ export function fetchMessagesByUIDs(imap, uids) {
     const f = imap.fetch(uids, {bodies: ''});
 
     f.on('message', msg => {
-      readMessage(msg, (raw, uid) => {
-        messages.push({uid, raw});
+      readMessage(msg, (raw, uid, attrs) => {
+        messages.push({uid, raw, attrs});
       });
     });
 

@@ -27,7 +27,7 @@ function processMessagesWithSaLearn(messages, learnCmd, type) {
         let completedCount = 0;
         let hasError = false;
 
-        messages.forEach(({uid, raw}) => {
+        messages.forEach(({uid, raw, attrs}) => {
             logger.info({uid, type}, 'Learning message');
             const proc = spawn('sa-learn', [learnCmd]);
             proc.stdin.write(raw);
@@ -73,8 +73,8 @@ function processMessagesWithSpamCheck(messages) {
         let hasError = false;
         const spamMessages = [];
 
-        messages.forEach(({uid, raw}) => {
-            logger.info({uid}, 'Starting SpamAssassin check');
+        messages.forEach(({uid, raw, attrs}) => {
+            logger.info({uid, attrs}, 'Starting SpamAssassin check');
             const proc = spawn('spamc');
             proc.stdin.end(raw);
             let output = '';
@@ -87,10 +87,31 @@ function processMessagesWithSpamCheck(messages) {
                     logger.error({uid, code}, 'SpamAssassin process failed');
                 }
 
-                if (output.includes('X-Spam-Flag: YES')) {
+                const subjectMatch = raw.match(/Subject: (.*)/);
+                const scoreMatch = output.match(/X-Spam-Status:.*score=([0-9.-]+)/);
+                const levelMatch = output.match(/X-Spam-Level:\s+(\*+)/);
+                const spamFlagMatch = output.match(/X-Spam-Flag:\s+(\w+)/);
+                const score = scoreMatch ? parseFloat(scoreMatch[1]) : null;
+                const level = levelMatch ? levelMatch[1].length : 0;
+                const isSpam = !!spamFlagMatch && spamFlagMatch[1] === 'YES';
+                const subject = subjectMatch ? subjectMatch[1].trim() : '';
+                const date = attrs.date ? attrs.date.toISOString() : '';
+
+                logger.info({
+                    uid,
+                    score,
+                    level,
+                    isSpam,
+                    date,
+                    subject,
+                }, 'SpamAssassin scan results');
+
+
+                if (isSpam) {
                     logger.info({uid}, 'Detected spam');
                     spamMessages.push({uid, raw});
                 }
+
 
                 completedCount++;
 
@@ -132,28 +153,36 @@ export async function scanInbox() {
             return;
         }
 
-        // Apply batch size limit before fetching messages
         const limitedUIDs = newUIDs.slice(0, config.SCAN_BATCH_SIZE);
+
         const messages = await fetchMessagesByUIDs(imap, limitedUIDs);
 
         const spamMessages = await processMessagesWithSpamCheck(messages);
 
         await moveMessages(imap, spamMessages, config.FOLDER_SPAM);
 
-        // Calculate maxUID from all processed messages
-        const maxUID = Math.max(...messages.map(msg => msg.uid));
-        const newLastUID = Math.max(state.last_uid, maxUID);
+        // Calculate last_uid from all processed messages
+        let last_uid = Math.max(...messages.map(msg => msg.uid));
+        last_uid = Math.max(state.last_uid, last_uid);
+
+        const last_seen_date = messages.reduce((maxDate, msg) => {
+            const date = new Date(msg.raw.match(/Date: (.*)/)[1]);
+            return maxDate ? (date > maxDate ? date : maxDate) : date;
+        }, null);
+        const last_checked = new Date().toISOString();
+
         await writeScannerState({
-            last_uid: newLastUID,
-            last_seen_date: new Date().toISOString(),
-            last_checked: new Date().toISOString()
+            last_uid,
+            last_seen_date,
+            last_checked
         });
 
         logger.info({
             folder: config.FOLDER_INBOX,
             processedCount: messages.length,
             spamCount: spamMessages.length,
-            lastUID: newLastUID
+            last_uid,
+            last_seen_date
         }, 'Inbox scan completed');
 
     } catch (error) {
