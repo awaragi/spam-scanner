@@ -1,0 +1,14 @@
+{
+  "name": "spam-scanner",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "src/start.sh"
+  },
+  "dependencies": {
+    "imap": "^0.8.19",
+    "mailparser": "^3.6.4",
+    "pino": "^8.14.1",
+    "yargs": "^17.7.2"
+  }
+}

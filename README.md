@@ -183,3 +183,10 @@ docker run -d --name spamd -p 783:783 instrumentisto/spamassassin
 ## License
 
 MIT
+
+---
+
+## References
+
+- [Design Documentation](docs/DESIGN.md) - Design and architecture documentation
+- [Project Structure](docs/STRUCTURE.md) - Project structure and file organization
