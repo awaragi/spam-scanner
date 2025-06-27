@@ -1,5 +1,2 @@
-import { learnHam } from './lib/spamassassin.js';
-import { moveTrainedMessages } from './lib/imap-client.js';
-
-await learnHam();
-await moveTrainedMessages('inbox');
+import { learnFromFolder } from './lib/spamassassin.js';
+learnFromFolder('ham');
