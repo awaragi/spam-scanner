@@ -91,10 +91,16 @@ export async function findFirstUIDOnDate(folder, dateString) {
           const f = imap.fetch(results, { bodies: '', struct: true });
           f.on('message', msg => {
             msg.once('attributes', attrs => {
-              const uid = attrs.uid;
-              const date = attrs.date;
+              const last_uid = attrs.uid;
+              const last_seen_date = attrs.date.toISOString();
+              const last_checked = new Date().toISOString();
+
               imap.end();
-              resolve({ uid, internaldate: date.toISOString() });
+              resolve({
+                last_uid,
+                last_seen_date,
+                last_checked
+              });
             });
           });
         });

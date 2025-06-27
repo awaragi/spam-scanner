@@ -86,6 +86,7 @@ export async function scanInbox() {
         const query = [['UID', `${state.last_uid + 1}:*`]];
         imap.search(query, (err, results) => {
           if (err || results.length === 0) {
+            logger.error({folder: config.FOLDER_INBOX, error: err.message}, 'No messages found');
             imap.end();
             return resolve();
           }
@@ -95,15 +96,22 @@ export async function scanInbox() {
           let pendingOperations = 0;
 
           f.on('message', msg => {
+            logger.debug({msg, uid: msg.uid, pendingOperations}, 'Starting new message processing');
+
             pendingOperations++;
 
             setupMessageHandlers(msg, async (raw, uid) => {
+              logger.debug({uid}, 'Starting SpamAssassin check');
               const proc = spawn('spamc');
               proc.stdin.end(raw);
               let output = '';
               proc.stdout.on('data', chunk => output += chunk);
 
               proc.on('close', async code => {
+                logger.debug({uid, code, output}, 'SpamAssassin check completed');
+                if (code !== 0) {
+                  logger.error({uid, code}, 'SpamAssassin process failed');
+                }
                 if (output.includes('X-Spam-Flag: YES')) {
                   logger.info({uid, folder: config.FOLDER_SPAM}, 'Detected spam, moving to spam folder');
                   try {
@@ -137,16 +145,16 @@ export async function scanInbox() {
             }, 1000);
 
             // Safety timeout in case some operations hang
-            setTimeout(() => {
-              clearInterval(checkInterval);
-              logger.info('Safety timeout reached - ending IMAP connection and writing scanner state');
-              imap.end();
-              writeScannerState({
-                last_uid: lastUID,
-                last_seen_date: new Date().toISOString(),
-                last_checked: new Date().toISOString()
-              }).then(resolve);
-            }, 10000);
+            // setTimeout(() => {
+            //   clearInterval(checkInterval);
+            //   logger.info('Safety timeout reached - ending IMAP connection and writing scanner state');
+            //   imap.end();
+            //   writeScannerState({
+            //     last_uid: lastUID,
+            //     last_seen_date: new Date().toISOString(),
+            //     last_checked: new Date().toISOString()
+            //   }).then(resolve);
+            // }, 60000);
           });
         });
       });
@@ -224,12 +232,12 @@ export async function learnFromFolder(type) {
           }, 1000);
 
           // Safety timeout in case some operations hang
-          setTimeout(() => {
-            clearInterval(checkInterval);
-            logger.info({folder, type}, 'Safety timeout reached - closing connection');
-            imap.end();
-            resolve();
-          }, 10000);
+          // setTimeout(() => {
+          //   clearInterval(checkInterval);
+          //   logger.info({folder, type}, 'Safety timeout reached - closing connection');
+          //   imap.end();
+          //   resolve();
+          // }, 60000);
         });
       });
     });
