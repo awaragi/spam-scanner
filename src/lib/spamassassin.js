@@ -7,6 +7,20 @@ import pino from 'pino';
 const config = getConfig();
 const logger = pino();
 
+const POLL_INTERVAL_MS = 1000;
+
+function waitForPendingOperations(imap, pendingOperationsFn, onComplete) {
+  const checkInterval = setInterval(() => {
+    let pendingOperations = pendingOperationsFn();
+    logger.info({pendingOperations}, 'Pending operations before completeness');
+    if (pendingOperations <= 0) {
+      clearInterval(checkInterval);
+      imap.end();
+      onComplete();
+    }
+  }, POLL_INTERVAL_MS);
+}
+
 // Helper function to handle message moving and expunging
 function moveMessage(imap, uid, destFolder) {
   return new Promise((resolve, reject) => {
@@ -34,16 +48,6 @@ function moveMessage(imap, uid, destFolder) {
   });
 }
 
-// Helper function to safely close IMAP connection after a delay
-function safelyCloseConnection(imap, callback, delay = 5000) {
-  logger.info('Waiting for operations to finish before closing connection');
-  setTimeout(() => {
-    logger.info('Ending IMAP connection');
-    imap.end();
-    if (callback) callback();
-  }, delay);
-}
-
 /**
  * Node.js IMAP connection pattern:
  * 1. Create an IMAP object
@@ -69,8 +73,8 @@ function setupMessageHandlers(msg, callback) {
 }
 
 export async function scanInbox() {
-  const imap = connect();
   const state = await readScannerState();
+  const imap = connect();
 
   return new Promise((resolve, reject) => {
     // Set up event handlers before initiating the connection
@@ -96,19 +100,19 @@ export async function scanInbox() {
           let pendingOperations = 0;
 
           f.on('message', msg => {
-            logger.debug({msg, uid: msg.uid, pendingOperations}, 'Starting new message processing');
+            logger.info({pendingOperations, uid: msg.uid, }, 'Starting new message processing');
 
             pendingOperations++;
 
             setupMessageHandlers(msg, async (raw, uid) => {
-              logger.debug({uid}, 'Starting SpamAssassin check');
+              logger.info({uid}, 'Starting SpamAssassin check');
               const proc = spawn('spamc');
               proc.stdin.end(raw);
               let output = '';
               proc.stdout.on('data', chunk => output += chunk);
 
               proc.on('close', async code => {
-                logger.debug({uid, code, output}, 'SpamAssassin check completed');
+                logger.info({uid, code}, 'SpamAssassin check completed');
                 if (code !== 0) {
                   logger.error({uid, code}, 'SpamAssassin process failed');
                 }
@@ -128,33 +132,14 @@ export async function scanInbox() {
           });
 
           f.once('end', () => {
-            logger.info('Fetch completed, waiting for operations to finish');
-
             // Poll for pending operations to complete before closing
-            const checkInterval = setInterval(() => {
-              if (pendingOperations <= 0) {
-                clearInterval(checkInterval);
-                logger.info('Ending IMAP connection and writing scanner state');
-                imap.end();
-                writeScannerState({
-                  last_uid: lastUID,
-                  last_seen_date: new Date().toISOString(),
-                  last_checked: new Date().toISOString()
-                }).then(resolve);
-              }
-            }, 1000);
-
-            // Safety timeout in case some operations hang
-            // setTimeout(() => {
-            //   clearInterval(checkInterval);
-            //   logger.info('Safety timeout reached - ending IMAP connection and writing scanner state');
-            //   imap.end();
-            //   writeScannerState({
-            //     last_uid: lastUID,
-            //     last_seen_date: new Date().toISOString(),
-            //     last_checked: new Date().toISOString()
-            //   }).then(resolve);
-            // }, 60000);
+            waitForPendingOperations(imap, () => pendingOperations, () => {
+              writeScannerState({
+                last_uid: lastUID,
+                last_seen_date: new Date().toISOString(),
+                last_checked: new Date().toISOString()
+              }).then(resolve);
+            });
           });
         });
       });
@@ -222,22 +207,10 @@ export async function learnFromFolder(type) {
           logger.info({folder}, 'Completed processing all messages in folder');
 
           // Poll for pending operations to complete before closing
-          const checkInterval = setInterval(() => {
-            if (pendingOperations <= 0) {
-              clearInterval(checkInterval);
-              logger.info({folder, type}, 'All operations completed, closing connection');
-              imap.end();
-              resolve();
-            }
-          }, 1000);
-
-          // Safety timeout in case some operations hang
-          // setTimeout(() => {
-          //   clearInterval(checkInterval);
-          //   logger.info({folder, type}, 'Safety timeout reached - closing connection');
-          //   imap.end();
-          //   resolve();
-          // }, 60000);
+          waitForPendingOperations(imap, () => pendingOperations, () => {
+            logger.info({folder, type}, 'All operations completed, closing connection');
+            resolve();
+          });
         });
       });
     });
