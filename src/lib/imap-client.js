@@ -133,55 +133,51 @@ function readMessage(msg, callback) {
 /**
  * for learnFromFolder: Open folder and get message count
  */
-export function openFolderAndCount(imap, folder) {
+function openFolder(imap, folder, readOnly = false) {
   return new Promise((resolve, reject) => {
     imap.once('ready', () => {
-      logger.info({folder}, 'Opening folder for learning');
-      imap.openBox(folder, false, (err, box) => {
+      logger.debug({folder}, 'Opening folder');
+      imap.openBox(folder, readOnly, (err, box) => {
         if (err) {
           logger.error({folder, error: err.message}, 'Failed to open folder');
           return reject(err);
         }
-
-        logger.info({folder, messageCount: box.messages.total}, 'Opened folder for processing');
-        resolve(box.messages.total);
+        logger.info({folder, messageCount: box.messages.total}, 'Opened folder');
+        resolve(box);
       });
     });
-
     imap.once('error', reject);
     imap.connect();
+  });
+}
+
+export function openAndCount(imap, folder) {
+  return new Promise((resolve, reject) => {
+    openFolder(imap, folder)
+        .then(box => resolve(box.messages.total))
+        .catch(reject);
   });
 }
 
 /**
  * for scanInbox: Open inbox and search for new messages
  */
-export function openInboxAndSearch(imap, folder, lastUID) {
+export function openAndSearch(imap, folder, lastUID) {
   return new Promise((resolve, reject) => {
-    imap.once('ready', () => {
-      logger.debug({folder}, 'Opening inbox for scanning');
-      imap.openBox(folder, false, (err, box) => {
-        if (err) {
-          logger.error({folder, error: err.message}, 'Failed to open inbox');
-          return reject(err);
-        }
-
-        logger.info({folder, messageCount: box.messages.total}, 'Opened inbox for scanning');
-        const query = [['UID', `${lastUID + 1}:*`]];
-        imap.search(query, (err, results) => {
-          if (err || !results.length) {
-            logger.info({folder}, 'No new messages found');
-            resolve([]);
-          } else {
-            logger.info({folder, foundMessages: results.length}, 'Found new messages');
-            resolve(results);
-          }
-        });
-      });
-    });
-
-    imap.once('error', reject);
-    imap.connect();
+    openFolder(imap, folder)
+        .then(box => {
+          const query = [['UID', `${lastUID + 1}:*`]];
+          imap.search(query, (err, results) => {
+            if (err || !results.length) {
+              logger.info({folder}, 'No new messages found');
+              resolve([]);
+            } else {
+              logger.info({folder, foundMessages: results.length}, 'Found new messages');
+              resolve(results);
+            }
+          });
+        })
+        .catch(reject);
   });
 }
 

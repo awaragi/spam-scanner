@@ -6,8 +6,8 @@ import {
     fetchAllMessages,
     fetchMessagesByUID,
     moveMessages,
-    openFolderAndCount,
-    openInboxAndSearch
+    openAndCount,
+    openAndSearch
 } from "./imap-client.js";
 import pino from 'pino';
 
@@ -65,13 +65,12 @@ function processMessagesWithSaLearn(messages, learnCmd, type) {
 function processMessagesWithSpamCheck(messages) {
     return new Promise((resolve, reject) => {
         if (messages.length === 0) {
-            return resolve({spamMessages: [], maxUID: 0});
+            return resolve([]);
         }
 
         let completedCount = 0;
         let hasError = false;
         const spamMessages = [];
-        let maxUID = 0;
 
         messages.forEach(({uid, raw}) => {
             logger.info({uid}, 'Starting SpamAssassin check');
@@ -92,16 +91,14 @@ function processMessagesWithSpamCheck(messages) {
                     spamMessages.push({uid, raw});
                 }
 
-                maxUID = Math.max(maxUID, uid);
                 completedCount++;
 
                 if (completedCount === messages.length) {
                     logger.info({
                         processedCount: completedCount,
-                        spamCount: spamMessages.length,
-                        maxUID
+                        spamCount: spamMessages.length
                     }, 'All messages processed with SpamAssassin');
-                    resolve({spamMessages, maxUID});
+                    resolve(spamMessages);
                 }
             });
 
@@ -122,8 +119,7 @@ export async function scanInbox() {
     const imap = connect();
 
     try {
-        // Promise 1: Open inbox and search for new messages
-        const newUIDs = await openInboxAndSearch(imap, config.FOLDER_INBOX, state.last_uid);
+        const newUIDs = await openAndSearch(imap, config.FOLDER_INBOX, state.last_uid);
 
         if (newUIDs.length === 0) {
             logger.info({folder: config.FOLDER_INBOX}, 'No new messages to process');
@@ -131,16 +127,14 @@ export async function scanInbox() {
             return;
         }
 
-        // Promise 2: Fetch messages by UID with batch limit
         const messages = await fetchMessagesByUID(imap, newUIDs, config.SCAN_BATCH_SIZE);
 
-        // Promise 3: Process messages with SpamAssassin check
-        const {spamMessages, maxUID} = await processMessagesWithSpamCheck(messages);
+        const spamMessages = await processMessagesWithSpamCheck(messages);
 
-        // Promise 4: Move spam messages to spam folder
-        if (spamMessages.length > 0) {
-            await moveMessages(imap, spamMessages, config.FOLDER_SPAM);
-        }
+        await moveMessages(imap, spamMessages, config.FOLDER_SPAM);
+
+        // Calculate maxUID from all processed messages
+        const maxUID = Math.max(...messages.map(msg => msg.uid));
 
         // Update scanner state
         const newLastUID = Math.max(state.last_uid, maxUID);
@@ -175,7 +169,7 @@ export async function learnFromFolder(type) {
 
     try {
         // Promise 1: Open folder and get message count
-        const messageCount = await openFolderAndCount(imap, folder);
+        const messageCount = await openAndCount(imap, folder);
 
         if (messageCount === 0) {
             logger.info({folder}, 'No messages in folder to process');
