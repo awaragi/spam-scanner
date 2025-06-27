@@ -3,11 +3,12 @@ import {readScannerState, writeScannerState} from './state-manager.js';
 import {spawn} from 'child_process';
 import {
     connect,
+    open,
+    count,
+    search,
     fetchAllMessages,
     fetchMessagesByUID,
-    moveMessages,
-    openAndCount,
-    openAndSearch
+    moveMessages
 } from "./imap-client.js";
 import pino from 'pino';
 
@@ -119,7 +120,11 @@ export async function scanInbox() {
     const imap = connect();
 
     try {
-        const newUIDs = await openAndSearch(imap, config.FOLDER_INBOX, state.last_uid);
+        // Step 1: Open the folder
+        const box = await open(imap, config.FOLDER_INBOX);
+        
+        // Step 2: Search for new messages
+        const newUIDs = await search(imap, state.last_uid);
 
         if (newUIDs.length === 0) {
             logger.info({folder: config.FOLDER_INBOX}, 'No new messages to process');
@@ -168,8 +173,11 @@ export async function learnFromFolder(type) {
     const imap = connect();
 
     try {
-        // Promise 1: Open folder and get message count
-        const messageCount = await openAndCount(imap, folder);
+        // Step 1: Open folder
+        const box = await open(imap, folder);
+        
+        // Step 2: Get message count
+        const messageCount = count(box);
 
         if (messageCount === 0) {
             logger.info({folder}, 'No messages in folder to process');
@@ -177,13 +185,13 @@ export async function learnFromFolder(type) {
             return;
         }
 
-        // Promise 2: Fetch all messages sequentially
+        // Step 3: Fetch all messages sequentially
         const messages = await fetchAllMessages(imap);
 
-        // Promise 3: Process messages with sa-learn
+        // Step 4: Process messages with sa-learn
         await processMessagesWithSaLearn(messages, learnCmd, type);
 
-        // Promise 4: Move all messages to destination folder
+        // Step 5: Move all messages to destination folder
         await moveMessages(imap, messages, destFolder);
 
         logger.info({folder, type, processedCount: messages.length}, 'All operations completed');
