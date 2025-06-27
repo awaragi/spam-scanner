@@ -314,7 +314,7 @@ export function updateLabels(imap, messages, labelsToSet = [], labelsToUnset = [
       if (labelsToSet.length > 0) {
         updatePromises.push(new Promise((resolveAdd, rejectAdd) => {
           logger.debug({uid, labels: labelsToSet}, 'Adding labels to message');
-          imap.addFlags(uid, labelsToSet, (err) => {
+          imap.addKeywords(uid, labelsToSet, (err) => {
             if (err) {
               logger.error({uid, labels: labelsToSet, error: err.message}, 'Failed to add labels');
               return rejectAdd(err);
@@ -329,7 +329,7 @@ export function updateLabels(imap, messages, labelsToSet = [], labelsToUnset = [
       if (labelsToUnset.length > 0) {
         updatePromises.push(new Promise((resolveRemove, rejectRemove) => {
           logger.debug({uid, labels: labelsToUnset}, 'Removing labels from message');
-          imap.delFlags(uid, labelsToUnset, (err) => {
+          imap.delKeywords(uid, labelsToUnset, (err) => {
             if (err) {
               logger.error({uid, labels: labelsToUnset, error: err.message}, 'Failed to remove labels');
               return rejectRemove(err);

@@ -23,7 +23,7 @@ const SPAM_LABEL_HIGH = 'Spam:High';
 /**
  * for learnFromFolder: Process messages with sa-learn
  */
-function processMessagesWithSaLearn(messages, learnCmd, type) {
+function train(messages, learnCmd, type) {
     return new Promise((resolve, reject) => {
         if (messages.length === 0) {
             return resolve();
@@ -68,7 +68,7 @@ function processMessagesWithSaLearn(messages, learnCmd, type) {
 /**
  * for scanInbox: Process messages with SpamAssassin check
  */
-function processMessagesWithSpamCheck(messages) {
+function process(messages) {
     return new Promise((resolve, reject) => {
         if (messages.length === 0) {
             return resolve([]);
@@ -177,13 +177,13 @@ export async function scanInbox() {
 
         const messages = await fetchMessagesByUIDs(imap, limitedUIDs);
 
-        const processedMessages = await processMessagesWithSpamCheck(messages);
+        const processedMessages = await process(messages);
 
         const spamMessages = processedMessages.filter(msg => msg.spamInfo.isSpam);
         logger.info({spamCount: spamMessages.length}, 'Moving spam messages to spam folder');
         await moveMessages(imap, spamMessages, config.FOLDER_SPAM);
 
-        const {lowSpamMessages, highSpamMessages, nonSpamMessages} = categorizeMessagesBySpamScore(processedMessages);
+        const {lowSpamMessages, highSpamMessages, nonSpamMessages} = categorize(processedMessages);
 
         logger.info({messageCount: messages.length}, 'Resetting spam labels');
         await updateLabels(imap, nonSpamMessages, [], [SPAM_LABEL_LOW, SPAM_LABEL_HIGH]);
@@ -234,34 +234,10 @@ export async function scanInbox() {
  * @param {Array} messages - Array of messages with spam information
  * @returns {Object} - Object with categorized messages
  */
-function categorizeMessagesBySpamScore(messages) {
-    const lowSpamMessages = [];
-    const highSpamMessages = [];
-    const nonSpamMessages = [];
-
-    messages.forEach(message => {
-        const {spamInfo} = message;
-
-        if (spamInfo.isSpam) {
-            // Skip messages that are already marked as spam
-            return;
-        }
-
-        if (spamInfo.score !== null) {
-            if (spamInfo.score < 2.5) {
-                lowSpamMessages.push(message);
-            } else if (spamInfo.score < 5.0) {
-                highSpamMessages.push(message);
-            } else {
-                // This shouldn't happen as messages with score >= 5.0 should have isSpam=true
-                // But we'll handle it just in case
-                nonSpamMessages.push(message);
-            }
-        } else {
-            // If no score is available, treat as non-spam
-            nonSpamMessages.push(message);
-        }
-    });
+function categorize(messages) {
+    const lowSpamMessages = messages.filter(message => !message.spamInfo.isSpam && message.spamInfo.score !== null && message.spamInfo.score < 2.5);
+    const highSpamMessages = messages.filter(message => !message.spamInfo.isSpam && message.spamInfo.score !== null && message.spamInfo.score >= 2.5 && message.spamInfo.score < 5.0);
+    const nonSpamMessages = messages.filter(message => !message.spamInfo.isSpam && (message.spamInfo.score === null || message.spamInfo.score >= 5.0));
 
     return {
         lowSpamMessages,
@@ -279,10 +255,8 @@ export async function learnFromFolder(type) {
     const imap = connect();
 
     try {
-        // Step 1: Open folder
         const box = await open(imap, folder);
 
-        // Step 2: Get message count
         const messageCount = count(box);
 
         if (messageCount === 0) {
@@ -291,13 +265,10 @@ export async function learnFromFolder(type) {
             return;
         }
 
-        // Step 3: Fetch all messages sequentially
         const messages = await fetchAllMessages(imap);
 
-        // Step 4: Process messages with sa-learn
-        await processMessagesWithSaLearn(messages, learnCmd, type);
+        await train(messages, learnCmd, type);
 
-        // Step 5: Move all messages to destination folder
         await moveMessages(imap, messages, destFolder);
 
         logger.info({folder, type, processedCount: messages.length}, 'All operations completed');
