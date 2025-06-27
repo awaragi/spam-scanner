@@ -110,3 +110,187 @@ export async function findFirstUIDOnDate(folder, dateString) {
     imap.connect();
   });
 }
+
+/**
+ * Helper function to handle message fetching common code
+ * @param msg
+ * @param callback
+ */
+function readMessage(msg, callback) {
+  let raw = '';
+  let uid;
+
+  msg.on('body', stream => stream.on('data', chunk => raw += chunk.toString()));
+
+  msg.once('attributes', attrs => {
+    uid = attrs.uid;
+    logger.debug({uid, flags: attrs.flags, date: attrs.date}, 'Message attributes');
+  });
+
+  msg.once('end', () => callback(raw, uid));
+}
+
+/**
+ * for learnFromFolder: Open folder and get message count
+ */
+export function openFolderAndCount(imap, folder) {
+  return new Promise((resolve, reject) => {
+    imap.once('ready', () => {
+      logger.info({folder}, 'Opening folder for learning');
+      imap.openBox(folder, false, (err, box) => {
+        if (err) {
+          logger.error({folder, error: err.message}, 'Failed to open folder');
+          return reject(err);
+        }
+
+        logger.info({folder, messageCount: box.messages.total}, 'Opened folder for processing');
+        resolve(box.messages.total);
+      });
+    });
+
+    imap.once('error', reject);
+    imap.connect();
+  });
+}
+
+/**
+ * for scanInbox: Open inbox and search for new messages
+ */
+export function openInboxAndSearch(imap, folder, lastUID) {
+  return new Promise((resolve, reject) => {
+    imap.once('ready', () => {
+      logger.debug({folder}, 'Opening inbox for scanning');
+      imap.openBox(folder, false, (err, box) => {
+        if (err) {
+          logger.error({folder, error: err.message}, 'Failed to open inbox');
+          return reject(err);
+        }
+
+        logger.info({folder, messageCount: box.messages.total}, 'Opened inbox for scanning');
+        const query = [['UID', `${lastUID + 1}:*`]];
+        imap.search(query, (err, results) => {
+          if (err || !results.length) {
+            logger.info({folder}, 'No new messages found');
+            resolve([]);
+          } else {
+            logger.info({folder, foundMessages: results.length}, 'Found new messages');
+            resolve(results);
+          }
+        });
+      });
+    });
+
+    imap.once('error', reject);
+    imap.connect();
+  });
+}
+
+/**
+ * for learnFromFolder: Fetch all messages sequentially
+ */
+export function fetchAllMessages(imap) {
+  return new Promise((resolve, reject) => {
+    const messages = [];
+    const f = imap.seq.fetch('1:*', {bodies: ''});
+
+    f.on('message', msg => {
+      readMessage(msg, (raw, uid) => {
+        messages.push({uid, raw});
+      });
+    });
+
+    f.once('end', () => {
+      logger.info({messageCount: messages.length}, 'Fetched all messages');
+      resolve(messages);
+    });
+
+    f.once('error', reject);
+  });
+}
+
+/**
+ * for scanInbox: Fetch messages by UID with batch limit
+ */
+export function fetchMessagesByUID(imap, uids, batchSize) {
+  return new Promise((resolve, reject) => {
+    const messages = [];
+    const limitedUIDs = uids.slice(0, batchSize);
+    const f = imap.fetch(limitedUIDs, {bodies: ''});
+
+    f.on('message', msg => {
+      readMessage(msg, (raw, uid) => {
+        messages.push({uid, raw});
+      });
+    });
+
+    f.once('end', () => {
+      logger.info({messageCount: messages.length}, 'Fetched messages by UID');
+      resolve(messages);
+    });
+
+    f.once('error', reject);
+  });
+}
+
+/**
+ * Helper function to handle message moving and expunging
+ */
+export function moveMessage(imap, uid, dest) {
+  return new Promise((resolve, reject) => {
+    logger.debug({uid, destFolder: dest}, 'Moving message by UID');
+    imap.move(uid, dest, (moveErr) => {
+      if (moveErr) {
+        logger.error({uid, destFolder: dest, error: moveErr.message}, 'Failed to move message by UID');
+        return reject(moveErr);
+      }
+
+      logger.info({uid, destFolder: dest}, 'Successfully moved message by UID');
+
+      // Expunge to ensure the move is committed
+      logger.debug('Expunging to finalize the move operation');
+      imap.expunge((expErr) => {
+        if (expErr) {
+          logger.error({error: expErr.message}, 'Failed to expunge after move');
+          return reject(expErr);
+        }
+
+        logger.info({uid, destFolder: dest}, 'Move completed with expunge');
+        resolve();
+      });
+    });
+  });
+}
+
+/**
+ * for both: Move all messages to destination folder
+ */
+export function moveMessages(imap, messages, destFolder) {
+  return new Promise((resolve, reject) => {
+    if (messages.length === 0) {
+      return resolve();
+    }
+
+    let completedMoves = 0;
+    let hasError = false;
+
+    messages.forEach(({uid}) => {
+      moveMessage(imap, uid, destFolder)
+          .then(() => {
+            completedMoves++;
+            logger.info({uid, destFolder, completedMoves, total: messages.length}, 'Message moved');
+
+            if (completedMoves === messages.length) {
+              logger.info({movedCount: completedMoves, destFolder}, 'All messages moved');
+              resolve();
+            }
+          })
+          .catch((err) => {
+            if (!hasError) {
+              hasError = true;
+              logger.error({uid, destFolder, error: err.message}, 'Failed to move message');
+              reject(err);
+            }
+          });
+    });
+  });
+}
