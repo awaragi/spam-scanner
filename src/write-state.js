@@ -1,8 +1,7 @@
 import { writeScannerState } from './lib/state-manager.js';
-
-let input = '';
-process.stdin.on('data', chunk => input += chunk);
+let data = '';
+process.stdin.on('data', chunk => data += chunk);
 process.stdin.on('end', async () => {
-  const state = JSON.parse(input);
+  const state = JSON.parse(data);
   await writeScannerState(state);
 });

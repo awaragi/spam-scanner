@@ -1,17 +1,20 @@
-import { findFirstUIDOnDate } from './lib/imap-client.js';
+import {findFirstUIDOnDate} from './lib/imap-client.js';
 import yargs from 'yargs';
-import { hideBin } from 'yargs/helpers';
+import {hideBin} from 'yargs/helpers';
 
 const argv = yargs(hideBin(process.argv))
-  .usage('Usage: $0 <folder> [--since date] [--write]')
-  .option('since', { type: 'string', describe: 'ISO date' })
-  .option('write', { type: 'boolean', default: false })
-  .demandCommand(1)
-  .argv;
+  .usage('Usage: $0 <folder> [--since YYYY-MM-DD]')
+    .option('since', {
+      type: 'string',
+      default: '1970-01-01'
+    })
+    .demandCommand(1).argv;
 
-const folder = argv._[0];
-const since = argv.since;
-const write = argv.write;
+const [folder] = argv._;
+const result = await findFirstUIDOnDate(folder, argv.since);
 
-const result = await findFirstUIDOnDate(folder, since, write);
-console.log(JSON.stringify(result, null, 2));
+if (result) {
+  console.log(JSON.stringify(result, null, 2));
+} else {
+  console.log(null);
+}
