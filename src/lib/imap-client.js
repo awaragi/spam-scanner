@@ -17,11 +17,11 @@ export function connect() {
 
 export async function createAppFolders(folders) {
   const imap = connect();
-  
+
   return new Promise((resolve, reject) => {
     imap.once('ready', () => {
       let pending = folders.length;
-      
+
       if (pending === 0) {
         imap.end();
         return resolve();
@@ -286,6 +286,78 @@ export function moveMessages(imap, messages, destFolder) {
               reject(err);
             }
           });
+    });
+  });
+}
+
+/**
+ * Update labels (flags) on messages
+ * @param {Object} imap - IMAP connection
+ * @param {Array} messages - Array of message objects with UIDs
+ * @param {Array} labelsToSet - Array of labels to set
+ * @param {Array} labelsToUnset - Array of labels to unset
+ * @returns {Promise} - Resolves when all labels are updated
+ */
+export function updateLabels(imap, messages, labelsToSet = [], labelsToUnset = []) {
+  return new Promise((resolve, reject) => {
+    if (messages.length === 0 || (labelsToSet.length === 0 && labelsToUnset.length === 0)) {
+      return resolve();
+    }
+
+    let completedUpdates = 0;
+    let hasError = false;
+
+    messages.forEach(({uid}) => {
+      const updatePromises = [];
+
+      // Add labels if there are any to set
+      if (labelsToSet.length > 0) {
+        updatePromises.push(new Promise((resolveAdd, rejectAdd) => {
+          logger.debug({uid, labels: labelsToSet}, 'Adding labels to message');
+          imap.addFlags(uid, labelsToSet, (err) => {
+            if (err) {
+              logger.error({uid, labels: labelsToSet, error: err.message}, 'Failed to add labels');
+              return rejectAdd(err);
+            }
+            logger.info({uid, labels: labelsToSet}, 'Labels added successfully');
+            resolveAdd();
+          });
+        }));
+      }
+
+      // Remove labels if there are any to unset
+      if (labelsToUnset.length > 0) {
+        updatePromises.push(new Promise((resolveRemove, rejectRemove) => {
+          logger.debug({uid, labels: labelsToUnset}, 'Removing labels from message');
+          imap.delFlags(uid, labelsToUnset, (err) => {
+            if (err) {
+              logger.error({uid, labels: labelsToUnset, error: err.message}, 'Failed to remove labels');
+              return rejectRemove(err);
+            }
+            logger.info({uid, labels: labelsToUnset}, 'Labels removed successfully');
+            resolveRemove();
+          });
+        }));
+      }
+
+      // Process all update operations for this message
+      Promise.all(updatePromises)
+        .then(() => {
+          completedUpdates++;
+          logger.info({uid, completedUpdates, total: messages.length}, 'Message labels updated');
+
+          if (completedUpdates === messages.length) {
+            logger.info({updatedCount: completedUpdates}, 'All message labels updated');
+            resolve();
+          }
+        })
+        .catch((err) => {
+          if (!hasError) {
+            hasError = true;
+            logger.error({uid, error: err.message}, 'Failed to update message labels');
+            reject(err);
+          }
+        });
     });
   });
 }

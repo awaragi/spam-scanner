@@ -3,17 +3,22 @@ import {readScannerState, writeScannerState} from './state-manager.js';
 import {spawn} from 'child_process';
 import {
     connect,
-    open,
     count,
-    search,
     fetchAllMessages,
     fetchMessagesByUIDs,
-    moveMessages
+    moveMessages,
+    open,
+    search,
+    updateLabels
 } from "./imap-client.js";
 import pino from 'pino';
 
 const config = getConfig();
 const logger = pino();
+
+// Spam label constants
+const SPAM_LABEL_LOW = 'Spam:Low';
+const SPAM_LABEL_HIGH = 'Spam:High';
 
 /**
  * for learnFromFolder: Process messages with sa-learn
@@ -71,6 +76,7 @@ function processMessagesWithSpamCheck(messages) {
 
         let completedCount = 0;
         let hasError = false;
+        const processedMessages = [];
         const spamMessages = [];
 
         messages.forEach(({uid, raw, attrs}) => {
@@ -106,12 +112,26 @@ function processMessagesWithSpamCheck(messages) {
                     subject,
                 }, 'SpamAssassin scan results');
 
+                // Add message to processed messages with spam information
+                const messageWithSpamInfo = {
+                    uid,
+                    raw,
+                    attrs,
+                    spamInfo: {
+                        score,
+                        level,
+                        isSpam,
+                        subject,
+                        date
+                    }
+                };
+
+                processedMessages.push(messageWithSpamInfo);
 
                 if (isSpam) {
                     logger.info({uid}, 'Detected spam');
-                    spamMessages.push({uid, raw});
+                    spamMessages.push(messageWithSpamInfo);
                 }
-
 
                 completedCount++;
 
@@ -120,7 +140,7 @@ function processMessagesWithSpamCheck(messages) {
                         processedCount: completedCount,
                         spamCount: spamMessages.length
                     }, 'All messages processed with SpamAssassin');
-                    resolve(spamMessages);
+                    resolve(processedMessages);
                 }
             });
 
@@ -157,9 +177,22 @@ export async function scanInbox() {
 
         const messages = await fetchMessagesByUIDs(imap, limitedUIDs);
 
-        const spamMessages = await processMessagesWithSpamCheck(messages);
+        const processedMessages = await processMessagesWithSpamCheck(messages);
 
+        const spamMessages = processedMessages.filter(msg => msg.spamInfo.isSpam);
+        logger.info({spamCount: spamMessages.length}, 'Moving spam messages to spam folder');
         await moveMessages(imap, spamMessages, config.FOLDER_SPAM);
+
+        const {lowSpamMessages, highSpamMessages, nonSpamMessages} = categorizeMessagesBySpamScore(processedMessages);
+
+        logger.info({messageCount: messages.length}, 'Resetting spam labels');
+        await updateLabels(imap, nonSpamMessages, [], [SPAM_LABEL_LOW, SPAM_LABEL_HIGH]);
+
+        logger.info({messageCount: lowSpamMessages.length}, 'Applying Spam:Low label');
+        await updateLabels(imap, lowSpamMessages, [SPAM_LABEL_LOW], [SPAM_LABEL_HIGH]);
+
+        logger.info({messageCount: highSpamMessages.length}, 'Applying Spam:High label');
+        await updateLabels(imap, highSpamMessages, [SPAM_LABEL_HIGH], [SPAM_LABEL_LOW]);
 
         // Calculate last_uid from all processed messages
         let last_uid = Math.max(...messages.map(msg => msg.uid));
@@ -181,6 +214,9 @@ export async function scanInbox() {
             folder: config.FOLDER_INBOX,
             processedCount: messages.length,
             spamCount: spamMessages.length,
+            lowSpamCount: lowSpamMessages.length,
+            highSpamCount: highSpamMessages.length,
+            nonSpamCount: nonSpamMessages.length,
             last_uid,
             last_seen_date
         }, 'Inbox scan completed');
@@ -191,6 +227,47 @@ export async function scanInbox() {
     } finally {
         imap.end();
     }
+}
+
+/**
+ * Helper function to categorize messages based on spam score
+ * @param {Array} messages - Array of messages with spam information
+ * @returns {Object} - Object with categorized messages
+ */
+function categorizeMessagesBySpamScore(messages) {
+    const lowSpamMessages = [];
+    const highSpamMessages = [];
+    const nonSpamMessages = [];
+
+    messages.forEach(message => {
+        const {spamInfo} = message;
+
+        if (spamInfo.isSpam) {
+            // Skip messages that are already marked as spam
+            return;
+        }
+
+        if (spamInfo.score !== null) {
+            if (spamInfo.score < 2.5) {
+                lowSpamMessages.push(message);
+            } else if (spamInfo.score < 5.0) {
+                highSpamMessages.push(message);
+            } else {
+                // This shouldn't happen as messages with score >= 5.0 should have isSpam=true
+                // But we'll handle it just in case
+                nonSpamMessages.push(message);
+            }
+        } else {
+            // If no score is available, treat as non-spam
+            nonSpamMessages.push(message);
+        }
+    });
+
+    return {
+        lowSpamMessages,
+        highSpamMessages,
+        nonSpamMessages
+    };
 }
 
 // Refactored learnFromFolder function
