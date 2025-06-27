@@ -200,13 +200,12 @@ export function fetchAllMessages(imap) {
 }
 
 /**
- * for scanInbox: Fetch messages by UID with batch limit
+ * for Fetch messages by UID
  */
-export function fetchMessagesByUID(imap, uids, batchSize) {
+export function fetchMessagesByUIDs(imap, uids) {
   return new Promise((resolve, reject) => {
     const messages = [];
-    const limitedUIDs = uids.slice(0, batchSize);
-    const f = imap.fetch(limitedUIDs, {bodies: ''});
+    const f = imap.fetch(uids, {bodies: ''});
 
     f.on('message', msg => {
       readMessage(msg, (raw, uid) => {

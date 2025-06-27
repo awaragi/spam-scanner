@@ -7,7 +7,7 @@ import {
     count,
     search,
     fetchAllMessages,
-    fetchMessagesByUID,
+    fetchMessagesByUIDs,
     moveMessages
 } from "./imap-client.js";
 import pino from 'pino';
@@ -121,8 +121,8 @@ export async function scanInbox() {
 
     try {
         // Step 1: Open the folder
-        const box = await open(imap, config.FOLDER_INBOX);
-        
+        await open(imap, config.FOLDER_INBOX);
+
         // Step 2: Search for new messages
         const newUIDs = await search(imap, state.last_uid);
 
@@ -132,7 +132,9 @@ export async function scanInbox() {
             return;
         }
 
-        const messages = await fetchMessagesByUID(imap, newUIDs, config.SCAN_BATCH_SIZE);
+        // Apply batch size limit before fetching messages
+        const limitedUIDs = newUIDs.slice(0, config.SCAN_BATCH_SIZE);
+        const messages = await fetchMessagesByUIDs(imap, limitedUIDs);
 
         const spamMessages = await processMessagesWithSpamCheck(messages);
 
@@ -140,8 +142,6 @@ export async function scanInbox() {
 
         // Calculate maxUID from all processed messages
         const maxUID = Math.max(...messages.map(msg => msg.uid));
-
-        // Update scanner state
         const newLastUID = Math.max(state.last_uid, maxUID);
         await writeScannerState({
             last_uid: newLastUID,
@@ -175,7 +175,7 @@ export async function learnFromFolder(type) {
     try {
         // Step 1: Open folder
         const box = await open(imap, folder);
-        
+
         // Step 2: Get message count
         const messageCount = count(box);
 
