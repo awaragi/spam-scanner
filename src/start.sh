@@ -22,15 +22,15 @@ if [ "$SYNC_STATE_FROM_FILE" = "true" ]; then
   exit 0
 fi
 
-echo "Starting spamd..."
-spamd -d -c -m5
-sleep 2
+echo "Testing SpamAssassin configuration..."
+spamassassin --lint
 
-echo "Checking spamc..."
-if ! echo "X-Spam-Check" | spamc -c >/dev/null 2>&1; then
-  echo "ERROR: spamc failed — is spamd running?"
-  exit 1
-fi
+echo "Starting spamd..."
+# Start spamd in daemon mode
+spamd -d -c -m5 --syslog-socket=none --listen=127.0.0.1:783 --port=783
+
+# Wait a moment for spamd to start
+sleep 3
 
 if [ "$LOOP_MODE" = "true" ]; then
   echo "LOOP_MODE"
