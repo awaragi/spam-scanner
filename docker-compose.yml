@@ -1,6 +1,7 @@
 services:
   spam-scanner:
     build: .
+    image: spam-scanner
     container_name: spam-scanner
     restart: no
     env_file:

@@ -11,7 +11,9 @@ RUN apt-get update && apt-get install -y \
 # Ensure SpamAssassin directory exists with proper permissions
 RUN mkdir -p /var/lib/spamassassin && \
     chown -R root:root /var/lib/spamassassin && \
-    chmod -R 755 /var/lib/spamassassin
+    chmod -R 755 /var/lib/spamassassin && \
+    mkdir -p /etc/spamassassin/ && \
+    chmod -R 755 /etc/spamassassin
 
 # Copy application
 WORKDIR /app
@@ -24,9 +26,12 @@ RUN npm install
 # Copy the rest of the application
 COPY src/ ./
 
-# Copy txrep configuration file
-COPY txrep.cf.example /etc/mail/spamassassin/txrep.cf
-RUN chmod 644 /etc/mail/spamassassin/txrep.cf
+# Copy txrep configuration files
+COPY init.pre.example /etc/spamassassin/init.pre
+COPY local.cf.example /etc/spamassassin/local.cf
+RUN chmod 644 \
+    /etc/spamassassin/init.pre \
+    /etc/spamassassin/local.cf
 
 # Start point
 ENTRYPOINT ["./start.sh"]
