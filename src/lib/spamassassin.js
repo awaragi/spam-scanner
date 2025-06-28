@@ -179,20 +179,19 @@ export async function scanInbox() {
 
         const processedMessages = await process(messages);
 
-        const spamMessages = processedMessages.filter(msg => msg.spamInfo.isSpam);
-        logger.info({spamCount: spamMessages.length}, 'Moving spam messages to spam folder');
-        await moveMessages(imap, spamMessages, config.FOLDER_SPAM);
+        const {lowSpamMessages, highSpamMessages, nonSpamMessages, spamMessages} = categorize(processedMessages);
 
-        const {lowSpamMessages, highSpamMessages, nonSpamMessages} = categorize(processedMessages);
-
-        logger.info({messageCount: messages.length}, 'Resetting spam labels');
+        logger.info({count: messages.length}, 'Resetting spam labels');
         await updateLabels(imap, nonSpamMessages, [], [SPAM_LABEL_LOW, SPAM_LABEL_HIGH]);
 
-        logger.info({messageCount: lowSpamMessages.length}, 'Applying Spam:Low label');
+        logger.info({count: lowSpamMessages.length}, 'Applying Spam:Low label');
         await updateLabels(imap, lowSpamMessages, [SPAM_LABEL_LOW], [SPAM_LABEL_HIGH]);
 
-        logger.info({messageCount: highSpamMessages.length}, 'Applying Spam:High label');
+        logger.info({count: highSpamMessages.length}, 'Applying Spam:High label');
         await updateLabels(imap, highSpamMessages, [SPAM_LABEL_HIGH], [SPAM_LABEL_LOW]);
+
+        logger.info({count: spamMessages.length}, 'Moving spam messages to spam folder');
+        await moveMessages(imap, spamMessages, config.FOLDER_SPAM);
 
         // Calculate last_uid from all processed messages
         let last_uid = Math.max(...messages.map(msg => msg.uid));
@@ -238,11 +237,13 @@ function categorize(messages) {
     const lowSpamMessages = messages.filter(message => !message.spamInfo.isSpam && message.spamInfo.score !== null && message.spamInfo.score < 2.5);
     const highSpamMessages = messages.filter(message => !message.spamInfo.isSpam && message.spamInfo.score !== null && message.spamInfo.score >= 2.5 && message.spamInfo.score < 5.0);
     const nonSpamMessages = messages.filter(message => !message.spamInfo.isSpam && (message.spamInfo.score === null || message.spamInfo.score >= 5.0));
+    const spamMessages = messages.filter(message => message.spamInfo.isSpam);
 
     return {
         lowSpamMessages,
         highSpamMessages,
-        nonSpamMessages
+        nonSpamMessages,
+        spamMessages,
     };
 }
 
