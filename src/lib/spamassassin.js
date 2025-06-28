@@ -23,46 +23,44 @@ const SPAM_LABEL_HIGH = 'Spam:High';
 /**
  * for learnFromFolder: Process messages with sa-learn
  */
-function train(messages, learnCmd, type) {
+async function processWithSALearn(message, learnCmd, type) {
+    const {uid, raw} = message;
+    logger.info({uid, type}, 'Learning message');
+
     return new Promise((resolve, reject) => {
-        if (messages.length === 0) {
-            return resolve();
-        }
+        const proc = spawn('sa-learn', [learnCmd]);
+        proc.stdin.write(raw);
+        proc.stdin.end();
 
-        let completedCount = 0;
-        let hasError = false;
+        proc.on('close', (code) => {
+            if (code !== 0) {
+                logger.error({uid, code}, 'sa-learn process failed');
+                return reject(new Error(`sa-learn failed for message ${uid} with code ${code}`));
+            }
+            logger.info({uid}, 'Message learned');
+            resolve();
+        });
 
-        messages.forEach(({uid, raw, attrs}) => {
-            logger.info({uid, type}, 'Learning message');
-            const proc = spawn('sa-learn', [learnCmd]);
-            proc.stdin.write(raw);
-            proc.stdin.end();
-
-            proc.on('close', (code) => {
-                if (code !== 0 && !hasError) {
-                    hasError = true;
-                    logger.error({uid, code}, 'sa-learn process failed');
-                    return reject(new Error(`sa-learn failed for message ${uid} with code ${code}`));
-                }
-
-                completedCount++;
-                logger.info({uid, completedCount, total: messages.length}, 'Message learned');
-
-                if (completedCount === messages.length) {
-                    logger.info({processedCount: completedCount}, 'All messages processed with sa-learn');
-                    resolve();
-                }
-            });
-
-            proc.on('error', (err) => {
-                if (!hasError) {
-                    hasError = true;
-                    logger.error({uid, error: err.message}, 'sa-learn process error');
-                    reject(err);
-                }
-            });
+        proc.on('error', (err) => {
+            logger.error({uid, error: err.message}, 'sa-learn process error');
+            reject(err);
         });
     });
+}
+
+async function train(messages, learnCmd, type) {
+    if (messages.length === 0) {
+        return;
+    }
+
+    let processedCount = 0;
+    for (const message of messages) {
+        await processWithSALearn(message, learnCmd, type);
+        processedCount++;
+        logger.info({processedCount, total: messages.length}, 'Progress');
+    }
+
+    logger.info({processedCount}, 'All messages processed with sa-learn');
 }
 
 /**
@@ -234,10 +232,23 @@ export async function scanInbox() {
  * @returns {Object} - Object with categorized messages
  */
 function categorize(messages) {
-    const lowSpamMessages = messages.filter(message => !message.spamInfo.isSpam && message.spamInfo.score !== null && message.spamInfo.score < 2.5);
-    const highSpamMessages = messages.filter(message => !message.spamInfo.isSpam && message.spamInfo.score !== null && message.spamInfo.score >= 2.5 && message.spamInfo.score < 5.0);
-    const nonSpamMessages = messages.filter(message => !message.spamInfo.isSpam && (message.spamInfo.score === null || message.spamInfo.score >= 5.0));
-    const spamMessages = messages.filter(message => message.spamInfo.isSpam);
+    const lowSpamMessages = [];
+    const highSpamMessages = [];
+    const nonSpamMessages = [];
+    const spamMessages = [];
+
+    messages.forEach(message => {
+        if (message.spamInfo.isSpam) {
+            spamMessages.push(message);
+        } else if (message.spamInfo.score === null || message.spamInfo.score < 0.0) {
+            nonSpamMessages.push(message);
+        } else if (message.spamInfo.score < 2.5) {
+            lowSpamMessages.push(message);
+        } else {
+            // default
+            highSpamMessages.push(message);
+        }
+    });
 
     return {
         lowSpamMessages,
