@@ -156,6 +156,38 @@ Run `spamd` locally if needed:
 docker run -d --name spamd -p 783:783 instrumentisto/spamassassin
 ```
 
+### SpamAssassin Configuration
+
+A sample TxRep configuration file `txrep.cf.example` is included. During local development, you can copy this to one of:
+
+```bash
+# System-wide configuration
+sudo cp txrep.cf.example /etc/mail/spamassassin/txrep.cf
+
+# User configuration
+cp txrep.cf.example ~/.spamassassin/txrep.cf
+```
+
+The TxRep plugin improves spam detection by tracking message reputation scores.
+
+If you installed spamd directly on your system:
+
+**On Ubuntu/Debian:**
+``` bash
+sudo systemctl restart spamassassin
+```
+or
+``` bash
+sudo systemctl restart spamd
+```
+
+
+**On CentOS/RHEL:**
+``` bash
+sudo service spamassassin restart
+```
+
+
 ### CLI Tools
 
 - `read-state.js` → reads IMAP state and prints JSON
