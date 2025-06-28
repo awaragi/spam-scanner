@@ -20,6 +20,8 @@ const logger = pino();
 const SPAM_LABEL_LOW = 'Spam:Low';
 const SPAM_LABEL_HIGH = 'Spam:High';
 
+const BATCH_SIZE = 5;
+
 /**
  * for learnFromFolder: Process messages with sa-learn
  */
@@ -171,52 +173,13 @@ export async function scanInbox() {
             return;
         }
 
-        const limitedUIDs = newUIDs.slice(0, config.SCAN_BATCH_SIZE);
+        const uids = newUIDs.slice(0, config.SCAN_BATCH_SIZE);
 
-        const messages = await fetchMessagesByUIDs(imap, limitedUIDs);
-
-        const processedMessages = await process(messages);
-
-        const {lowSpamMessages, highSpamMessages, nonSpamMessages, spamMessages} = categorize(processedMessages);
-
-        logger.info({count: messages.length}, 'Resetting spam labels');
-        await updateLabels(imap, nonSpamMessages, [], [SPAM_LABEL_LOW, SPAM_LABEL_HIGH]);
-
-        logger.info({count: lowSpamMessages.length}, 'Applying Spam:Low label');
-        await updateLabels(imap, lowSpamMessages, [SPAM_LABEL_LOW], [SPAM_LABEL_HIGH]);
-
-        logger.info({count: highSpamMessages.length}, 'Applying Spam:High label');
-        await updateLabels(imap, highSpamMessages, [SPAM_LABEL_HIGH], [SPAM_LABEL_LOW]);
-
-        logger.info({count: spamMessages.length}, 'Moving spam messages to spam folder');
-        await moveMessages(imap, spamMessages, config.FOLDER_SPAM);
-
-        // Calculate last_uid from all processed messages
-        let last_uid = Math.max(...messages.map(msg => msg.uid));
-        last_uid = Math.max(state.last_uid, last_uid);
-
-        const last_seen_date = messages.reduce((maxDate, msg) => {
-            const date = new Date(msg.raw.match(/Date: (.*)/)[1]);
-            return maxDate ? (date > maxDate ? date : maxDate) : date;
-        }, null);
-        const last_checked = new Date().toISOString();
-
-        await writeScannerState({
-            last_uid,
-            last_seen_date,
-            last_checked
-        });
-
-        logger.info({
-            folder: config.FOLDER_INBOX,
-            processedCount: messages.length,
-            spamCount: spamMessages.length,
-            lowSpamCount: lowSpamMessages.length,
-            highSpamCount: highSpamMessages.length,
-            nonSpamCount: nonSpamMessages.length,
-            last_uid,
-            last_seen_date
-        }, 'Inbox scan completed');
+        for (let i = 0; i < uids.length; i += BATCH_SIZE) {
+            logger.info({i, total: uids.length}, 'Processing batch');
+            const batchUids = uids.slice(i, i + BATCH_SIZE);
+            await scanMessages(imap, batchUids, state);
+        }
 
     } catch (error) {
         logger.error({folder: config.FOLDER_INBOX, error: error.message}, 'Error in scanInbox process');
@@ -224,6 +187,55 @@ export async function scanInbox() {
     } finally {
         imap.end();
     }
+}
+
+async function scanMessages(imap, uids, state) {
+    const messages = await fetchMessagesByUIDs(imap, uids);
+
+    const processedMessages = await process(messages);
+
+    const {lowSpamMessages, highSpamMessages, nonSpamMessages, spamMessages} = categorize(processedMessages);
+
+    logger.info({count: messages.length}, 'Resetting spam labels');
+    await updateLabels(imap, nonSpamMessages, [], [SPAM_LABEL_LOW, SPAM_LABEL_HIGH]);
+
+    logger.info({count: lowSpamMessages.length}, 'Applying Spam:Low label');
+    await updateLabels(imap, lowSpamMessages, [SPAM_LABEL_LOW], [SPAM_LABEL_HIGH]);
+
+    logger.info({count: highSpamMessages.length}, 'Applying Spam:High label');
+    await updateLabels(imap, highSpamMessages, [SPAM_LABEL_HIGH], [SPAM_LABEL_LOW]);
+
+    logger.info({count: spamMessages.length}, 'Moving spam messages to spam folder');
+    await moveMessages(imap, spamMessages, config.FOLDER_SPAM);
+
+    // Calculate last_uid from all processed messages
+    let last_uid = Math.max(...messages.map(msg => msg.uid));
+    last_uid = Math.max(state.last_uid, last_uid);
+
+    const last_seen_date = messages.reduce((maxDate, msg) => {
+        const date = new Date(msg.raw.match(/Date: (.*)/)[1]);
+        return maxDate ? (date > maxDate ? date : maxDate) : date;
+    }, null);
+    const last_checked = new Date().toISOString();
+
+    await writeScannerState({
+        last_uid,
+        last_seen_date,
+        last_checked
+    });
+
+    state.last_uid = last_uid;
+
+    logger.info({
+        folder: config.FOLDER_INBOX,
+        processedCount: messages.length,
+        spamCount: spamMessages.length,
+        lowSpamCount: lowSpamMessages.length,
+        highSpamCount: highSpamMessages.length,
+        nonSpamCount: nonSpamMessages.length,
+        last_uid,
+        last_seen_date
+    }, 'Batch processing completed');
 }
 
 /**
