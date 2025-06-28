@@ -130,7 +130,7 @@ function readMessage(msg, callback) {
   });
 
   msg.once('end', () => {
-    logger.info({uid}, 'Message read');
+    logger.info({uid, date: attrs.date}, 'Message read');
     return callback(raw, uid, attrs);
   });
 }

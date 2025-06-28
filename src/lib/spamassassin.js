@@ -1,6 +1,7 @@
 import {getConfig} from './util.js';
 import {readScannerState, writeScannerState} from './state-manager.js';
 import {spawn} from 'child_process';
+import fs from 'fs';
 import {
     connect,
     count,
@@ -30,13 +31,17 @@ async function processWithSALearn(message, learnCmd, type) {
     logger.info({uid, type}, 'Learning message');
 
     return new Promise((resolve, reject) => {
-        const proc = spawn('sa-learn', [learnCmd]);
+        const proc = spawn('sa-learn', ['--max-size=10000000', learnCmd]);
         proc.stdin.write(raw);
         proc.stdin.end();
 
         proc.on('close', (code) => {
             if (code !== 0) {
-                logger.error({uid, code}, 'sa-learn process failed');
+                // Write raw message to file for debugging
+                const logPath = `./failed_message_${uid}_${Date.now()}.txt`;
+                fs.writeFileSync(logPath, raw);
+
+                logger.error({uid, code, logPath}, 'sa-learn process failed');
                 return reject(new Error(`sa-learn failed for message ${uid} with code ${code}`));
             }
             logger.info({uid}, 'Message learned');
@@ -289,13 +294,14 @@ export async function learnFromFolder(type) {
             return;
         }
 
-        const messages = await fetchAllMessages(imap);
+        const allMessages = await fetchAllMessages(imap);
 
-        await train(messages, learnCmd, type);
-
-        await moveMessages(imap, messages, destFolder);
-
-        logger.info({folder, type, processedCount: messages.length}, 'All operations completed');
+        for (let i = 0; i < allMessages.length; i += BATCH_SIZE) {
+            const messages = allMessages.slice(i, i + BATCH_SIZE);
+            await train(messages, learnCmd, type);
+            await moveMessages(imap, messages, destFolder);
+        }
+        logger.info({folder, type, processedCount: allMessages.length}, 'All operations completed');
 
     } catch (error) {
         logger.error({folder, type, error: error.message}, 'Error in learnFromFolder process');
