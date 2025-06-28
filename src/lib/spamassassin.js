@@ -165,7 +165,7 @@ export async function scanInbox() {
         await open(imap, config.FOLDER_INBOX);
 
         // Step 2: Search for new messages
-        const newUIDs = await search(imap, state.last_uid);
+        const newUIDs = await search(imap, state.last_uid, config.SCAN_READ);
 
         if (newUIDs.length === 0) {
             logger.info({folder: config.FOLDER_INBOX}, 'No new messages to process');

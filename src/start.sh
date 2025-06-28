@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-VAR_LIB_SPAMASSASSIN=~/.spamassassin
+VAR_LIB_SPAMASSASSIN=/var/lib/spamassassin
 
 function run_once() {
   node train-spam.js
@@ -44,14 +44,6 @@ if [ ! -f "$TEST_FILE" ] || [ "$(cat "$TEST_FILE")" != "Write test" ]; then
 fi
 rm -f "$TEST_FILE"
 
-# Initialize Bayes database if it doesn't exist
-if [ ! -f "$VAR_LIB_SPAMASSASSIN/bayes_toks" ]; then
-    echo "Initializing SpamAssassin Bayes database..."
-    # Create a temporary empty message to initialize the database
-    echo "Subject: test" | sa-learn --ham --no-sync || true
-    sa-learn --sync
-fi
-
 # Test if SpamAssassin can create subdirectories (it often needs this)
 TEST_SUBDIR="$VAR_LIB_SPAMASSASSIN/test_subdir_$(date +%s)"
 if ! mkdir "$TEST_SUBDIR" 2>/dev/null; then
@@ -60,14 +52,22 @@ if ! mkdir "$TEST_SUBDIR" 2>/dev/null; then
 fi
 rmdir "$TEST_SUBDIR"
 
-# Test SpamAssassin's ability to access the directory by running a simple SA command
-if ! sa-learn -D --dump magic 2>/dev/null >/dev/null; then
-    echo "Error: SpamAssassin may have issues accessing $VAR_LIB_SPAMASSASSIN"
-    echo "SpamAssassin typically requires at least 755 permissions"
-#    echo "Sleeping for 5 minutes to give you chance to debug"
-#    sleep 300
-    exit 1
-fi
+## Initialize Bayes database if it doesn't exist
+#if [ ! -f "$VAR_LIB_SPAMASSASSIN/bayes_toks" ]; then
+#    echo "Initializing SpamAssassin Bayes database..."
+#    # Create a temporary empty message to initialize the database
+#    echo "Subject: test" | sa-learn --ham --no-sync || true
+#    sa-learn --sync
+#fi
+#
+## Test SpamAssassin's ability to access the directory by running a simple SA command
+#if ! sa-learn -D --dump magic 2>/dev/null >/dev/null; then
+#    echo "Error: SpamAssassin may have issues accessing $VAR_LIB_SPAMASSASSIN"
+#    echo "SpamAssassin typically requires at least 755 permissions"
+##    echo "Sleeping for 5 minutes to give you chance to debug"
+##    sleep 300
+#    exit 1
+#fi
 
 echo "Testing SpamAssassin configuration..."
 spamassassin --lint

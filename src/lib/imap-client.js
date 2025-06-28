@@ -166,9 +166,12 @@ export function count(box) {
 /**
  * Search for new messages in an opened folder
  */
-export function search(imap, lastUID) {
+export function search(imap, lastUID, scanRead) {
   return new Promise((resolve, reject) => {
-    const query = [['UID', `${lastUID + 1}:*`]];
+    let query = [['UID', `${lastUID + 1}:*`], ['UNSEEN']];
+    if (scanRead) {
+      query = [['UID', `${lastUID + 1}:*`]];
+    }
     imap.search(query, (err, results) => {
       if (err || !results.length) {
         logger.info('No new messages found');

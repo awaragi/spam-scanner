@@ -11,6 +11,7 @@ export function getConfig() {
     FOLDER_TRAIN_HAM: process.env.FOLDER_TRAIN_HAM || 'INBOX.scanner.train-ham',
     FOLDER_STATE: process.env.FOLDER_STATE || 'scanner.state',
     STATE_KEY_SCANNER: process.env.STATE_KEY_SCANNER || 'scanner',
-    SCAN_BATCH_SIZE: parseInt(process.env.SCAN_BATCH_SIZE || '200', 10)
+    SCAN_BATCH_SIZE: parseInt(process.env.SCAN_BATCH_SIZE || '200', 10),
+    SCAN_READ: process.env.SCAN_READ === 'true'
   };
 }
