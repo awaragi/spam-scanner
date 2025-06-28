@@ -294,14 +294,15 @@ export async function learnFromFolder(type) {
             return;
         }
 
-        const allMessages = await fetchAllMessages(imap);
+        const messages = await fetchAllMessages(imap);
 
-        for (let i = 0; i < allMessages.length; i += BATCH_SIZE) {
-            const messages = allMessages.slice(i, i + BATCH_SIZE);
-            await train(messages, learnCmd, type);
-            await moveMessages(imap, messages, destFolder);
+        for (let i = 0; i < messages.length; i += BATCH_SIZE) {
+            logger.info({i, total: messages.length}, 'Processing batch');
+            const batchMessages = messages.slice(i, i + BATCH_SIZE);
+            await train(batchMessages, learnCmd, type);
+            await moveMessages(imap, batchMessages, destFolder);
         }
-        logger.info({folder, type, processedCount: allMessages.length}, 'All operations completed');
+        logger.info({folder, type, processedCount: messages.length}, 'All operations completed');
 
     } catch (error) {
         logger.error({folder, type, error: error.message}, 'Error in learnFromFolder process');
