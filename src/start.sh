@@ -22,6 +22,42 @@ if [ "$SYNC_STATE_FROM_FILE" = "true" ]; then
   exit 0
 fi
 
+# Enhanced permission testing
+# Check if SA_STATE_PATH exists, is readable and writable
+if [ ! -d "$SA_STATE_PATH" ] || [ ! -r "$SA_STATE_PATH" ] || [ ! -w "$SA_STATE_PATH" ]; then
+  echo "Error: $SA_STATE_PATH must exist, be readable and writable"
+  exit 1
+fi
+
+# Test write permissions
+TEST_FILE="$SA_STATE_PATH/write_test_$(date +%s).txt"
+if ! echo "Write test" > "$TEST_FILE" 2>/dev/null; then
+    echo "Error: Failed to write test file to $SA_STATE_PATH"
+    exit 1
+fi
+
+# Verify read permissions
+if [ ! -f "$TEST_FILE" ] || [ "$(cat "$TEST_FILE")" != "Write test" ]; then
+    echo "Error: Failed to verify test file content in $SA_STATE_PATH"
+    exit 1
+fi
+rm -f "$TEST_FILE"
+
+# Test if SpamAssassin can create subdirectories (it often needs this)
+TEST_SUBDIR="$SA_STATE_PATH/test_subdir_$(date +%s)"
+if ! mkdir "$TEST_SUBDIR" 2>/dev/null; then
+    echo "Error: Failed to create subdirectory in $SA_STATE_PATH"
+    exit 1
+fi
+rmdir "$TEST_SUBDIR"
+
+# Test SpamAssassin's ability to access the directory by running a simple SA command
+if ! sa-learn --dump magic 2>/dev/null >/dev/null; then
+    echo "Error: SpamAssassin may have issues accessing $SA_STATE_PATH"
+    echo "SpamAssassin typically requires at least 755 permissions"
+    exit 1
+fi
+
 echo "Testing SpamAssassin configuration..."
 spamassassin --lint
 
