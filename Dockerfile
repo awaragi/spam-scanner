@@ -9,9 +9,10 @@ RUN apt-get update && apt-get install -y \
   && rm -rf /var/lib/apt/lists/*
 
 # Ensure SpamAssassin directory exists with proper permissions
-RUN mkdir -p /var/lib/spamassassin && \
-    chown -R root:root /var/lib/spamassassin && \
-    chmod -R 755 /var/lib/spamassassin && \
+RUN mkdir -p /root/.spamassassin && \
+    chown -R root:root /root/.spamassassin && \
+    chmod 755 /root && \
+    chmod -R 755 /root/.spamassassin && \
     mkdir -p /etc/spamassassin/ && \
     chmod -R 755 /etc/spamassassin
 

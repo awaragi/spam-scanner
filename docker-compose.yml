@@ -5,11 +5,8 @@ services:
     container_name: spam-scanner
     restart: no
     env_file:
-      - .env
+      - .env.production.local
     environment:
       - TZ=UTC
     volumes:
-      - ~/.spamassassin:/var/lib/spamassassin
-
-volumes:
-  spamdata:
+      - ~/.spamassassin:/root/.spamassassin
