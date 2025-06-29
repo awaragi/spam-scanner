@@ -51,7 +51,7 @@ echo "  -m $PROCESS_BATCH_SIZE (max children)"
 echo "  --syslog-socket=none"
 echo "  --listen=127.0.0.1 --port=783"
 spamd --version
-spamd -c -m $PROCESS_BATCH_SIZE \
+spamd -d -c -m $PROCESS_BATCH_SIZE \
   --syslog-socket=none \
   --listen=127.0.0.1 --port=783
 
