@@ -1,7 +1,7 @@
 import pino from 'pino';
 import {spawn} from 'child_process';
 import fs from 'fs';
-import {config} from './util.js';
+import {config} from './utils/config.js';
 import {readScannerState, writeScannerState} from './state-manager.js';
 import {
     connect,
@@ -13,6 +13,8 @@ import {
     search,
     updateLabels
 } from "./imap-client.js";
+import {homedir} from "node:os";
+import {extractHeaders, extractSenders} from "./utils/email.js";
 
 const logger = pino();
 
@@ -84,10 +86,10 @@ function process(messages) {
 
         messages.forEach(({uid, raw, attrs}) => {
             logger.info({uid, attrs}, 'Starting SpamAssassin check');
-            const proc = spawn('spamc', []);
+            const proc = spawn('spamc', ['--max-size', '100000000']);
             proc.stdin.end(raw);
-            let output = '';
-            proc.stdout.on('data', chunk => output += chunk);
+            let spamcOutput = '';
+            proc.stdout.on('data', chunk => spamcOutput += chunk);
 
             proc.on('close', (code) => {
                 logger.info({uid, code}, 'SpamAssassin check completed');
@@ -96,10 +98,12 @@ function process(messages) {
                     logger.error({uid, code}, 'SpamAssassin process failed');
                 }
 
-                const subjectMatch = raw.match(/Subject: (.*)/);
-                const scoreMatch = output.match(/X-Spam-Status:.*score=([0-9.-]+)/);
-                const levelMatch = output.match(/X-Spam-Level:\s+(\*+)/);
-                const spamFlagMatch = output.match(/X-Spam-Flag:\s+(\w+)/);
+                // TODO use extract headers
+                const subjectMatch = raw.match(/^Subject:\s+(.*)$/m);
+                const scoreMatch = spamcOutput.match(/^X-Spam-Status:.*score=([0-9.-]+)/);
+                const levelMatch = spamcOutput.match(/^X-Spam-Level:\s+(\*+)/);
+                const spamFlagMatch = spamcOutput.match(/^X-Spam-Flag:\s+(\w+)/);
+
                 const score = scoreMatch ? parseFloat(scoreMatch[1]) : null;
                 const level = levelMatch ? levelMatch[1].length : 0;
                 const isSpam = !!spamFlagMatch && spamFlagMatch[1] === 'YES';
@@ -178,7 +182,11 @@ export async function scanInbox() {
         const uids = newUIDs.slice(0, config.SCAN_BATCH_SIZE);
 
         for (let i = 0; i < uids.length; i += PROCESS_BATCH_SIZE) {
-            logger.info({i, total: uids.length}, 'Processing batch');
+            logger.info({
+                from: i,
+                to: Math.min(i + PROCESS_BATCH_SIZE, uids.length),
+                total: uids.length
+            }, 'Scanning batch');
             const batchUids = uids.slice(i, i + PROCESS_BATCH_SIZE);
             await scanMessages(imap, batchUids, state);
         }
@@ -273,9 +281,10 @@ function categorize(messages) {
 }
 
 // Extract sender email from raw message
-function extractSenderEmail(raw) {
-    const fromMatch = raw.match(/From:\s*(?:[^<]*<)?([^>@\s]+@[^>@\s]+)(?:>)?/i);
-    return fromMatch ? fromMatch[1] : null;
+function extractEmails(raw) {
+    const headers = extractHeaders(raw);
+    const emails = extractSenders(headers);
+    return emails;
 }
 
 // Update whitelist in user preferences file
@@ -285,7 +294,7 @@ async function updateWhitelist(email) {
         return;
     }
 
-    const userPrefPath = `${process.env.HOME}/.spamassassin/user_pref`;
+    const userPrefPath = `${homedir()}/.spamassassin/user_prefs`;
     const whitelistEntry = `whitelist_from ${email}`;
 
     try {
@@ -339,7 +348,12 @@ export async function learnFromFolder(type) {
         const messages = await fetchAllMessages(imap);
 
         for (let i = 0; i < messages.length; i += PROCESS_BATCH_SIZE) {
-            logger.info({i, total: messages.length}, 'Processing batch');
+            logger.info({
+                from: i,
+                to: Math.min(i + PROCESS_BATCH_SIZE, messages.length),
+                total: messages.length,
+                type,
+            }, 'Learn batch');
             const batchMessages = messages.slice(i, i + PROCESS_BATCH_SIZE);
             await train(batchMessages, learnCmd, type);
             await moveMessages(imap, batchMessages, destFolder);
@@ -376,7 +390,11 @@ export async function learnWhitelist() {
         const messages = await fetchAllMessages(imap);
 
         for (let i = 0; i < messages.length; i += PROCESS_BATCH_SIZE) {
-            logger.info({i, total: messages.length}, 'Processing batch');
+            logger.info({
+                from: i,
+                to: Math.min(i + PROCESS_BATCH_SIZE, messages.length),
+                total: messages.length,
+            }, 'Whitelist batch');
             const batchMessages = messages.slice(i, i + PROCESS_BATCH_SIZE);
 
             // Train as ham
@@ -384,9 +402,13 @@ export async function learnWhitelist() {
 
             // Extract sender email and update whitelist
             for (const message of batchMessages) {
-                const senderEmail = extractSenderEmail(message.raw);
-                if (senderEmail) {
-                    await updateWhitelist(senderEmail);
+                const emails = extractEmails(message.raw);
+                
+                if (emails) {
+                    logger.info({emails}, 'Whitelisting emails');
+                    for (let i = 0; i < emails.length; i++) {
+                        await updateWhitelist(emails[i]);
+                    }
                 }
             }
 

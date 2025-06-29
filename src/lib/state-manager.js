@@ -1,5 +1,5 @@
 import {simpleParser} from 'mailparser';
-import {config} from './util.js';
+import {config} from './utils/config.js';
 import {connect} from "./imap-client.js";
 
 export async function readScannerState() {

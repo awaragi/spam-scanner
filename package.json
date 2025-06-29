@@ -3,12 +3,20 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "start": "src/start.sh"
+    "start": "src/start.sh",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "format:src": "prettier --write 'src/**/*.{js,jsx,ts,tsx,json,css,scss,md}'",
+    "lint:format": "prettier --check 'src/**/*.{js,jsx,ts,tsx,json,css,scss,md}'"
   },
   "dependencies": {
-    "imap": "^0.8.19",
+    "email-addresses": "^5.0.0",
+    "imap": "^0.8.17",
     "mailparser": "^3.6.4",
     "pino": "^8.14.1",
     "yargs": "^17.7.2"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2"
   }
 }

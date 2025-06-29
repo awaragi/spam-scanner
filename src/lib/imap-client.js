@@ -1,5 +1,5 @@
 import Imap from 'imap';
-import {config} from './util.js';
+import {config} from './utils/config.js';
 import pino from 'pino';
 
 const logger = pino();
@@ -158,7 +158,9 @@ function readMessage(msg, callback) {
   let uid;
   let attrs;
 
-  msg.on('body', stream => stream.on('data', chunk => raw += chunk.toString()));
+  msg.on('body', stream => stream.on('data', chunk => {
+    return raw += chunk.toString();
+  }));
 
   msg.once('attributes', _attrs => {
     attrs = _attrs;
@@ -260,7 +262,7 @@ export function fetchMessagesByUIDs(imap, uids) {
     });
 
     f.once('end', () => {
-      logger.info({messageCount: messages.length}, 'Fetched messages by UID');
+      logger.info({uids, messageCount: messages.length}, 'Fetched messages by UIDs');
       resolve(messages);
     });
 

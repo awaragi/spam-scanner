@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build outputs
+dist/
+build/
+coverage/
+
+# Logs
+*.log
+
+# Environment files
+.env*
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+
+# Git
+.git/
+
+# IDE
+.vscode/
+.idea/
+
+# Documentation that should preserve formatting
+CHANGELOG.md
+LICENSE

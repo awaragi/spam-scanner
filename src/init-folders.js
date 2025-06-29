@@ -1,6 +1,6 @@
 import {createAppFolders} from './lib/imap-client.js';
 import pino from 'pino';
-import {config} from "./lib/util.js";
+import {config} from "./lib/utils/config.js";
 
 const logger = pino();
 

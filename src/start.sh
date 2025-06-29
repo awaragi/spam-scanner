@@ -14,11 +14,12 @@ if [ -z "$PROCESS_BATCH_SIZE" ]; then
 fi
 
 function run_once() {
+  node read-state.js
   node train-spam.js
   node train-ham.js
   node train-whitelist.js
   node scan-inbox.js
-  node read-state.js > $VAR_LIB_SPAMASSASSIN/scanner-state.json
+  node read-state.js > $HOME/.spamassassin/scanner-state.json
 }
 
 if [ "$INIT_MODE" = "true" ]; then

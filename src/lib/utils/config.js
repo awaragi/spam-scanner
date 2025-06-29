@@ -25,6 +25,6 @@ export const config = (() => {
     SPAM_LABEL_HIGH: process.env.SPAM_LABEL_HIGH || 'Spam:High'
   };
 
-  logger.info(c,'Loading configuration');
+  logger.debug(c,'Loading configuration');
   return c;
 })();
