@@ -272,8 +272,53 @@ function categorize(messages) {
     };
 }
 
-// Refactored learnFromFolder function
+// Extract sender email from raw message
+function extractSenderEmail(raw) {
+    const fromMatch = raw.match(/From:\s*(?:[^<]*<)?([^>@\s]+@[^>@\s]+)(?:>)?/i);
+    return fromMatch ? fromMatch[1] : null;
+}
+
+// Update whitelist in user preferences file
+async function updateWhitelist(email) {
+    if (!email) {
+        logger.warn('No email address found to whitelist');
+        return;
+    }
+
+    const userPrefPath = `${process.env.HOME}/.spamassassin/user_pref`;
+    const whitelistEntry = `whitelist_from ${email}`;
+
+    try {
+        // Check if file exists
+        let content = '';
+        try {
+            content = fs.readFileSync(userPrefPath, 'utf8');
+        } catch (err) {
+            // File doesn't exist, create it
+            logger.info({path: userPrefPath}, 'Creating user preferences file');
+        }
+
+        // Check if entry already exists
+        if (content.includes(whitelistEntry)) {
+            logger.info({email}, 'Email already in whitelist');
+            return;
+        }
+
+        // Append entry to file
+        fs.appendFileSync(userPrefPath, `${content ? '\n' : ''}${whitelistEntry}`);
+        logger.info({email}, 'Added email to whitelist');
+    } catch (err) {
+        logger.error({email, error: err.message}, 'Failed to update whitelist');
+        throw err;
+    }
+}
+
+// Learn from folder function for spam and ham
 export async function learnFromFolder(type) {
+    if (type !== 'spam' && type !== 'ham') {
+        throw new Error(`Invalid type: ${type}. Expected 'spam' or 'ham'.`);
+    }
+
     const folder = type === 'spam' ? config.FOLDER_TRAIN_SPAM : config.FOLDER_TRAIN_HAM;
     const learnCmd = type === 'spam' ? '--spam' : '--ham';
     const destFolder = type === 'spam' ? config.FOLDER_SPAM : config.FOLDER_INBOX;
@@ -303,6 +348,55 @@ export async function learnFromFolder(type) {
 
     } catch (error) {
         logger.error({folder, type, error: error.message}, 'Error in learnFromFolder process');
+        throw error;
+    } finally {
+        imap.end();
+    }
+}
+
+// Separate function for whitelist learning
+export async function learnWhitelist() {
+    const folder = config.FOLDER_TRAIN_WHITELIST;
+    const learnCmd = '--ham'; // Whitelist messages are treated as ham for SpamAssassin
+    const destFolder = config.FOLDER_INBOX;
+
+    const imap = connect();
+
+    try {
+        const box = await open(imap, folder);
+
+        const messageCount = count(box);
+
+        if (messageCount === 0) {
+            logger.info({folder}, 'No messages in folder to process');
+            imap.end();
+            return;
+        }
+
+        const messages = await fetchAllMessages(imap);
+
+        for (let i = 0; i < messages.length; i += PROCESS_BATCH_SIZE) {
+            logger.info({i, total: messages.length}, 'Processing batch');
+            const batchMessages = messages.slice(i, i + PROCESS_BATCH_SIZE);
+
+            // Train as ham
+            await train(batchMessages, learnCmd, 'whitelist');
+
+            // Extract sender email and update whitelist
+            for (const message of batchMessages) {
+                const senderEmail = extractSenderEmail(message.raw);
+                if (senderEmail) {
+                    await updateWhitelist(senderEmail);
+                }
+            }
+
+            // Move messages to inbox
+            await moveMessages(imap, batchMessages, destFolder);
+        }
+        logger.info({folder, processedCount: messages.length}, 'All whitelist operations completed');
+
+    } catch (error) {
+        logger.error({folder, error: error.message}, 'Error in learnWhitelist process');
         throw error;
     } finally {
         imap.end();

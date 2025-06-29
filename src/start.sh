@@ -16,6 +16,7 @@ fi
 function run_once() {
   node train-spam.js
   node train-ham.js
+  node train-whitelist.js
   node scan-inbox.js
   node read-state.js > $VAR_LIB_SPAMASSASSIN/scanner-state.json
 }
