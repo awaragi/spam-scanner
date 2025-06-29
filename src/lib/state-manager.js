@@ -1,8 +1,6 @@
 import {simpleParser} from 'mailparser';
-import {getConfig} from './util.js';
+import {config} from './util.js';
 import {connect} from "./imap-client.js";
-
-const config = getConfig();
 
 export async function readScannerState() {
   const imap = connect();

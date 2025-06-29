@@ -1,7 +1,8 @@
-import {getConfig} from './util.js';
-import {readScannerState, writeScannerState} from './state-manager.js';
+import pino from 'pino';
 import {spawn} from 'child_process';
 import fs from 'fs';
+import {config} from './util.js';
+import {readScannerState, writeScannerState} from './state-manager.js';
 import {
     connect,
     count,
@@ -12,16 +13,13 @@ import {
     search,
     updateLabels
 } from "./imap-client.js";
-import pino from 'pino';
 
-const config = getConfig();
 const logger = pino();
 
 // Spam label constants
-const SPAM_LABEL_LOW = 'Spam:Low';
-const SPAM_LABEL_HIGH = 'Spam:High';
-
-const BATCH_SIZE = 5;
+const SPAM_LABEL_LOW = config.SPAM_LABEL_LOW;
+const SPAM_LABEL_HIGH = config.SPAM_LABEL_HIGH;
+const PROCESS_BATCH_SIZE = config.PROCESS_BATCH_SIZE;
 
 /**
  * for learnFromFolder: Process messages with sa-learn
@@ -31,7 +29,7 @@ async function processWithSALearn(message, learnCmd, type) {
     logger.info({uid, type}, 'Learning message');
 
     return new Promise((resolve, reject) => {
-        const proc = spawn('sa-learn', ['--max-size=10000000', learnCmd]);
+        const proc = spawn('sa-learn', ['--max-size=100000000', learnCmd]);
         proc.stdin.write(raw);
         proc.stdin.end();
 
@@ -61,11 +59,11 @@ async function train(messages, learnCmd, type) {
     }
 
     let processedCount = 0;
-    for (const message of messages) {
+    await Promise.all(messages.map(async message => {
         await processWithSALearn(message, learnCmd, type);
         processedCount++;
-        logger.info({processedCount, total: messages.length}, 'Progress');
-    }
+        logger.debug({processedCount, total: messages.length}, 'Progress');
+    }));
 
     logger.info({processedCount}, 'All messages processed with sa-learn');
 }
@@ -86,7 +84,7 @@ function process(messages) {
 
         messages.forEach(({uid, raw, attrs}) => {
             logger.info({uid, attrs}, 'Starting SpamAssassin check');
-            const proc = spawn('spamc');
+            const proc = spawn('spamc', []);
             proc.stdin.end(raw);
             let output = '';
             proc.stdout.on('data', chunk => output += chunk);
@@ -180,9 +178,9 @@ export async function scanInbox() {
 
         const uids = newUIDs.slice(0, config.SCAN_BATCH_SIZE);
 
-        for (let i = 0; i < uids.length; i += BATCH_SIZE) {
+        for (let i = 0; i < uids.length; i += PROCESS_BATCH_SIZE) {
             logger.info({i, total: uids.length}, 'Processing batch');
-            const batchUids = uids.slice(i, i + BATCH_SIZE);
+            const batchUids = uids.slice(i, i + PROCESS_BATCH_SIZE);
             await scanMessages(imap, batchUids, state);
         }
 
@@ -296,9 +294,9 @@ export async function learnFromFolder(type) {
 
         const messages = await fetchAllMessages(imap);
 
-        for (let i = 0; i < messages.length; i += BATCH_SIZE) {
+        for (let i = 0; i < messages.length; i += PROCESS_BATCH_SIZE) {
             logger.info({i, total: messages.length}, 'Processing batch');
-            const batchMessages = messages.slice(i, i + BATCH_SIZE);
+            const batchMessages = messages.slice(i, i + PROCESS_BATCH_SIZE);
             await train(batchMessages, learnCmd, type);
             await moveMessages(imap, batchMessages, destFolder);
         }

@@ -1,8 +1,7 @@
-import {getConfig} from "./lib/util.js";
 import {createAppFolders} from './lib/imap-client.js';
 import pino from 'pino';
+import {config} from "./lib/util.js";
 
-const config = getConfig();
 const logger = pino();
 
 logger.info('Starting folder initialization');

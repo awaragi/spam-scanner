@@ -1,8 +1,7 @@
 import Imap from 'imap';
-import {getConfig} from './util.js';
+import {config} from './util.js';
 import pino from 'pino';
 
-const config = getConfig();
 const logger = pino();
 
 export function connect() {
