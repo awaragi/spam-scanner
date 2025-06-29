@@ -158,7 +158,6 @@ function process(messages) {
     });
 }
 
-// Refactored scanInbox function
 export async function scanInbox() {
     const state = await readScannerState();
     const imap = connect();

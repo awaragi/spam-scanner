@@ -111,6 +111,44 @@ export async function findFirstUIDOnDate(folder, dateString) {
 }
 
 /**
+ * Removes all X-Spam-* and X-Ham-Report headers from email content
+ * @param {string} emailContent - Raw email content
+ * @returns {string} - Email content without spam/ham headers
+ */
+function stripSpamHeaders(emailContent) {
+  const lines = emailContent.split('\n');
+  const filteredLines = [];
+  let skipNextLines = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lowerLine = line.toLowerCase();
+
+    // Check if this line starts a header we want to remove
+    if (lowerLine.startsWith('x-spam-') || lowerLine.startsWith('x-ham-report')) {
+      skipNextLines = true;
+      continue;
+    }
+
+    // Check if we're currently skipping lines (continuation of multi-line header)
+    if (skipNextLines) {
+      // Multi-line headers continue with whitespace (space or tab)
+      if (line.startsWith(' ') || line.startsWith('\t')) {
+        continue; // Skip this continuation line
+      } else {
+        // This line doesn't start with whitespace, so the multi-line header has ended
+        skipNextLines = false;
+        filteredLines.push(line);
+      }
+    } else {
+      filteredLines.push(line);
+    }
+  }
+
+  return filteredLines.join('\n');
+}
+
+/**
  * Helper function to handle message fetching common code
  * @param msg
  * @param callback
@@ -129,6 +167,7 @@ function readMessage(msg, callback) {
   });
 
   msg.once('end', () => {
+    raw = stripSpamHeaders(raw);
     logger.info({uid, date: attrs.date}, 'Message read');
     return callback(raw, uid, attrs);
   });
