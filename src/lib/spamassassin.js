@@ -100,7 +100,7 @@ function process(messages) {
                 }
 
                 // TODO use extract headers
-                const subjectMatch = raw.match(/^Subject:\s+(.*)$/m);
+                const subjectMatch = spamcOutput.match(/^Subject:\s+(.*)$/m);
                 const scoreMatch = spamcOutput.match(/^X-Spam-Status:.*score=([0-9.-]+)/);
                 const levelMatch = spamcOutput.match(/^X-Spam-Level:\s+(\*+)/);
                 const spamFlagMatch = spamcOutput.match(/^X-Spam-Flag:\s+(\w+)/);
@@ -164,7 +164,12 @@ function process(messages) {
 }
 
 export async function scanInbox() {
-    const state = await readScannerState();
+    let now = new Date().toISOString();
+    const state = await readScannerState({
+        last_uid: 0,
+        last_seen_date: now,
+        last_checked: now,
+    });
     const imap = connect();
 
     try {
@@ -226,7 +231,7 @@ async function scanMessages(imap, uids, state) {
     const last_seen_date = messages.reduce((maxDate, msg) => {
         const date = new Date(msg.raw.match(/Date: (.*)/)[1]);
         return maxDate ? (date > maxDate ? date : maxDate) : date;
-    }, null);
+    }, new Date()).toISOString();
     const last_checked = new Date().toISOString();
 
     await writeScannerState({

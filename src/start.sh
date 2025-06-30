@@ -14,7 +14,7 @@ if [ -z "$PROCESS_BATCH_SIZE" ]; then
 fi
 
 function run_once() {
-  node read-state.js
+  node read-state.js || true
   node train-spam.js
   node train-ham.js
   node train-whitelist.js

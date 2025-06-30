@@ -2,7 +2,7 @@ import {simpleParser} from 'mailparser';
 import {config} from './utils/config.js';
 import {connect} from "./imap-client.js";
 
-export async function readScannerState() {
+export async function readScannerState(defaultState) {
   const imap = connect();
 
   return new Promise((resolve, reject) => {
@@ -13,8 +13,14 @@ export async function readScannerState() {
         const criteria = [['HEADER', 'X-App-State', config.STATE_KEY_SCANNER]];
         imap.search(criteria, (err, results) => {
           if (err || results.length === 0) {
-            imap.end();
-            return reject(new Error('Scanner state not found'));
+            if (defaultState !== undefined) {
+              imap.end();
+              resolve(defaultState);
+              return;
+            } else {
+              imap.end();
+              return reject(new Error('Scanner state not found'));
+            }
           }
 
           const f = imap.fetch(results[0], { bodies: '' });
