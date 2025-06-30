@@ -19,41 +19,54 @@ export function newClient() {
   });
 }
 
+/**
+ * Retrieves the IMAP folder hierarchy delimiter.
+ * @param {ImapFlow} client - An active and connected ImapFlow client instance.
+ * @returns {Promise<string|null>} The folder delimiter (e.g., "/", "."), or null if not found.
+ */
+async function getImapDelimiter(imap) {
+  const mailboxes = await imap.list();
+  for (const mailbox of mailboxes) {
+    if (mailbox.delimiter) {
+      return mailbox.delimiter;
+    }
+  }
+  return null;
+}
+
 export async function createAppFolders(imap, folders) {
   if (folders.length === 0) {
     return;
   }
 
-  try {
-    // Get the folder separator character
-    const separator = (await imap.listNamespaces()).personal.separator || '.';
+  // Get the folder separator character
+  const separator = await getImapDelimiter(imap);
+  if(!separator) {
+     throw new Error('Failed to get folder separator');
+  }
 
-    for (const folder of folders) {
-      const parts = folder.split(/[/.]/);
-      let currentPath = '';
+  for (const folder of folders) {
+    const parts = folder.split(/[/\\.]|\\+/); // allow to split by . or by / or by \
+    let currentPath = '';
 
-      // Create folders sequentially to avoid race conditions
-      for (let i = 0; i < parts.length; i++) {
-        const part = parts[i];
-        currentPath = currentPath ? `${currentPath}${separator}${part}` : part;
-        logger.info({folder: currentPath}, `Creating folder ${currentPath}`);
+    // Create folders sequentially to avoid race conditions
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      currentPath = currentPath ? `${currentPath}${separator}${part}` : part;
+      logger.info({folder: currentPath}, `Creating folder ${currentPath}`);
 
-        try {
-          await imap.mailboxCreate(currentPath);
-          logger.info({folder: currentPath}, 'Created folder');
-        } catch (err) {
-          if (err.code === 'ALREADYEXISTS') {
-            logger.info({folder: currentPath}, 'Folder exists');
-          } else {
-            logger.error({folder: currentPath, error: err.message}, 'Failed to create folder');
-            // Continue with next part even if this one failed
-          }
+      try {
+        await imap.mailboxCreate(currentPath);
+        logger.info({folder: currentPath}, 'Created folder');
+      } catch (err) {
+        if (err.code === 'ALREADYEXISTS') {
+          logger.info({folder: currentPath}, 'Folder exists');
+        } else {
+          logger.error({folder: currentPath, error: err.message}, 'Failed to create folder');
+          // Continue with next part even if this one failed
         }
       }
     }
-  } catch (err) {
-    logger.error({error: err.message}, 'IMAP connection error');
-    throw err;
   }
 }
 export async function findFirstUIDOnDate(imap, folder, dateString) {
