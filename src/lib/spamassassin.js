@@ -14,8 +14,8 @@ import {
     updateLabels
 } from "./imap-client.js";
 import {homedir} from "node:os";
-import {extractHeaders, extractSenders} from "./utils/email.js";
-import {parseSpamAssassinOutput, extractDateFromRaw} from "./utils/email-parser.js";
+import {extractSenders} from "./utils/email.js";
+import {extractDateFromRaw, extractHeaders, parseSpamAssassinOutput} from "./utils/email-parser.js";
 import {categorizeMessages} from "./utils/spam-classifier.js";
 
 const logger = pino();

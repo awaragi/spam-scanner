@@ -1,4 +1,9 @@
-import { stripSpamHeaders, extractDateFromRaw, parseSpamAssassinOutput } from '../src/lib/utils/email-parser.js';
+import {
+  extractDateFromRaw,
+  extractHeaders,
+  parseSpamAssassinOutput,
+  stripSpamHeaders
+} from '../src/lib/utils/email-parser.js';
 
 describe('stripSpamHeaders', () => {
   test('should remove X-Spam headers', () => {
@@ -99,6 +104,51 @@ This is a test email.`;
 
     const date = extractDateFromRaw(input);
     expect(date).toBeNull();
+  });
+});
+
+describe('extractHeaders', () => {
+  test('should extract headers from raw email', () => {
+    const rawEmail = `From: test@example.com
+To: recipient@example.com
+Subject: Test Email
+Date: Mon, 15 May 2023 10:30:00 +0000
+Content-Type: text/plain
+
+This is a test email.`;
+
+    const headers = extractHeaders(rawEmail);
+
+    expect(headers).toEqual({
+      'from': 'test@example.com',
+      'to': 'recipient@example.com',
+      'subject': 'Test Email',
+      'date': 'Mon, 15 May 2023 10:30:00 +0000',
+      'content-type': 'text/plain'
+    });
+  });
+
+  test('should handle multi-line headers', () => {
+    const rawEmail = `From: test@example.com
+To: recipient@example.com
+Subject: Test Email
+X-Custom-Header: This is a long header
+ that spans multiple lines
+ with indentation
+Date: Mon, 15 May 2023 10:30:00 +0000
+
+This is a test email.`;
+
+    const headers = extractHeaders(rawEmail);
+
+    expect(headers['x-custom-header']).toBe('This is a long header that spans multiple lines with indentation');
+  });
+
+  test('should return empty object for invalid input', () => {
+    const rawEmail = 'This is not a valid email';
+    const headers = extractHeaders(rawEmail);
+
+    expect(headers).toEqual({});
   });
 });
 
