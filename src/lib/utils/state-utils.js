@@ -12,7 +12,31 @@ export function validateState(state) {
   if (!state || typeof state !== 'object') {
     throw new Error('Invalid state: must be a non-null object');
   }
-  // TODO validate fields
+
+  const requiredProperties = ['last_uid', 'last_seen_date', 'last_checked'];
+  const stateKeys = Object.keys(state);
+
+  // Check for missing required properties
+  const missingProperties = requiredProperties.filter(prop => !(prop in state));
+  if (missingProperties.length > 0) {
+    throw new Error('Invalid state: missing required properties');
+  }
+
+  // Check for invalid property names (extra properties not in required list)
+  const invalidProperties = stateKeys.filter(key => !requiredProperties.includes(key));
+  if (invalidProperties.length > 0) {
+    throw new Error('Invalid state: invalid property names');
+  }
+
+  // Check property types
+  if (typeof state.last_uid !== 'number') {
+    throw new Error('Invalid state: invalid property types');
+  }
+
+  if (typeof state.last_seen_date !== 'string' || typeof state.last_checked !== 'string') {
+    throw new Error('Invalid state: invalid property types');
+  }
+
   return true;
 }
 

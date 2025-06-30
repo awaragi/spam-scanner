@@ -11,7 +11,34 @@ describe('validateState', () => {
     expect(validateState(state)).toBe(true);
   });
 
-  // TODO should validate wrong schema
+  test('should throw error for missing required properties', () => {
+    const state = {
+      last_uid: 100
+    };
+
+    expect(() => validateState(state)).toThrow('Invalid state: missing required properties');
+  });
+
+  test('should throw error for invalid property types', () => {
+    const state = {
+      last_uid: '100',
+      last_seen_date: true,
+      last_checked: 123
+    };
+
+    expect(() => validateState(state)).toThrow('Invalid state: invalid property types');
+  });
+
+  test('should throw error for invalid property name', () => {
+    const state = {
+      uid: '100',
+      last_seen: '2023-05-15T10:30:00.000Z',
+      checked: '2023-05-15T10:30:00.000Z'
+    };
+
+    expect(() => validateState(state)).toThrow('Invalid state: missing required properties');
+  });
+
 
   test('should throw error for null state', () => {
     expect(() => validateState(null)).toThrow('Invalid state: must be a non-null object');
