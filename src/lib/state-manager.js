@@ -24,14 +24,19 @@ export async function readScannerState(defaultState) {
             }
           }
 
-          const f = imap.fetch(results[0], { bodies: '' });
+          let uid = results[0];
+
+          const f = imap.fetch(uid, { bodies: '' });
 
           f.on('message', msg => {
             msg.on('body', stream => {
               simpleParser(stream)
                   .then(parsed => {
                     const json = parseStateFromEmail(parsed.text);
-                    // TODO validatesTATE
+                    
+                    // validate json after reading
+                    validateState(json);
+
                     if (json) {
                       resolve(json);
                     } else {

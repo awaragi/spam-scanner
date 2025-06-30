@@ -70,12 +70,7 @@ ${stateJson}`;
  */
 export function parseStateFromEmail(emailContent) {
   try {
-    // Extract the JSON part (after the headers)
-    const headerEndIndex = emailContent.indexOf('\n\n');
-    if (headerEndIndex === -1) return null;
-    
-    const jsonContent = emailContent.substring(headerEndIndex + 2).trim();
-    return JSON.parse(jsonContent);
+    return JSON.parse(emailContent);
   } catch (e) {
     return null;
   }
