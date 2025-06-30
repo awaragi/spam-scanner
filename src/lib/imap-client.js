@@ -2,6 +2,7 @@ import {ImapFlow} from 'imapflow';
 import {config} from './utils/config.js';
 import pino from 'pino';
 import {parseEmail, stripSpamHeaders} from './utils/email-parser.js';
+import {collectFoldersToCreate} from "./utils/mailboxes-utils.js";
 
 const logger = pino();
 
@@ -44,30 +45,19 @@ export async function createAppFolders(imap, folders) {
   if(!separator) {
      throw new Error('Failed to get folder separator');
   }
+  // First collect and order all folder paths that need to be created
+  const foldersToCreate = collectFoldersToCreate(folders, separator);
 
-  for (const folder of folders) {
-    const parts = folder.split(/[/\\.]|\\+/); // allow to split by . or by / or by \
-    let currentPath = '';
-
-    // Create folders sequentially to avoid race conditions
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      currentPath = currentPath ? `${currentPath}${separator}${part}` : part;
-      logger.info({folder: currentPath}, `Creating folder ${currentPath}`);
-
-      try {
-        await imap.mailboxCreate(currentPath);
-        logger.info({folder: currentPath}, 'Created folder');
-      } catch (err) {
-        if (err.code === 'ALREADYEXISTS') {
-          logger.info({folder: currentPath}, 'Folder exists');
-        } else {
-          logger.error({folder: currentPath, error: err.message}, 'Failed to create folder');
-          // Continue with next part even if this one failed
-        }
+  // Now attempt to create the folders in order
+  for (const folderPath of foldersToCreate) {
+    logger.info({folder: folderPath}, `Creating folder ${folderPath}`);
+      const res = await imap.mailboxCreate(folderPath);
+      if (res.created === false) {
+        logger.info({folder: folderPath}, 'Folder exists');
+      } else {
+        logger.info({folder: folderPath}, 'Created folder');
       }
     }
-  }
 }
 export async function findFirstUIDOnDate(imap, folder, dateString) {
   try {
