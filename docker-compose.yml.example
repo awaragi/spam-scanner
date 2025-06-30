@@ -9,4 +9,6 @@ services:
     environment:
       - TZ=UTC
     volumes:
-      - ~/.spamassassin:/root/.spamassassin
+      # Important as spamd will run in the container as root
+      # This will allow also to run run the scripts locally outside of container (for dev/test)
+      - /root/.spamassassin:/root/.spamassassin
