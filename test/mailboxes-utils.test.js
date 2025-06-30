@@ -1,4 +1,3 @@
-import { describe, it, expect } from 'vitest';
 import { collectFoldersToCreate } from '../src/lib/utils/mailboxes-utils.js';
 
 describe('mailboxes-utils', () => {
