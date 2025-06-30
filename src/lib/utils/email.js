@@ -52,6 +52,7 @@ function isHumanReadable(email) {
     return true;
 }
 
+// TODO move to email-parser
 /**
  * Extracts and normalizes headers from a raw email string.
  * @param {string} rawEmail - Full raw email content (headers + body)

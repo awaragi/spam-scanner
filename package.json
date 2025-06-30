@@ -7,7 +7,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "format:src": "prettier --write 'src/**/*.{js,jsx,ts,tsx,json,css,scss,md}'",
-    "lint:format": "prettier --check 'src/**/*.{js,jsx,ts,tsx,json,css,scss,md}'"
+    "lint:format": "prettier --check 'src/**/*.{js,jsx,ts,tsx,json,css,scss,md}'",
+    "test": "jest"
   },
   "dependencies": {
     "email-addresses": "^5.0.0",
@@ -19,6 +20,8 @@
   },
   "devDependencies": {
     "@types/emailjs-mime-codec": "^2.0.2",
+    "@types/jest": "^30.0.0",
+    "jest": "^30.0.3",
     "prettier": "^3.6.2"
   }
 }

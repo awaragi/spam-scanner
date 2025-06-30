@@ -1,5 +1,4 @@
 import pino from 'pino';
-import {mimeWordDecode} from 'emailjs-mime-codec';
 import {spawn} from 'child_process';
 import fs from 'fs';
 import {config} from './utils/config.js';
@@ -16,6 +15,8 @@ import {
 } from "./imap-client.js";
 import {homedir} from "node:os";
 import {extractHeaders, extractSenders} from "./utils/email.js";
+import {parseSpamAssassinOutput, extractDateFromRaw} from "./utils/email-parser.js";
+import {categorizeMessages} from "./utils/spam-classifier.js";
 
 const logger = pino();
 
@@ -99,16 +100,8 @@ function process(messages) {
                     logger.error({uid, code}, 'SpamAssassin process failed');
                 }
 
-                // TODO use extract headers
-                const subjectMatch = spamcOutput.match(/^Subject:\s+(.*)$/m);
-                const scoreMatch = spamcOutput.match(/X-Spam-Status:.*score=([0-9.-]+)/);
-                const levelMatch = spamcOutput.match(/X-Spam-Level:\s+(\*+)/);
-                const spamFlagMatch = spamcOutput.match(/X-Spam-Flag:\s+(\w+)/);
-
-                const score = scoreMatch ? parseFloat(scoreMatch[1]) : null;
-                const level = levelMatch ? levelMatch[1].length : 0;
-                const isSpam = !!spamFlagMatch && spamFlagMatch[1] === 'YES';
-                const subject = subjectMatch ? mimeWordDecode(subjectMatch[1].trim()) : '';
+                // Parse SpamAssassin output
+                const { score, level, isSpam, subject } = parseSpamAssassinOutput(spamcOutput);
                 const date = attrs.date ? attrs.date.toISOString() : '';
 
                 logger.info({
@@ -210,7 +203,9 @@ async function scanMessages(imap, uids, state) {
 
     const processedMessages = await process(messages);
 
-    const {lowSpamMessages, highSpamMessages, nonSpamMessages, spamMessages} = categorize(processedMessages);
+    // TODO extract headers as a lot of functions just work on headers
+
+    const {lowSpamMessages, highSpamMessages, nonSpamMessages, spamMessages} = categorizeMessages(processedMessages);
 
     logger.info({count: messages.length}, 'Resetting spam labels');
     await updateLabels(imap, nonSpamMessages, [], [SPAM_LABEL_LOW, SPAM_LABEL_HIGH]);
@@ -229,7 +224,10 @@ async function scanMessages(imap, uids, state) {
     last_uid = Math.max(state.last_uid, last_uid);
 
     const last_seen_date = messages.reduce((maxDate, msg) => {
-        const date = new Date(msg.raw.match(/Date: (.*)/)[1]);
+        // TODO use headers instead of parsing the entire message
+        const dateStr = extractDateFromRaw(msg.raw);
+        if (!dateStr) return maxDate;
+        const date = new Date(dateStr);
         return maxDate ? (date > maxDate ? date : maxDate) : date;
     }, new Date()).toISOString();
     const last_checked = new Date().toISOString();
@@ -254,37 +252,6 @@ async function scanMessages(imap, uids, state) {
     }, 'Batch processing completed');
 }
 
-/**
- * Helper function to categorize messages based on spam score
- * @param {Array} messages - Array of messages with spam information
- * @returns {Object} - Object with categorized messages
- */
-function categorize(messages) {
-    const lowSpamMessages = [];
-    const highSpamMessages = [];
-    const nonSpamMessages = [];
-    const spamMessages = [];
-
-    messages.forEach(message => {
-        if (message.spamInfo.isSpam) {
-            spamMessages.push(message);
-        } else if (message.spamInfo.score === null || message.spamInfo.score < 0.0) {
-            nonSpamMessages.push(message);
-        } else if (message.spamInfo.score < 2.5) {
-            lowSpamMessages.push(message);
-        } else {
-            // default
-            highSpamMessages.push(message);
-        }
-    });
-
-    return {
-        lowSpamMessages,
-        highSpamMessages,
-        nonSpamMessages,
-        spamMessages,
-    };
-}
 
 // Extract sender email from raw message
 function extractEmails(raw) {
@@ -407,7 +374,7 @@ export async function learnWhitelist() {
             // Extract sender email and update whitelist
             for (const message of batchMessages) {
                 const emails = extractEmails(message.raw);
-                
+
                 if (emails) {
                     logger.info({emails}, 'Whitelisting emails');
                     for (let i = 0; i < emails.length; i++) {
