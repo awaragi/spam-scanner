@@ -1,4 +1,5 @@
 import pino from 'pino';
+import {mimeWordDecode} from 'emailjs-mime-codec';
 import {spawn} from 'child_process';
 import fs from 'fs';
 import {config} from './utils/config.js';
@@ -107,7 +108,7 @@ function process(messages) {
                 const score = scoreMatch ? parseFloat(scoreMatch[1]) : null;
                 const level = levelMatch ? levelMatch[1].length : 0;
                 const isSpam = !!spamFlagMatch && spamFlagMatch[1] === 'YES';
-                const subject = subjectMatch ? subjectMatch[1].trim() : '';
+                const subject = subjectMatch ? mimeWordDecode(subjectMatch[1].trim()) : '';
                 const date = attrs.date ? attrs.date.toISOString() : '';
 
                 logger.info({
@@ -282,9 +283,7 @@ function categorize(messages) {
 
 // Extract sender email from raw message
 function extractEmails(raw) {
-    const headers = extractHeaders(raw);
-    const emails = extractSenders(headers);
-    return emails;
+    return extractSenders(extractHeaders(raw));
 }
 
 // Update whitelist in user preferences file

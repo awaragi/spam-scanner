@@ -11,12 +11,14 @@
   },
   "dependencies": {
     "email-addresses": "^5.0.0",
+    "emailjs-mime-codec": "^2.0.9",
     "imap": "^0.8.17",
     "mailparser": "^3.6.4",
     "pino": "^8.14.1",
     "yargs": "^17.7.2"
   },
   "devDependencies": {
+    "@types/emailjs-mime-codec": "^2.0.2",
     "prettier": "^3.6.2"
   }
 }

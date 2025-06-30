@@ -79,7 +79,7 @@ ${stateJson}`;
         const criteria = [['HEADER', 'X-App-State', config.STATE_KEY_SCANNER]];
         imap.search(criteria, (err, results) => {
           const appendAndResolve = () => {
-            imap.append(raw, { mailbox: config.FOLDER_STATE }, err => {
+            imap.append(raw, {mailbox: config.FOLDER_STATE, flags: ['\\Seen']}, err => {
               if (err) return reject(err);
               imap.end();
               resolve();
@@ -97,7 +97,6 @@ ${stateJson}`;
         });
       });
     });
-
     imap.once('error', reject);
     imap.connect();
   });
