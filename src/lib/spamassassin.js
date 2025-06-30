@@ -101,9 +101,9 @@ function process(messages) {
 
                 // TODO use extract headers
                 const subjectMatch = spamcOutput.match(/^Subject:\s+(.*)$/m);
-                const scoreMatch = spamcOutput.match(/^X-Spam-Status:.*score=([0-9.-]+)/);
-                const levelMatch = spamcOutput.match(/^X-Spam-Level:\s+(\*+)/);
-                const spamFlagMatch = spamcOutput.match(/^X-Spam-Flag:\s+(\w+)/);
+                const scoreMatch = spamcOutput.match(/X-Spam-Status:.*score=([0-9.-]+)/);
+                const levelMatch = spamcOutput.match(/X-Spam-Level:\s+(\*+)/);
+                const spamFlagMatch = spamcOutput.match(/X-Spam-Flag:\s+(\w+)/);
 
                 const score = scoreMatch ? parseFloat(scoreMatch[1]) : null;
                 const level = levelMatch ? levelMatch[1].length : 0;
