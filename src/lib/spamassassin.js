@@ -3,20 +3,12 @@ import {spawn} from 'child_process';
 import fs from 'fs';
 import {config} from './utils/config.js';
 import {readScannerState, writeScannerState} from './state-manager.js';
-import {
-    newClient,
-    count,
-    fetchAllMessages,
-    fetchMessagesByUIDs,
-    moveMessages,
-    open,
-    search,
-    updateLabels
-} from "./imap-client.js";
+import {count, fetchAllMessages, fetchMessagesByUIDs, moveMessages, open, search, updateLabels} from "./imap-client.js";
 import {homedir} from "node:os";
 import {extractSenders} from "./utils/email.js";
-import {extractDateFromRaw, extractHeaders, parseSpamAssassinOutput} from "./utils/email-parser.js";
+import {extractDateFromRaw, parseSpamAssassinOutput} from "./utils/email-parser.js";
 import {categorizeMessages} from "./utils/spam-classifier.js";
+import {spawnAsync} from "./utils/spawn-async.js";
 
 const logger = pino();
 
@@ -32,29 +24,24 @@ async function processWithSALearn(message, learnCmd, type) {
     const {uid, raw} = message;
     logger.info({uid, type}, 'Learning message');
 
-    return new Promise((resolve, reject) => {
-        const proc = spawn('sa-learn', ['--max-size=100000000', learnCmd]);
-        proc.stdin.write(raw);
-        proc.stdin.end();
+    let subject = message.envelope.subject;
+    try {
+        const result = await spawnAsync('sa-learn', ['--max-size=100000000', learnCmd],  raw);
 
-        proc.on('close', (code) => {
-            if (code !== 0) {
-                // Write raw message to file for debugging
-                const logPath = `./failed_message_${uid}_${Date.now()}.txt`;
-                fs.writeFileSync(logPath, raw);
+        if (result.code !== 0) {
+            throw new Error(`sa-learn failed for message ${uid} with code ${result.code}`);
+        }
 
-                logger.error({uid, code, logPath}, 'sa-learn process failed');
-                return reject(new Error(`sa-learn failed for message ${uid} with code ${code}`));
-            }
-            logger.info({uid}, 'Message learned');
-            resolve();
-        });
+        const {stdout} = result;
+        logger.info({uid, subject, stdout}, 'Message processed with sa-learn');
+    } catch (err) {
+        // Write raw message to file for debugging
+        const logPath = `./failed_message_${uid}_${Date.now()}.txt`;
+        fs.writeFileSync(logPath, raw);
 
-        proc.on('error', (err) => {
-            logger.error({uid, error: err.message}, 'sa-learn process error');
-            reject(err);
-        });
-    });
+        logger.error({uid, subject, error: err.message, logPath}, 'sa-learn process error');
+        throw err;
+    }
 }
 
 async function train(messages, learnCmd, type) {
@@ -66,10 +53,9 @@ async function train(messages, learnCmd, type) {
     await Promise.all(messages.map(async message => {
         await processWithSALearn(message, learnCmd, type);
         processedCount++;
-        logger.debug({processedCount, total: messages.length}, 'Progress');
     }));
 
-    logger.info({processedCount}, 'All messages processed with sa-learn');
+    logger.info({type, processedCount}, 'All messages processed with sa-learn');
 }
 
 /**
@@ -254,12 +240,6 @@ async function scanMessages(imap, uids, state) {
     }, 'Batch processing completed');
 }
 
-
-// Extract sender email from raw message
-function extractEmails(raw) {
-    return extractSenders(extractHeaders(raw));
-}
-
 // Update whitelist in user preferences file
 async function updateWhitelist(email) {
     if (!email) {
@@ -328,7 +308,7 @@ export async function learnFromFolder(imap, type) {
             await train(batchMessages, learnCmd, type);
             await moveMessages(imap, batchMessages, destFolder);
         }
-        logger.info({folder, type, processedCount: messages.length}, 'All operations completed');
+        logger.info({folder, type, total: messages.length}, 'All operations completed');
 
     } catch (error) {
         logger.error({folder, type, error: error.message}, 'Error in learnFromFolder process');
@@ -367,7 +347,7 @@ export async function learnWhitelist(imap) {
 
             // Extract sender email and update whitelist
             for (const message of batchMessages) {
-                const emails = extractEmails(message.raw);
+                const emails = extractSenders(message.headers);
 
                 if (emails) {
                     logger.info({emails}, 'Whitelisting emails');

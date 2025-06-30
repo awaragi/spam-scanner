@@ -22,7 +22,7 @@ export function newClient() {
 
 /**
  * Retrieves the IMAP folder hierarchy delimiter.
- * @param {ImapFlow} client - An active and connected ImapFlow client instance.
+ * @param {ImapFlow} imap - An active and connected ImapFlow client instance.
  * @returns {Promise<string|null>} The folder delimiter (e.g., "/", "."), or null if not found.
  */
 async function getImapDelimiter(imap) {
@@ -106,7 +106,7 @@ export async function findFirstUIDOnDate(imap, folder, dateString) {
  * @returns {Object} - Object containing raw message, uid, and attributes
  */
 function processMessage(message) {
-  const {uid, flags, bodyStructure, envelope} = message;
+  const {uid, flags, envelope} = message;
   // ImapFlow returns a Buffer for message.source
   const raw = stripSpamHeaders(message.source.toString());
   const {body, headers} = parseEmail(raw);
@@ -116,6 +116,7 @@ function processMessage(message) {
   return {
     uid,
     flags,
+    envelope,
     raw,
     headers,
     body,
@@ -265,12 +266,9 @@ export async function moveMessages(imap, messages, destFolder) {
     logger.debug({uids, destFolder}, 'Moving messages');
 
     // Move all messages at once
-    await imap.messageMove({ uid: uids }, destFolder);
+    await imap.messageMove(uids, destFolder, {uid: true});
 
-    // Expunge to ensure the move is committed
-    await imap.mailboxExpunge();
-
-    logger.info({movedCount: messages.length, destFolder}, 'All messages moved');
+    logger.info({total: messages.length, destFolder}, 'All messages moved');
   } catch (err) {
     logger.error({destFolder, error: err.message}, 'Failed to move messages');
     throw err;

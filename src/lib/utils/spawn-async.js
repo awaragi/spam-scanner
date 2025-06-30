@@ -1,4 +1,4 @@
-const { spawn } = require('child_process');
+import {spawn} from "child_process";
 
 /**
  * Runs a command using spawn and returns a Promise.
