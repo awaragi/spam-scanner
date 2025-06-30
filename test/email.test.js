@@ -49,19 +49,20 @@ This is a test email.`;
 });
 
 describe('extractSenders', () => {
-  test('should extract sender from From header', () => {
+  test('should extract multiple senders from From, Reply-To, and Return-Path headers', () => {
     const headers = {
       'from': 'John Doe <john@example.com>',
+      'reply-to': 'Jane Smith <jane@example.com>',
+      'return-path': '<bob@example.com>',
       'to': 'recipient@example.com',
       'subject': 'Test Email'
     };
 
     const senders = extractSenders(headers);
 
-    expect(senders).toEqual(['john@example.com']);
+    expect(senders).toEqual(['john@example.com', 'jane@example.com']);
   });
 
-  // TODO correct tests so that multiple senders are retrieved
   test('should extract sender from Reply-To header if From is missing', () => {
     const headers = {
       'reply-to': 'John Doe <john@example.com>',
