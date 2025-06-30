@@ -1,5 +1,8 @@
 import emailAddresses from 'email-addresses';
-const { parseOneAddress } = emailAddresses;
+import pino from 'pino';
+
+const {parseOneAddress} = emailAddresses;
+const logger = pino();
 
 /**
  * Checks if an email address appears to be human-generated.
@@ -29,7 +32,7 @@ function isHumanReadable(email) {
     // 5. Long token ending in subdomain that indicates ESP or relay
     const domainLower = domain.toLowerCase();
     const relayIndicators = [
-        'bounces.', 'bounce.', 'email.', 'em.', 'res-', 'mailer', 'relay',
+        'bounces.', 'bounce.', 'email.', 'mailer', 'relay',
     ];
     if (relayIndicators.some(prefix => domainLower.includes(prefix))) return false;
 
@@ -41,8 +44,11 @@ function isHumanReadable(email) {
         'questrade.com',
         'res-marriott.com',
     ];
-    if (knownRelays.some(relay => domainLower.endsWith(relay))) return false;
+    if (knownRelays.some(relay => domainLower.endsWith(relay))) {
+        return false;
+    }
 
+    // other cases
     return true;
 }
 
@@ -89,8 +95,12 @@ export function extractSenders(headers) {
         if (!raw) continue;
 
         const parsed = parseOneAddress(raw);
-        if (parsed && isHumanReadable(parsed.address)) {
-            candidates.push(parsed.address.toLowerCase());
+        if (parsed) {
+            if (isHumanReadable(parsed.address)) {
+                candidates.push(parsed.address.toLowerCase());
+            } else {
+                logger.info({field, email: parsed.address}, 'Email address rejected as non-human-readable');
+            }
         }
     }
 
