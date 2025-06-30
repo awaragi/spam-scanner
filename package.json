@@ -13,7 +13,7 @@
   "dependencies": {
     "email-addresses": "^5.0.0",
     "emailjs-mime-codec": "^2.0.9",
-    "imap": "^0.8.17",
+    "imapflow": "^1.0.148",
     "pino": "^8.14.1",
     "yargs": "^17.7.2"
   },

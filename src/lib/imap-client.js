@@ -1,367 +1,313 @@
-import Imap from 'imap';
+import {ImapFlow} from 'imapflow';
 import {config} from './utils/config.js';
 import pino from 'pino';
-import {stripSpamHeaders} from './utils/email-parser.js';
+import {parseEmail, stripSpamHeaders} from './utils/email-parser.js';
 
 const logger = pino();
 
-export function connect() {
-  return new Imap({
-    user: config.IMAP_USER,
-    password: config.IMAP_PASSWORD,
+export function newClient() {
+  return new ImapFlow({
     host: config.IMAP_HOST,
     port: config.IMAP_PORT,
-    tls: config.IMAP_TLS === true,
+    secure: config.IMAP_TLS === true,
+    auth: {
+      user: config.IMAP_USER,
+      pass: config.IMAP_PASSWORD
+    },
+    logger: logger.child({ component: 'imapflow' }),
+    emitLogs: false
   });
 }
 
-export async function createAppFolders(folders) {
-  const imap = connect();
+export async function createAppFolders(imap, folders) {
+  if (folders.length === 0) {
+    return;
+  }
 
-  return new Promise((resolve, reject) => {
-    imap.once('ready', () => {
-      let pending = folders.length;
+  try {
+    // Get the folder separator character
+    const separator = (await imap.listNamespaces()).personal.separator || '.';
 
-      if (pending === 0) {
-        imap.end();
-        return resolve();
+    for (const folder of folders) {
+      const parts = folder.split(/[/.]/);
+      let currentPath = '';
+
+      // Create folders sequentially to avoid race conditions
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        currentPath = currentPath ? `${currentPath}${separator}${part}` : part;
+        logger.info({folder: currentPath}, `Creating folder ${currentPath}`);
+
+        try {
+          await imap.mailboxCreate(currentPath);
+          logger.info({folder: currentPath}, 'Created folder');
+        } catch (err) {
+          if (err.code === 'ALREADYEXISTS') {
+            logger.info({folder: currentPath}, 'Folder exists');
+          } else {
+            logger.error({folder: currentPath, error: err.message}, 'Failed to create folder');
+            // Continue with next part even if this one failed
+          }
+        }
       }
-
-      folders.forEach(folder => {
-        const parts = folder.split(/[/.]/);
-        const separator = folder.match(/[/.]/) ? folder.match(/[/.]/)[0] : '.';
-        let currentPath = '';
-
-        // Create folders sequentially to avoid race conditions
-        const createNextPart = (index) => {
-          if (index >= parts.length) {
-            if (--pending === 0) {
-              imap.end();
-              resolve();
-            }
-            return;
-          }
-
-          const part = parts[index];
-          currentPath = currentPath ? `${currentPath}${separator}${part}` : part;
-          logger.info({folder: currentPath}, `Creating folder ${currentPath}`);
-
-          imap.addBox(currentPath, err => {
-            if (err && err.message && err.message.includes('exists')) {
-              logger.info({folder: currentPath}, 'Folder exists');
-            } else if (err) {
-              logger.error({folder: currentPath, error: err.message}, 'Failed to create folder');
-              // Continue with next part even if this one failed
-            } else {
-              logger.info({folder: currentPath}, 'Created folder');
-            }
-
-            // Create next part in sequence
-            createNextPart(index + 1);
-          });
-        };
-
-        // Start creating folders for this path
-        createNextPart(0);
-      });
-    });
-
-    imap.once('error', (err) => {
-      logger.error({error: err.message}, 'IMAP connection error');
-      reject(err);
-    });
-
-    imap.connect();
-  });
+    }
+  } catch (err) {
+    logger.error({error: err.message}, 'IMAP connection error');
+    throw err;
+  }
 }
-export async function findFirstUIDOnDate(folder, dateString) {
-  const imap = connect();
-  return new Promise((resolve, reject) => {
-    imap.once('ready', () => {
-      imap.openBox(folder, true, err => {
-        if (err) return reject(err);
-        const criteria = dateString ? [['SINCE', new Date(dateString)]] : ['ALL'];
-        logger.debug({folder, criteria}, 'Searching messages');
-        imap.search(criteria, (err, results) => {
-          if (err || !results.length) {
-            logger.debug({folder}, 'No messages found');
-            imap.end();
-            return resolve(null);
-          }
-          const f = imap.fetch(results, { bodies: '', struct: true });
-          f.on('message', msg => {
-            msg.once('attributes', attrs => {
-              const last_uid = attrs.uid;
-              const last_seen_date = attrs.date.toISOString();
-              const last_checked = new Date().toISOString();
+export async function findFirstUIDOnDate(imap, folder, dateString) {
+  try {
+    // Open the mailbox in read-only mode
+    await imap.mailboxOpen(folder, { readOnly: true });
 
-              imap.end();
-              resolve({
-                last_uid,
-                last_seen_date,
-                last_checked
-              });
-            });
-          });
-        });
-      });
-    });
-    imap.once('error', reject);
-    imap.connect();
-  });
+    // Prepare search criteria
+    const criteria = dateString ? { since: new Date(dateString) } : {};
+    logger.debug({folder, criteria}, 'Searching messages');
+
+    // Search for messages
+    const results = await imap.search(criteria);
+
+    if (!results.length) {
+      logger.debug({folder}, 'No messages found');
+      return null;
+    }
+
+    // Get the first message
+    const message = await imap.fetchOne(results[0], { envelope: true });
+
+    if (!message) {
+      logger.debug({folder}, 'Failed to fetch message');
+      return null;
+    }
+
+    const last_uid = message.uid;
+    const last_seen_date = message.envelope.date.toISOString();
+    const last_checked = new Date().toISOString();
+
+    return {
+      last_uid,
+      last_seen_date,
+      last_checked
+    };
+  } catch (err) {
+    logger.error({folder, error: err.message}, 'Error in findFirstUIDOnDate');
+    throw err;
+  }
 }
 
 
 /**
  * Helper function to handle message fetching common code
- * @param msg
- * @param callback
+ * @param {Object} message - The message object from ImapFlow
+ * @returns {Object} - Object containing raw message, uid, and attributes
  */
-function readMessage(msg, callback) {
-  let raw = '';
-  let uid;
-  let attrs;
+function processMessage(message) {
+  const {uid, flags, bodyStructure, envelope} = message;
+  // ImapFlow returns a Buffer for message.source
+  const raw = stripSpamHeaders(message.source.toString());
+  const {body, headers} = parseEmail(raw);
 
-  msg.on('body', stream => stream.on('data', chunk => {
-    return raw += chunk.toString();
-  }));
+  logger.info({uid}, 'Message read');
 
-  msg.once('attributes', _attrs => {
-    attrs = _attrs;
-    uid = _attrs.uid;
-    logger.debug({uid, flags: _attrs.flags, date: _attrs.date}, 'Message attributes');
-  });
-
-  msg.once('end', () => {
-    raw = stripSpamHeaders(raw);
-    logger.info({uid, date: attrs.date}, 'Message read');
-    return callback(raw, uid, attrs);
-  });
+  return {
+    uid,
+    flags,
+    raw,
+    headers,
+    body,
+  };
 }
 
 /**
  * Open folder and return the box object
  */
-export function open(imap, folder, readOnly = false) {
-  return new Promise((resolve, reject) => {
-    imap.once('ready', () => {
-      logger.debug({folder}, 'Opening folder');
-      imap.openBox(folder, readOnly, (err, box) => {
-        if (err) {
-          logger.error({folder, error: err.message}, 'Failed to open folder');
-          return reject(err);
-        }
-        logger.info({folder, messageCount: box.messages.total}, 'Opened folder');
-        resolve(box);
-      });
-    });
-    imap.once('error', reject);
-    imap.connect();
-  });
+export async function open(imap, folder, readOnly = false) {
+  try {
+    // Check if the client is already connected
+    if (!imap.usable) {
+      await imap.connect();
+    }
+
+    logger.debug({folder}, 'Opening folder');
+    const mailbox = await imap.mailboxOpen(folder, { readOnly });
+
+    logger.info({folder, messageCount: mailbox.exists}, 'Opened folder');
+    return mailbox;
+  } catch (err) {
+    logger.error({folder, error: err.message}, 'Failed to open folder');
+    throw err;
+  }
 }
 
 /**
  * Get message count from an opened folder box
  */
 export function count(box) {
-  return box.messages.total;
+  return box.exists;
 }
 
 /**
  * Search for messages in an opened folder based on query
+ * @param {Object} imap - ImapFlow client
+ * @param {Array|Object} query - Search query (array for node-imap compatibility, object for ImapFlow)
+ * @returns {Promise<Array>} - Array of message UIDs
  */
-export function search(imap, query) {
-  return new Promise((resolve, reject) => {
-    imap.search(query, (err, results) => {
-      if (err || !results.length) {
-        logger.info('No new messages found');
-        resolve([]);
-      } else {
-        logger.info({foundMessages: results.length}, 'Found new messages');
-        resolve(results);
-      }
-    });
-  });
+export async function search(imap, query) {
+  try {
+    // Convert node-imap style query to ImapFlow style if needed
+    logger.info({ query: query }, 'Searching messages');
+    const results = await imap.search(query, { uid: true });
+
+    if (!results.length) {
+      logger.info({query},'No messages found');
+      return [];
+    } else {
+      logger.info({query, total: results.length}, 'Found messages');
+      return results;
+    }
+  } catch (err) {
+    logger.error({ query, error: err.message }, 'Error searching messages');
+    throw err;
+  }
 }
 
 /**
  * for learnFromFolder: Fetch all messages sequentially
+ * @param {Object} imap - ImapFlow client
+ * @returns {Promise<Array>} - Array of message objects with uid, raw content, and attributes
  */
-export function fetchAllMessages(imap) {
-  return new Promise((resolve, reject) => {
+export async function fetchAllMessages(imap) {
+  try {
     const messages = [];
-    const f = imap.seq.fetch('1:*', {bodies: ''});
 
-    f.on('message', msg => {
-      readMessage(msg, (raw, uid, attrs) => {
-        messages.push({uid, raw, attrs});
-      });
-    });
+    // Use for await to process messages one by one
+    for await (const message of imap.fetch('1:*', { source: true, envelope: true, bodyStructure: true, flags: true })) {
+      messages.push(processMessage(message));
+    }
 
-    f.once('end', () => {
-      logger.info({messageCount: messages.length}, 'Fetched all messages');
-      resolve(messages);
-    });
-
-    f.once('error', reject);
-  });
+    logger.info({messageCount: messages.length}, 'Fetched all messages');
+    return messages;
+  } catch (err) {
+    logger.error({ error: err.message }, 'Error fetching all messages');
+    throw err;
+  }
 }
 
 /**
- * for Fetch messages by UID
+ * Fetch messages by UID
+ * @param {Object} imap - ImapFlow client
+ * @param {Array} uids - Array of UIDs to fetch
+ * @returns {Promise<Array>} - Array of message objects with uid, raw content, and attributes
  */
-export function fetchMessagesByUIDs(imap, uids) {
-  return new Promise((resolve, reject) => {
+export async function fetchMessagesByUIDs(imap, uids) {
+  try {
     const messages = [];
-    const f = imap.fetch(uids, {bodies: ''});
 
-    f.on('message', msg => {
-      readMessage(msg, (raw, uid, attrs) => {
-        messages.push({uid, raw, attrs});
-      });
-    });
+    // Convert uids to a comma-separated string if it's an array
+    const uidSelector = Array.isArray(uids) ? uids.join(',') : uids;
+    for await (const message of imap.fetch({ uid: uidSelector }, { source: true, envelope: true, bodyStructure: true, flags: true })) {
+      messages.push(processMessage(message));
+    }
 
-    f.once('end', () => {
-      logger.info({uids, messageCount: messages.length}, 'Fetched messages by UIDs');
-      resolve(messages);
-    });
-
-    f.once('error', reject);
-  });
+    logger.info({uids, messageCount: messages.length}, 'Fetched messages by UIDs');
+    return messages;
+  } catch (err) {
+    logger.error({ error: err.message, uids }, 'Error fetching messages by UIDs');
+    throw err;
+  }
 }
 
 /**
  * Helper function to handle message moving and expunging
+ * @param {Object} imap - ImapFlow client
+ * @param {Number} uid - UID of the message to move
+ * @param {String} dest - Destination folder
+ * @returns {Promise<void>}
  */
-export function moveMessage(imap, uid, dest) {
-  return new Promise((resolve, reject) => {
+export async function moveMessage(imap, uid, dest) {
+  try {
     logger.debug({uid, destFolder: dest}, 'Moving message by UID');
-    imap.move(uid, dest, (moveErr) => {
-      if (moveErr) {
-        logger.error({uid, destFolder: dest, error: moveErr.message}, 'Failed to move message by UID');
-        return reject(moveErr);
-      }
 
-      logger.info({uid, destFolder: dest}, 'Successfully moved message by UID');
+    // Move the message
+    await imap.messageMove({ uid }, dest);
+    logger.info({uid, destFolder: dest}, 'Successfully moved message by UID');
 
-      // Expunge to ensure the move is committed
-      logger.debug('Expunging to finalize the move operation');
-      imap.expunge((expErr) => {
-        if (expErr) {
-          logger.error({error: expErr.message}, 'Failed to expunge after move');
-          return reject(expErr);
-        }
+    // Expunge to ensure the move is committed
+    logger.debug('Expunging to finalize the move operation');
+    await imap.mailboxExpunge();
 
-        logger.info({uid, destFolder: dest}, 'Move completed with expunge');
-        resolve();
-      });
-    });
-  });
+    logger.info({uid, destFolder: dest}, 'Move completed with expunge');
+  } catch (err) {
+    logger.error({uid, destFolder: dest, error: err.message}, 'Failed to move message by UID');
+    throw err;
+  }
 }
 
 /**
- * for both: Move all messages to destination folder
- * TODO no need for promise structure as it delegates to moveMessage
+ * Move all messages to destination folder
+ * @param {Object} imap - ImapFlow client
+ * @param {Array} messages - Array of message objects with UIDs
+ * @param {String} destFolder - Destination folder
+ * @returns {Promise<void>}
  */
-export function moveMessages(imap, messages, destFolder) {
-  return new Promise((resolve, reject) => {
-    if (messages.length === 0) {
-      return resolve();
-    }
+export async function moveMessages(imap, messages, destFolder) {
+  if (messages.length === 0) {
+    return;
+  }
 
-    let completedMoves = 0;
-    let hasError = false;
+  try {
+    // Extract UIDs from messages
+    const uids = messages.map(message => message.uid);
+    logger.debug({uids, destFolder}, 'Moving messages');
 
-    messages.forEach(({uid}) => {
-      moveMessage(imap, uid, destFolder)
-          .then(() => {
-            completedMoves++;
-            logger.info({uid, destFolder, completedMoves, total: messages.length}, 'Message moved');
+    // Move all messages at once
+    await imap.messageMove({ uid: uids }, destFolder);
 
-            if (completedMoves === messages.length) {
-              logger.info({movedCount: completedMoves, destFolder}, 'All messages moved');
-              resolve();
-            }
-          })
-          .catch((err) => {
-            if (!hasError) {
-              hasError = true;
-              logger.error({uid, destFolder, error: err.message}, 'Failed to move message');
-              reject(err);
-            }
-          });
-    });
-  });
+    // Expunge to ensure the move is committed
+    await imap.mailboxExpunge();
+
+    logger.info({movedCount: messages.length, destFolder}, 'All messages moved');
+  } catch (err) {
+    logger.error({destFolder, error: err.message}, 'Failed to move messages');
+    throw err;
+  }
 }
 
 /**
  * Update labels (flags) on messages
- * @param {Object} imap - IMAP connection
+ * @param {Object} imap - ImapFlow client
  * @param {Array} messages - Array of message objects with UIDs
  * @param {Array} labelsToSet - Array of labels to set
  * @param {Array} labelsToUnset - Array of labels to unset
- * @returns {Promise} - Resolves when all labels are updated
+ * @returns {Promise<void>} - Resolves when all labels are updated
  */
-export function updateLabels(imap, messages, labelsToSet = [], labelsToUnset = []) {
-  return new Promise((resolve, reject) => {
-    if (messages.length === 0 || (labelsToSet.length === 0 && labelsToUnset.length === 0)) {
-      return resolve();
+export async function updateLabels(imap, messages, labelsToSet = [], labelsToUnset = []) {
+  if (messages.length === 0 || (labelsToSet.length === 0 && labelsToUnset.length === 0)) {
+    return;
+  }
+
+  try {
+    // Extract UIDs from messages
+    const uids = messages.map(message => message.uid);
+
+    // Add labels if there are any to set
+    if (labelsToSet.length > 0) {
+      logger.debug({uids, flags: labelsToSet}, 'Adding flags to messages');
+      await imap.messageFlagsAdd({ uid: uids }, labelsToSet);
+      logger.info({uids, flags: labelsToSet}, 'Flags added successfully');
     }
 
-    let completedUpdates = 0;
-    let hasError = false;
+    // Remove labels if there are any to unset
+    if (labelsToUnset.length > 0) {
+      logger.debug({uids, flags: labelsToUnset}, 'Removing flags from messages');
+      await imap.messageFlagsRemove({ uid: uids }, labelsToUnset);
+      logger.info({uids, flags: labelsToUnset}, 'Flags removed successfully');
+    }
 
-    messages.forEach(({uid}) => {
-      const updatePromises = [];
-
-      // Add labels if there are any to set
-      if (labelsToSet.length > 0) {
-        updatePromises.push(new Promise((resolveAdd, rejectAdd) => {
-          logger.debug({uid, labels: labelsToSet}, 'Adding labels to message');
-          imap.addKeywords(uid, labelsToSet, (err) => {
-            if (err) {
-              logger.error({uid, labels: labelsToSet, error: err.message}, 'Failed to add labels');
-              return rejectAdd(err);
-            }
-            logger.info({uid, labels: labelsToSet}, 'Labels added successfully');
-            resolveAdd();
-          });
-        }));
-      }
-
-      // Remove labels if there are any to unset
-      if (labelsToUnset.length > 0) {
-        updatePromises.push(new Promise((resolveRemove, rejectRemove) => {
-          logger.debug({uid, labels: labelsToUnset}, 'Removing labels from message');
-          imap.delKeywords(uid, labelsToUnset, (err) => {
-            if (err) {
-              logger.error({uid, labels: labelsToUnset, error: err.message}, 'Failed to remove labels');
-              return rejectRemove(err);
-            }
-            logger.info({uid, labels: labelsToUnset}, 'Labels removed successfully');
-            resolveRemove();
-          });
-        }));
-      }
-
-      // Process all update operations for this message
-      Promise.all(updatePromises)
-        .then(() => {
-          completedUpdates++;
-          logger.info({uid, completedUpdates, total: messages.length}, 'Message labels updated');
-
-          if (completedUpdates === messages.length) {
-            logger.info({updatedCount: completedUpdates}, 'All message labels updated');
-            resolve();
-          }
-        })
-        .catch((err) => {
-          if (!hasError) {
-            hasError = true;
-            logger.error({uid, error: err.message}, 'Failed to update message labels');
-            reject(err);
-          }
-        });
-    });
-  });
+    logger.info({updatedCount: messages.length}, 'All message flags updated');
+  } catch (err) {
+    logger.error({error: err.message}, 'Failed to update message flags');
+    throw err;
+  }
 }

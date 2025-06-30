@@ -60,15 +60,16 @@ export function extractDateFromRaw(rawEmail) {
 }
 
 /**
- * Extracts and normalizes headers from a raw email string.
+ * Parses raw email content into headers and body.
  * @param {string} rawEmail - Full raw email content (headers + body)
- * @returns {Record<string, string>} - Parsed headers with lowercase keys
+ * @returns {{headers: Record<string, string>, body: string}} - Object containing parsed headers and body
  */
-export function extractHeaders(rawEmail) {
+export function parseEmail(rawEmail) {
   const headerEndIndex = rawEmail.search(/\r?\n\r?\n/);
-  if (headerEndIndex === -1) return {};
+  if (headerEndIndex === -1) return {headers: {}, body: rawEmail};
 
   const headerText = rawEmail.slice(0, headerEndIndex);
+  const body = rawEmail.slice(headerEndIndex + 2).trim();
   const lines = headerText.split(/\r?\n/);
   const headers = {};
   let currentKey = null;
@@ -85,7 +86,7 @@ export function extractHeaders(rawEmail) {
     }
   }
 
-  return headers;
+  return {headers, body};
 }
 
 /**

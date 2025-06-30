@@ -1,4 +1,5 @@
 import { validateState, formatStateAsEmail, parseStateFromEmail } from '../src/lib/utils/state-utils.js';
+import {parseEmail} from "../src/lib/utils/email-parser.js";
 
 describe('validateState', () => {
   test('should validate a valid state object', () => {
@@ -78,7 +79,6 @@ describe('formatStateAsEmail', () => {
     expect(() => formatStateAsEmail(null, 'scanner')).toThrow('Invalid state: must be a non-null object');
   });
 });
-
 describe('parseStateFromEmail', () => {
   test('should parse state from email content', () => {
     const state = {
@@ -87,42 +87,20 @@ describe('parseStateFromEmail', () => {
       last_checked: '2023-05-15T10:30:00.000Z'
     };
 
-    const emailContent = `From: Scanner State <scanner@localhost>
-To: Scanner State <scanner@localhost>
-Subject: AppState: scanner
-X-App-State: scanner
-Content-Type: text/plain; charset=utf-8
-MIME-Version: 1.0
-
-${JSON.stringify(state, null, 2)}`;
-
-    const result = parseStateFromEmail(emailContent);
+    const {body} = parseEmail(JSON.stringify(state));
+    const result = parseStateFromEmail(body);
     expect(result).toEqual(state);
   });
 
   test('should return null for invalid JSON', () => {
-    const emailContent = `From: Scanner State <scanner@localhost>
-To: Scanner State <scanner@localhost>
-Subject: AppState: scanner
-X-App-State: scanner
-Content-Type: text/plain; charset=utf-8
-MIME-Version: 1.0
-
-Invalid JSON`;
-
-    const result = parseStateFromEmail(emailContent);
+    const {body} = parseEmail('Invalid JSON');
+    const result = parseStateFromEmail(body);
     expect(result).toBeNull();
   });
 
   test('should return null for missing body', () => {
-    const emailContent = `From: Scanner State <scanner@localhost>
-To: Scanner State <scanner@localhost>
-Subject: AppState: scanner
-X-App-State: scanner
-Content-Type: text/plain; charset=utf-8
-MIME-Version: 1.0`;
-
-    const result = parseStateFromEmail(emailContent);
+    const {body} = parseEmail('');
+    const result = parseStateFromEmail(body);
     expect(result).toBeNull();
   });
 });

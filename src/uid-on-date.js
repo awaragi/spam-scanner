@@ -1,4 +1,4 @@
-import {findFirstUIDOnDate} from './lib/imap-client.js';
+import {findFirstUIDOnDate, newClient} from './lib/imap-client.js';
 import yargs from 'yargs';
 import {hideBin} from 'yargs/helpers';
 
@@ -11,10 +11,17 @@ const argv = yargs(hideBin(process.argv))
     .demandCommand(1).argv;
 
 const [folder] = argv._;
-const result = await findFirstUIDOnDate(folder, argv.since);
+const imap = newClient();
 
-if (result) {
-  console.log(JSON.stringify(result, null, 2));
-} else {
-  console.log(null);
+try {
+  await imap.connect();
+  const result = await findFirstUIDOnDate(imap, folder, argv.since);
+
+  if (result) {
+    console.log(JSON.stringify(result, null, 2));
+  } else {
+    console.log(null);
+  }
+} finally {
+  await imap.logout();
 }

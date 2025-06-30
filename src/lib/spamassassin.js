@@ -4,7 +4,7 @@ import fs from 'fs';
 import {config} from './utils/config.js';
 import {readScannerState, writeScannerState} from './state-manager.js';
 import {
-    connect,
+    newClient,
     count,
     fetchAllMessages,
     fetchMessagesByUIDs,
@@ -156,14 +156,14 @@ function process(messages) {
     });
 }
 
-export async function scanInbox() {
+export async function scanInbox(imap) {
     let now = new Date().toISOString();
-    const state = await readScannerState({
+    const defaultState = {
         last_uid: 0,
         last_seen_date: now,
         last_checked: now,
-    });
-    const imap = connect();
+    };
+    const state = await readScannerState(imap, defaultState);
 
     try {
         // Step 1: Open the folder
@@ -179,7 +179,6 @@ export async function scanInbox() {
 
         if (newUIDs.length === 0) {
             logger.info({folder: config.FOLDER_INBOX}, 'No new messages to process');
-            imap.end();
             return;
         }
 
@@ -198,8 +197,6 @@ export async function scanInbox() {
     } catch (error) {
         logger.error({folder: config.FOLDER_INBOX, error: error.message}, 'Error in scanInbox process');
         throw error;
-    } finally {
-        imap.end();
     }
 }
 
@@ -237,7 +234,7 @@ async function scanMessages(imap, uids, state) {
     }, new Date()).toISOString();
     const last_checked = new Date().toISOString();
 
-    await writeScannerState({
+    await writeScannerState(imap, {
         last_uid,
         last_seen_date,
         last_checked
@@ -299,7 +296,7 @@ async function updateWhitelist(email) {
 }
 
 // Learn from folder function for spam and ham
-export async function learnFromFolder(type) {
+export async function learnFromFolder(imap, type) {
     if (type !== 'spam' && type !== 'ham') {
         throw new Error(`Invalid type: ${type}. Expected 'spam' or 'ham'.`);
     }
@@ -308,8 +305,6 @@ export async function learnFromFolder(type) {
     const learnCmd = type === 'spam' ? '--spam' : '--ham';
     const destFolder = type === 'spam' ? config.FOLDER_SPAM : config.FOLDER_INBOX;
 
-    const imap = connect();
-
     try {
         const box = await open(imap, folder);
 
@@ -317,7 +312,6 @@ export async function learnFromFolder(type) {
 
         if (messageCount === 0) {
             logger.info({folder}, 'No messages in folder to process');
-            imap.end();
             return;
         }
 
@@ -339,18 +333,14 @@ export async function learnFromFolder(type) {
     } catch (error) {
         logger.error({folder, type, error: error.message}, 'Error in learnFromFolder process');
         throw error;
-    } finally {
-        imap.end();
     }
 }
 
 // Separate function for whitelist learning
-export async function learnWhitelist() {
+export async function learnWhitelist(imap) {
     const folder = config.FOLDER_TRAIN_WHITELIST;
     const learnCmd = '--ham'; // Whitelist messages are treated as ham for SpamAssassin
     const destFolder = config.FOLDER_INBOX;
-
-    const imap = connect();
 
     try {
         const box = await open(imap, folder);
@@ -359,7 +349,6 @@ export async function learnWhitelist() {
 
         if (messageCount === 0) {
             logger.info({folder}, 'No messages in folder to process');
-            imap.end();
             return;
         }
 
@@ -396,7 +385,5 @@ export async function learnWhitelist() {
     } catch (error) {
         logger.error({folder, error: error.message}, 'Error in learnWhitelist process');
         throw error;
-    } finally {
-        imap.end();
     }
 }

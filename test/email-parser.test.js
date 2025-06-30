@@ -1,6 +1,6 @@
 import {
   extractDateFromRaw,
-  extractHeaders,
+  extractHeaders, parseEmail,
   parseSpamAssassinOutput,
   stripSpamHeaders
 } from '../src/lib/utils/email-parser.js';
@@ -107,8 +107,8 @@ This is a test email.`;
   });
 });
 
-describe('extractHeaders', () => {
-  test('should extract headers from raw email', () => {
+describe('parse', () => {
+  test('should parse headers and body from raw email', () => {
     const rawEmail = `From: test@example.com
 To: recipient@example.com
 Subject: Test Email
@@ -117,14 +117,17 @@ Content-Type: text/plain
 
 This is a test email.`;
 
-    const headers = extractHeaders(rawEmail);
+    const parsed = parseEmail(rawEmail);
 
-    expect(headers).toEqual({
-      'from': 'test@example.com',
-      'to': 'recipient@example.com',
-      'subject': 'Test Email',
-      'date': 'Mon, 15 May 2023 10:30:00 +0000',
-      'content-type': 'text/plain'
+    expect(parsed).toEqual({
+      headers: {
+        'from': 'test@example.com',
+        'to': 'recipient@example.com',
+        'subject': 'Test Email',
+        'date': 'Mon, 15 May 2023 10:30:00 +0000',
+        'content-type': 'text/plain'
+      },
+      body: 'This is a test email.'
     });
   });
 
@@ -139,16 +142,19 @@ Date: Mon, 15 May 2023 10:30:00 +0000
 
 This is a test email.`;
 
-    const headers = extractHeaders(rawEmail);
+    const parsed = parseEmail(rawEmail);
 
-    expect(headers['x-custom-header']).toBe('This is a long header that spans multiple lines with indentation');
+    expect(parsed.headers['x-custom-header']).toBe('This is a long header that spans multiple lines with indentation');
   });
 
-  test('should return empty object for invalid input', () => {
+  test('should return empty headers for invalid input', () => {
     const rawEmail = 'This is not a valid email';
-    const headers = extractHeaders(rawEmail);
+    const parsed = parseEmail(rawEmail);
 
-    expect(headers).toEqual({});
+    expect(parsed).toEqual({
+      headers: {},
+      body: 'This is not a valid email'
+    });
   });
 });
 

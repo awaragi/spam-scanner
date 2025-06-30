@@ -1,16 +1,18 @@
 import {config} from './utils/config.js';
-import {connect, open, fetchMessagesByUIDs, search} from "./imap-client.js";
-import {validateState, formatStateAsEmail, parseStateFromEmail} from "./utils/state-utils.js";
+import {fetchMessagesByUIDs, open, search} from "./imap-client.js";
+import {formatStateAsEmail, parseStateFromEmail, validateState} from "./utils/state-utils.js";
 
-export async function readScannerState(defaultState) {
-  const imap = connect();
-
+export async function readScannerState(imap, defaultState) {
   try {
     // Open the state folder in read-only mode
     await open(imap, config.FOLDER_STATE, true);
 
     // Search for state messages
-    const criteria = [['HEADER', 'X-App-State', config.STATE_KEY_SCANNER]];
+    const criteria = {
+      header: {
+        'X-App-State': config.STATE_KEY_SCANNER
+      }
+    };
     const results = await search(imap, criteria);
 
     if (results.length === 0) {
@@ -23,14 +25,13 @@ export async function readScannerState(defaultState) {
 
     // Fetch and parse the state message
     const messages = await fetchMessagesByUIDs(imap, [results[0]]);
-    
+
     if (messages.length === 0) {
       throw new Error('Failed to fetch state message');
     }
 
-    const body = messages[0].raw.trim().split('\n\n').slice(1);
-    const json = parseStateFromEmail(body);
-    
+    const json = parseStateFromEmail(messages[0].body);
+
     // Validate json after reading
     validateState(json);
 
@@ -42,78 +43,58 @@ export async function readScannerState(defaultState) {
 
   } catch (error) {
     throw error;
-  } finally {
-    imap.end();
   }
 }
 
-export async function writeScannerState(state) {
-  const imap = connect();
-
+export async function writeScannerState(imap, state) {
   // Validate state object before writing
   validateState(state);
 
   // Format state as email
   const raw = formatStateAsEmail(state, config.STATE_KEY_SCANNER);
 
-  return new Promise((resolve, reject) => {
-    imap.once('ready', () => {
-      imap.openBox(config.FOLDER_STATE, false, (err) => {
-        if (err) return reject(err);
+  try {
+    // Open the state folder
+    await imap.mailboxOpen(config.FOLDER_STATE, { readOnly: false });
 
-        const criteria = [['HEADER', 'X-App-State', config.STATE_KEY_SCANNER]];
-        imap.search(criteria, (err, results) => {
-          const appendAndResolve = () => {
-            imap.append(raw, {mailbox: config.FOLDER_STATE, flags: ['\\Seen']}, err => {
-              if (err) return reject(err);
-              imap.end();
-              resolve();
-            });
-          };
+    // Search for existing state messages
+    const criteria = { header: [{ key: 'X-App-State', value: config.STATE_KEY_SCANNER }] };
+    const results = await imap.search(criteria);
 
-          if (results.length > 0) {
-            imap.addFlags(results, '\\Deleted', (err) => {
-              if (err) return reject(err);
-              imap.expunge(() => appendAndResolve());
-            });
-          } else {
-            appendAndResolve();
-          }
-        });
-      });
-    });
-    imap.once('error', reject);
-    imap.connect();
-  });
+    // Delete existing state messages if any
+    if (results.length > 0) {
+      await imap.messageFlagsAdd({ uid: results }, ['\\Deleted']);
+      await imap.mailboxExpunge();
+    }
+
+    // Append the new state message
+    await imap.append(config.FOLDER_STATE, raw, ['\\Seen']);
+
+    return true;
+  } catch (error) {
+    throw error;
+  }
 }
 
-export async function deleteScannerState() {
-  const imap = connect();
+export async function deleteScannerState(imap) {
+  try {
+    // Open the state folder
+    await imap.mailboxOpen(config.FOLDER_STATE, { readOnly: false });
 
-  return new Promise((resolve, reject) => {
-    imap.once('ready', () => {
-      imap.openBox(config.FOLDER_STATE, false, (err) => {
-        if (err) return reject(err);
+    // Search for state messages
+    const criteria = { header: [{ key: 'X-App-State', value: config.STATE_KEY_SCANNER }] };
+    const results = await imap.search(criteria);
 
-        const criteria = [['HEADER', 'X-App-State', config.STATE_KEY_SCANNER]];
-        imap.search(criteria, (err, results) => {
-          if (err || results.length === 0) {
-            imap.end();
-            return resolve(false);
-          }
+    if (results.length === 0) {
+      return false;
+    }
 
-          imap.addFlags(results, '\\Deleted', (err) => {
-            if (err) return reject(err);
-            imap.expunge(() => {
-              imap.end();
-              resolve(true);
-            });
-          });
-        });
-      });
-    });
+    // Delete state messages
+    await imap.messageFlagsAdd({ uid: results }, ['\\Deleted']);
+    await imap.mailboxExpunge();
 
-    imap.once('error', reject);
-    imap.connect();
-  });
+    return true;
+  } catch (error) {
+    throw error;
+  }
 }
