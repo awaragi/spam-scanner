@@ -17,7 +17,7 @@ WORKDIR /app
 # Copy package.json first for better Docker layer caching
 COPY package.json ./
 # Install nodejs dependencies
-RUN npm install
+RUN npm install --omit=dev
 
 # Copy the rest of the application
 COPY src/ ./

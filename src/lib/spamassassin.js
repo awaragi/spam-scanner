@@ -156,13 +156,11 @@ export async function scanInbox(imap) {
         await open(imap, config.FOLDER_INBOX);
 
         // Step 2: Search for new messages
-        let query = [['UID', `${state.last_uid + 1}:*`]];
+        let query = {uid: `${state.last_uid + 1}:*`};
         if (!config.SCAN_READ) {
-            // TODO push instead of replace
-            query = [['UID', `${state.last_uid + 1}:*`], ['UNSEEN']];
+            query.unseen = true;
         }
         const newUIDs = await search(imap, query);
-
         if (newUIDs.length === 0) {
             logger.info({folder: config.FOLDER_INBOX}, 'No new messages to process');
             return;
