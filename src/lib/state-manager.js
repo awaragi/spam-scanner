@@ -2,17 +2,17 @@ import {config} from './utils/config.js';
 import {fetchMessagesByUIDs, open, search} from "./imap-client.js";
 import {formatStateAsEmail, parseStateFromEmail, validateState} from "./utils/state-utils.js";
 
+const criteria = {
+  header: {
+    'X-App-State': config.STATE_KEY_SCANNER
+  }
+};
+
 export async function readScannerState(imap, defaultState) {
-  try {
     // Open the state folder in read-only mode
     await open(imap, config.FOLDER_STATE, true);
 
     // Search for state messages
-    const criteria = {
-      header: {
-        'X-App-State': config.STATE_KEY_SCANNER
-      }
-    };
     const results = await search(imap, criteria);
 
     if (results.length === 0) {
@@ -40,10 +40,6 @@ export async function readScannerState(imap, defaultState) {
     }
 
     return json;
-
-  } catch (error) {
-    throw error;
-  }
 }
 
 export async function writeScannerState(imap, state) {
@@ -53,48 +49,36 @@ export async function writeScannerState(imap, state) {
   // Format state as email
   const raw = formatStateAsEmail(state, config.STATE_KEY_SCANNER);
 
-  try {
-    // Open the state folder
-    await imap.mailboxOpen(config.FOLDER_STATE, { readOnly: false });
+  // Open the state folder
+  await imap.mailboxOpen(config.FOLDER_STATE, { readOnly: false });
 
-    // Search for existing state messages
-    const criteria = { header: [{ key: 'X-App-State', value: config.STATE_KEY_SCANNER }] };
-    const results = await imap.search(criteria);
+  // Search for existing state messages
+  const results = await search(imap, criteria);
 
-    // Delete existing state messages if any
-    if (results.length > 0) {
-      await imap.messageFlagsAdd({ uid: results }, ['\\Deleted']);
-      await imap.mailboxExpunge();
-    }
-
-    // Append the new state message
-    await imap.append(config.FOLDER_STATE, raw, ['\\Seen']);
-
-    return true;
-  } catch (error) {
-    throw error;
+  // Delete existing state messages if any
+  if (results.length > 0) {
+    await imap.messageDelete(criteria);
   }
+
+  // Append the new state message
+  await imap.append(config.FOLDER_STATE, raw, ['\\Seen']);
+
+  return true;
 }
 
 export async function deleteScannerState(imap) {
-  try {
     // Open the state folder
     await imap.mailboxOpen(config.FOLDER_STATE, { readOnly: false });
 
     // Search for state messages
-    const criteria = { header: [{ key: 'X-App-State', value: config.STATE_KEY_SCANNER }] };
-    const results = await imap.search(criteria);
+    const results = await search(imap, criteria);
 
     if (results.length === 0) {
       return false;
     }
 
     // Delete state messages
-    await imap.messageFlagsAdd({ uid: results }, ['\\Deleted']);
-    await imap.mailboxExpunge();
+    await imap.messageDelete(criteria);
 
     return true;
-  } catch (error) {
-    throw error;
-  }
 }
