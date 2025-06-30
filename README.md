@@ -196,6 +196,13 @@ sudo service spamassassin restart
 
 ---
 
+### Environment variables
+
+To load environment variables from command line
+```bash
+export $(grep -v '^#' .env.test.local | xargs)
+```
+
 ## Logging
 
 - Logs are JSON-formatted via `pino`

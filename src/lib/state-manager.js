@@ -1,65 +1,50 @@
-import {simpleParser} from 'mailparser';
 import {config} from './utils/config.js';
-import {connect} from "./imap-client.js";
+import {connect, open, fetchMessagesByUIDs, search} from "./imap-client.js";
 import {validateState, formatStateAsEmail, parseStateFromEmail} from "./utils/state-utils.js";
 
 export async function readScannerState(defaultState) {
   const imap = connect();
 
-  return new Promise((resolve, reject) => {
-    imap.once('ready', () => {
-      imap.openBox(config.FOLDER_STATE, true, (err) => {
-        if (err) return reject(err);
+  try {
+    // Open the state folder in read-only mode
+    await open(imap, config.FOLDER_STATE, true);
 
-        const criteria = [['HEADER', 'X-App-State', config.STATE_KEY_SCANNER]];
-        imap.search(criteria, (err, results) => {
-          if (err || results.length === 0) {
-            if (defaultState !== undefined) {
-              imap.end();
-              resolve(defaultState);
-              return;
-            } else {
-              imap.end();
-              return reject(new Error('Scanner state not found'));
-            }
-          }
+    // Search for state messages
+    const criteria = [['HEADER', 'X-App-State', config.STATE_KEY_SCANNER]];
+    const results = await search(imap, criteria);
 
-          let uid = results[0];
+    if (results.length === 0) {
+      if (defaultState !== undefined) {
+        return defaultState;
+      } else {
+        throw new Error('Scanner state not found');
+      }
+    }
 
-          const f = imap.fetch(uid, { bodies: '' });
+    // Fetch and parse the state message
+    const messages = await fetchMessagesByUIDs(imap, [results[0]]);
+    
+    if (messages.length === 0) {
+      throw new Error('Failed to fetch state message');
+    }
 
-          f.on('message', msg => {
-            msg.on('body', stream => {
-              simpleParser(stream)
-                  .then(parsed => {
-                    const json = parseStateFromEmail(parsed.text);
-                    
-                    // validate json after reading
-                    validateState(json);
+    const body = messages[0].raw.trim().split('\n\n').slice(1);
+    const json = parseStateFromEmail(body);
+    
+    // Validate json after reading
+    validateState(json);
 
-                    if (json) {
-                      resolve(json);
-                    } else {
-                      console.error('Failed to parse state from email');
-                      reject(new Error('Failed to parse state from email'));
-                    }
-                  })
-                  .catch(err => {
-                    console.error('Mail parsing error:', err.message);
-                    reject(new Error(`Failed to parse email: ${err.message}`));
-                  });
-            });
-          });
+    if (!json) {
+      throw new Error('Failed to parse state from email');
+    }
 
-          f.once('error', reject);
-          f.once('end', () => imap.end());
-        });
-      });
-    });
+    return json;
 
-    imap.once('error', reject);
-    imap.connect();
-  });
+  } catch (error) {
+    throw error;
+  } finally {
+    imap.end();
+  }
 }
 
 export async function writeScannerState(state) {
