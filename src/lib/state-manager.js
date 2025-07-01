@@ -9,6 +9,9 @@ const criteria = {
 };
 
 export async function readScannerState(imap, defaultState) {
+    // remember original mailbox
+    const originalPath = imap.mailbox?.path;
+
     // Open the state folder in read-only mode
     await open(imap, config.FOLDER_STATE, true);
 
@@ -39,31 +42,44 @@ export async function readScannerState(imap, defaultState) {
       throw new Error('Failed to parse state from email');
     }
 
+    // Restore original mailbox if it existed
+    if (originalPath) {
+        await imap.mailboxOpen(originalPath);
+    }
+
     return json;
 }
 
 export async function writeScannerState(imap, state) {
-  // Validate state object before writing
-  validateState(state);
+    // remember original mailbox
+    const originalPath = imap.mailbox?.path;
 
-  // Format state as email
-  const raw = formatStateAsEmail(state, config.STATE_KEY_SCANNER);
+    // Validate state object before writing
+    validateState(state);
 
-  // Open the state folder
-  await imap.mailboxOpen(config.FOLDER_STATE, { readOnly: false });
+    // Format state as email
+    const raw = formatStateAsEmail(state, config.STATE_KEY_SCANNER);
 
-  // Search for existing state messages
-  const results = await search(imap, criteria);
+        // Open the state folder
+        await imap.mailboxOpen(config.FOLDER_STATE, {readOnly: false});
 
-  // Delete existing state messages if any
-  if (results.length > 0) {
-    await imap.messageDelete(criteria);
-  }
+        // Search for existing state messages
+        const results = await search(imap, criteria);
 
-  // Append the new state message
-  await imap.append(config.FOLDER_STATE, raw, ['\\Seen']);
+        // Delete existing state messages if any
+        if (results.length > 0) {
+            await imap.messageDelete(criteria);
+        }
 
-  return true;
+        // Append the new state message
+        await imap.append(config.FOLDER_STATE, raw, ['\\Seen']);
+
+        // Restore original mailbox if it existed
+        if (originalPath) {
+            await imap.mailboxOpen(originalPath);
+        }
+
+    return true;
 }
 
 export async function deleteScannerState(imap) {

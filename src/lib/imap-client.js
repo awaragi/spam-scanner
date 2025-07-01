@@ -105,7 +105,7 @@ export async function findFirstUIDOnDate(imap, folder, dateString) {
  * @param {Object} message - The message object from ImapFlow
  * @returns {Object} - Object containing raw message, uid, and attributes
  */
-function processMessage(message) {
+export function processMessage(message) {
   const {uid, flags, envelope} = message;
   // ImapFlow returns a Buffer for message.source
   const raw = stripSpamHeaders(message.source.toString());
@@ -207,10 +207,16 @@ export async function fetchAllMessages(imap) {
 export async function fetchMessagesByUIDs(imap, uids) {
   try {
     const messages = [];
-
     // Convert uids to a comma-separated string if it's an array
-    const uidSelector = Array.isArray(uids) ? uids.join(',') : uids;
-    for await (const message of imap.fetch({ uid: uidSelector }, { source: true, envelope: true, bodyStructure: true, flags: true })) {
+    const _messages = imap.fetch({uid: uids.join(',')}, {
+      uid: true,
+      source: true,
+      envelope: true,
+      bodyStructure: true,
+      flags: true
+    }, {uid: true});
+
+    for await (const message of _messages) {
       messages.push(processMessage(message));
     }
 
@@ -288,6 +294,8 @@ export async function updateLabels(imap, messages, labelsToSet = [], labelsToUns
     return;
   }
 
+  const options = {uid: true};
+
   try {
     // Extract UIDs from messages
     const uids = messages.map(message => message.uid);
@@ -295,14 +303,14 @@ export async function updateLabels(imap, messages, labelsToSet = [], labelsToUns
     // Add labels if there are any to set
     if (labelsToSet.length > 0) {
       logger.debug({uids, flags: labelsToSet}, 'Adding flags to messages');
-      await imap.messageFlagsAdd({ uid: uids }, labelsToSet);
+      await imap.messageFlagsAdd({ uid: uids }, labelsToSet, options);
       logger.info({uids, flags: labelsToSet}, 'Flags added successfully');
     }
 
     // Remove labels if there are any to unset
     if (labelsToUnset.length > 0) {
       logger.debug({uids, flags: labelsToUnset}, 'Removing flags from messages');
-      await imap.messageFlagsRemove({ uid: uids }, labelsToUnset);
+      await imap.messageFlagsRemove({ uid: uids }, labelsToUnset, options);
       logger.info({uids, flags: labelsToUnset}, 'Flags removed successfully');
     }
 

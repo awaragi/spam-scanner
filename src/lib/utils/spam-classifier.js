@@ -5,26 +5,38 @@
 /**
  * Categorizes messages based on spam score
  * @param {Array} messages - Array of messages with spam information
- * @param {number} [lowThreshold=0.0] - Threshold for low spam score
- * @param {number} [highThreshold=2.5] - Threshold for high spam score
+ * @param cleanThreshold
+ * @param lowProbableThreshold
+ * @param highProbableThreshold
  * @returns {Object} - Object with categorized messages
  */
-export function categorizeMessages(messages, lowThreshold = 0.0, highThreshold = 2.5) {
+export function categorizeMessages(messages, cleanThreshold = 30, lowProbableThreshold = 60, highProbableThreshold = 100) {
   const lowSpamMessages = [];
   const highSpamMessages = [];
   const nonSpamMessages = [];
   const spamMessages = [];
 
   messages.forEach(message => {
-    if (message.spamInfo.isSpam) {
+    const {score, required, isSpam} = message.spamInfo;
+    const scorePercentage = score !== null && required !== null && required !== 0
+        ? (score / required) * 100
+        : null;
+
+    if (isSpam) {
       spamMessages.push(message);
-    } else if (message.spamInfo.score === null || message.spamInfo.score < lowThreshold) {
-      nonSpamMessages.push(message);
-    } else if (message.spamInfo.score < highThreshold) {
-      lowSpamMessages.push(message);
     } else {
-      // default
-      highSpamMessages.push(message);
+      if (scorePercentage === null) {
+        nonSpamMessages.push(message);
+      } else if (scorePercentage <= cleanThreshold) {
+        nonSpamMessages.push(message);
+      } else if (scorePercentage < lowProbableThreshold) {
+        lowSpamMessages.push(message);
+      } else if (scorePercentage < highProbableThreshold) {
+        highSpamMessages.push(message);
+      } else {
+        // default
+        highSpamMessages.push(message);
+      }
     }
   });
 

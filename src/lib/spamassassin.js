@@ -1,12 +1,11 @@
 import pino from 'pino';
-import {spawn} from 'child_process';
 import fs from 'fs';
 import {config} from './utils/config.js';
 import {readScannerState, writeScannerState} from './state-manager.js';
 import {count, fetchAllMessages, fetchMessagesByUIDs, moveMessages, open, search, updateLabels} from "./imap-client.js";
 import {homedir} from "node:os";
 import {extractSenders} from "./utils/email.js";
-import {extractDateFromRaw, parseSpamAssassinOutput} from "./utils/email-parser.js";
+import {parseEmail, parseSpamAssassinOutput} from "./utils/email-parser.js";
 import {categorizeMessages} from "./utils/spam-classifier.js";
 import {spawnAsync} from "./utils/spawn-async.js";
 
@@ -61,85 +60,49 @@ async function train(messages, learnCmd, type) {
 /**
  * for scanInbox: Process messages with SpamAssassin check
  */
-function process(messages) {
-    return new Promise((resolve, reject) => {
-        if (messages.length === 0) {
-            return resolve([]);
+async function processWithSpamc(messages) {
+    if (messages.length === 0) {
+        return [];
+    }
+
+    const processedMessages = [];
+
+    await Promise.all(messages.map(async message => {
+        const {uid, envelope, raw,} = message;
+        const subject = envelope.subject;
+        const date = envelope.date ? envelope.date.toISOString() : '';
+
+        logger.info({uid, date, subject}, 'Starting spamc check');
+
+        try {
+            const result = await spawnAsync('spamc', ['--max-size', '100000000'], raw);
+
+            logger.info({uid, subject, code: result.code}, 'spamc check completed');
+
+            if (result.code !== 0) {
+                logger.error({uid, subject, code: result.code}, 'spamc process failed');
+                throw new Error(`Unable to process spamc (code = ${result.code}: ${result.stderr}`);
+            }
+
+            // parse result
+            const { headers, body } = parseEmail(result.stdout);
+
+            // Parse SpamAssassin output
+            const { score, required, level, isSpam } = parseSpamAssassinOutput(headers);
+            logger.info({uid, score, required, level, isSpam, date, subject,}, 'spamc scan results');
+
+            // Add message to processed messages with spam information
+            const messageWithSpamInfo = {...message, spamInfo: {score, required, level, isSpam, subject, date}};
+
+            processedMessages.push(messageWithSpamInfo);
+        } catch (err) {
+            logger.error({uid, error: err.message}, 'spamc process error');
+            throw err;
         }
+    }));
 
-        let completedCount = 0;
-        let hasError = false;
-        const processedMessages = [];
-        const spamMessages = [];
-
-        messages.forEach(({uid, raw, attrs}) => {
-            logger.info({uid, attrs}, 'Starting SpamAssassin check');
-            const proc = spawn('spamc', ['--max-size', '100000000']);
-            proc.stdin.end(raw);
-            let spamcOutput = '';
-            proc.stdout.on('data', chunk => spamcOutput += chunk);
-
-            proc.on('close', (code) => {
-                logger.info({uid, code}, 'SpamAssassin check completed');
-
-                if (code !== 0) {
-                    logger.error({uid, code}, 'SpamAssassin process failed');
-                }
-
-                // Parse SpamAssassin output
-                const { score, level, isSpam, subject } = parseSpamAssassinOutput(spamcOutput);
-                const date = attrs.date ? attrs.date.toISOString() : '';
-
-                logger.info({
-                    uid,
-                    score,
-                    level,
-                    isSpam,
-                    date,
-                    subject,
-                }, 'SpamAssassin scan results');
-
-                // Add message to processed messages with spam information
-                const messageWithSpamInfo = {
-                    uid,
-                    raw,
-                    attrs,
-                    spamInfo: {
-                        score,
-                        level,
-                        isSpam,
-                        subject,
-                        date
-                    }
-                };
-
-                processedMessages.push(messageWithSpamInfo);
-
-                if (isSpam) {
-                    logger.info({uid}, 'Detected spam');
-                    spamMessages.push(messageWithSpamInfo);
-                }
-
-                completedCount++;
-
-                if (completedCount === messages.length) {
-                    logger.info({
-                        processedCount: completedCount,
-                        spamCount: spamMessages.length
-                    }, 'All messages processed with SpamAssassin');
-                    resolve(processedMessages);
-                }
-            });
-
-            proc.on('error', (err) => {
-                if (!hasError) {
-                    hasError = true;
-                    logger.error({uid, error: err.message}, 'SpamAssassin process error');
-                    reject(err);
-                }
-            });
-        });
-    });
+    logger.info({total: processedMessages.length,}, 'Messages processed with spamc');
+    return processedMessages;
 }
 
 export async function scanInbox(imap) {
@@ -158,7 +121,7 @@ export async function scanInbox(imap) {
         // Step 2: Search for new messages
         let query = {uid: `${state.last_uid + 1}:*`};
         if (!config.SCAN_READ) {
-            query.unseen = true;
+            query.seen = false;
         }
         const newUIDs = await search(imap, query);
         if (newUIDs.length === 0) {
@@ -168,6 +131,8 @@ export async function scanInbox(imap) {
 
         const uids = newUIDs.slice(0, config.SCAN_BATCH_SIZE);
 
+        let lowSpamTotal = 0, highSpamTotal = 0, nonSpamTotal = 0, spamTotal = 0;
+
         for (let i = 0; i < uids.length; i += PROCESS_BATCH_SIZE) {
             logger.info({
                 from: i,
@@ -175,9 +140,14 @@ export async function scanInbox(imap) {
                 total: uids.length
             }, 'Scanning batch');
             const batchUids = uids.slice(i, i + PROCESS_BATCH_SIZE);
-            await scanMessages(imap, batchUids, state);
+            const counts = await scanMessages(imap, batchUids, state);
+            lowSpamTotal += counts.lowSpamTotal;
+            highSpamTotal += counts.highSpamTotal;
+            nonSpamTotal += counts.nonSpamTotal;
+            spamTotal += counts.spamTotal;
         }
 
+        logger.info({folder: config.FOLDER_INBOX, total: uids.length, lowSpamTotal, highSpamTotal, nonSpamTotal, spamTotal}, 'All scan operations completed');
     } catch (error) {
         logger.error({folder: config.FOLDER_INBOX, error: error.message}, 'Error in scanInbox process');
         throw error;
@@ -187,7 +157,7 @@ export async function scanInbox(imap) {
 async function scanMessages(imap, uids, state) {
     const messages = await fetchMessagesByUIDs(imap, uids);
 
-    const processedMessages = await process(messages);
+    const processedMessages = await processWithSpamc(messages);
 
     // TODO extract headers as a lot of functions just work on headers
 
@@ -209,13 +179,11 @@ async function scanMessages(imap, uids, state) {
     let last_uid = Math.max(...messages.map(msg => msg.uid));
     last_uid = Math.max(state.last_uid, last_uid);
 
-    const last_seen_date = messages.reduce((maxDate, msg) => {
-        // TODO use headers instead of parsing the entire message
-        const dateStr = extractDateFromRaw(msg.raw);
-        if (!dateStr) return maxDate;
-        const date = new Date(dateStr);
-        return maxDate ? (date > maxDate ? date : maxDate) : date;
-    }, new Date()).toISOString();
+    const last_seen_date = messages.reduce((maxDate, message) => {
+        const date = message.envelope.date.toISOString();
+        if (!date) return maxDate;
+        return (date.localeCompare(maxDate) ? date : maxDate);
+    }, new Date(0).toISOString());
     const last_checked = new Date().toISOString();
 
     await writeScannerState(imap, {
@@ -236,6 +204,10 @@ async function scanMessages(imap, uids, state) {
         last_uid,
         last_seen_date
     }, 'Batch processing completed');
+
+    return {
+        lowSpamTotal: lowSpamMessages.length, highSpamTotal: highSpamMessages.length, nonSpamTotal: nonSpamMessages.length, spamTotal: spamMessages.length
+    };
 }
 
 // Update whitelist in user preferences file
