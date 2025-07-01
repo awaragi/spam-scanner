@@ -6,29 +6,37 @@ import fs from 'fs/promises';
 import os from 'os';
 
 const mailbox = config.FOLDER_INBOX;
+// MESSAGE_ID has priority
 const UID = 2201; // Replace with actual UID
+const MESSAGE_ID = '<83181f5681bd89f619b2b1e48210f391@eidiant.com>'; // Replace with actual Message-ID
 
 const logger = pino();
 const imap = newClient();
 
-async function fetchAndSaveEmail(uid) {
+async function fetchAndSaveEmail(uid, messageId) {
     try {
         await imap.connect();
         await imap.getMailboxLock(mailbox);
 
-        const messages = await imap.fetch({uid: String(uid)}, {
+        const searchCriteria = messageId
+            ? {header: {'Message-ID': messageId}}
+            : {uid: String(uid)};
+        const messages = await imap.fetch(searchCriteria, {
+            uid: true,
             source: true,
-            envelope: true
+            envelope: true,
+            bodyStructure: true,
         }, {uid: true});
 
         for await (const _message of messages) {
             const message = processMessage(_message);
+            const uid = message.uid;
             const subject = message.envelope.subject || 'no-subject';
             const sanitizedSubject = subject.replace(/[^a-z0-9]/gi, '-');
-            const filename = `${uid}-${sanitizedSubject}.eml`;
+            const filename = `Test-Email-${uid}-${sanitizedSubject}.eml`;
             const filepath = path.join(os.homedir(), filename);
 
-            await fs.writeFile(filepath, message.source);
+            await fs.writeFile(filepath, message.raw);
             logger.info(`Message saved to ${filepath}`);
         }
     } catch (err) {
@@ -39,4 +47,4 @@ async function fetchAndSaveEmail(uid) {
     }
 }
 
-await fetchAndSaveEmail(UID);
+await fetchAndSaveEmail(UID, MESSAGE_ID);
