@@ -25,7 +25,7 @@ function run_once() {
 if [ "$INIT_MODE" = "true" ]; then
   echo "INIT_MODE"
   node init-folders.js
-  node reset-state.js | node write-state.js
+  node reset-state.js
   exit 0
 fi
 
