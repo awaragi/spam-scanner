@@ -22,5 +22,8 @@ RUN npm install --omit=dev
 # Copy the rest of the application
 COPY src/ ./
 
+# Expose SpamAssassin configuration directories as volume
+# VOLUME ["/root/.spamassassin", "/var/lib/spamassassin", "/etc/spamassassin", "/usr/share/spamassassin"]
+
 # Start point
 ENTRYPOINT ["./start.sh"]

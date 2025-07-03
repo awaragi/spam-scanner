@@ -64,6 +64,7 @@ if [ "$LOOP_MODE" = "true" ]; then
   echo "LOOP_MODE"
   while true; do
     run_once
+    echo WAIT "${SCAN_INTERVAL:-300}"
     sleep "${SCAN_INTERVAL:-300}"
   done
 else

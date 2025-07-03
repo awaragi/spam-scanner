@@ -16,6 +16,8 @@ const SPAM_LABEL_LOW = config.SPAM_LABEL_LOW;
 const SPAM_LABEL_HIGH = config.SPAM_LABEL_HIGH;
 const PROCESS_BATCH_SIZE = config.PROCESS_BATCH_SIZE;
 
+const USER = 'root';
+
 /**
  * for learnFromFolder: Process messages with sa-learn
  */
@@ -75,7 +77,7 @@ async function processWithSpamc(messages) {
         logger.info({uid, date, subject}, 'Starting spamc check');
 
         try {
-            const result = await spawnAsync('spamc', ['--max-size', '100000000'], raw);
+            const result = await spawnAsync('spamc', ['--username', USER, '--max-size', '100000000'], raw);
 
             logger.info({uid, subject, code: result.code}, 'spamc check completed');
 

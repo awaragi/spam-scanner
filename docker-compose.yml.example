@@ -3,7 +3,7 @@ services:
     build: .
     image: spam-scanner
     container_name: spam-scanner
-    restart: no
+    restart: on-failure
     env_file:
       - .env.production.local
     environment:
@@ -12,3 +12,6 @@ services:
       # Important as spamd will run in the container as root
       # This will allow also to run run the scripts locally outside of container (for dev/test)
       - /root/.spamassassin:/root/.spamassassin
+      - /var/lib/spamassassin:/var/lib/spamassassin
+      - /etc/spamassassin:/etc/spamassassin
+      - /usr/share/spamassassin:/usr/share/spamassassin

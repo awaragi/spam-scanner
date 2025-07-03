@@ -158,17 +158,11 @@ docker run -d --name spamd -p 783:783 instrumentisto/spamassassin
 
 ### SpamAssassin Configuration
 
-A sample TxRep configuration file `txrep.cf.example` is included. During local development, you can copy this to one of:
-
-```bash
-# System-wide configuration
-sudo cp txrep.cf.example /etc/mail/spamassassin/txrep.cf
-
-# User configuration
-cp txrep.cf.example ~/.spamassassin/txrep.cf
-```
-
-The TxRep plugin improves spam detection by tracking message reputation scores.
+You can map the following folders to link your local and your container spam rules and data
+- /root/.spamassassin
+- /var/lib/spamassassin
+- /etc/spamassassin
+- /usr/share/spamassassin
 
 If you installed spamd directly on your system:
 
@@ -192,6 +186,7 @@ sudo service spamassassin restart
 
 - `read-state.js` → reads IMAP state and prints JSON
 - `write-state.js` → accepts JSON from stdin and updates IMAP
+- `reset-statel.js` -> resets the IMAP state to last_uid=0
 - `uid-on-date.js FOLDER [--since date] [--write]` → finds first UID on/after a date
 
 ---
@@ -218,6 +213,29 @@ export $(grep -v '^#' .env.test.local | xargs)
 ```
 
 ---
+
+## SPAMD/SPAMASSASSIN Rules
+
+Install KAM.cf
+
+```shell
+wget https://mcgrail.com/downloads/kam.sa-channels.mcgrail.com.key
+sudo sa-update --import kam.sa-channels.mcgrail.com.key
+sudo sa-update --gpgkey 24C063D8 --channel kam.sa-channels.mcgrail.com
+```
+
+Update all rulesets
+
+```shell
+sudo sa-update
+sudo sa-compilc
+if systemctl is-active --quiet spamd; then
+  echo 'Reloading spamd'
+  sudo systemctl reload spamd
+fi
+```
+
+
 
 ## License
 
