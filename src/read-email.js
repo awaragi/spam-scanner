@@ -3,9 +3,10 @@ import {config} from './lib/utils/config.js';
 import pino from 'pino';
 import path from 'path';
 import fs from 'fs/promises';
-import os from 'os';
 
+const HOME = config.HOME;
 const mailbox = config.FOLDER_INBOX;
+
 // MESSAGE_ID has priority
 const UID = 2201; // Replace with actual UID
 const MESSAGE_ID = '<83181f5681bd89f619b2b1e48210f391@eidiant.com>'; // Replace with actual Message-ID
@@ -34,7 +35,7 @@ async function fetchAndSaveEmail(uid, messageId) {
             const subject = message.envelope.subject || 'no-subject';
             const sanitizedSubject = subject.replace(/[^a-z0-9]/gi, '-');
             const filename = `Test-Email-${uid}-${sanitizedSubject}.eml`;
-            const filepath = path.join(os.homedir(), filename);
+            const filepath = path.join(HOME, filename);
 
             await fs.writeFile(filepath, message.raw);
             logger.info(`Message saved to ${filepath}`);

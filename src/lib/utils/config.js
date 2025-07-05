@@ -1,8 +1,12 @@
 import pino from 'pino';
+import {homedir, userInfo} from "os";
 const logger = pino();
 
 export const config = (() => {
   const c = {
+    HOME: homedir(),
+    USER: userInfo().username,
+
     IMAP_HOST: process.env.IMAP_HOST,
     IMAP_PORT: parseInt(process.env.IMAP_PORT || '993', 10),
     IMAP_USER: process.env.IMAP_USER,

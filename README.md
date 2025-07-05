@@ -236,6 +236,23 @@ fi
 ```
 
 
+# Running local outside of Docker
+
+Having given up on running things within Docker with mapped volumes. Here is how I am running locally with 
+- spamd running as root
+- spamd is configured with helper-home-dir=/var/lib/spamassassin
+  - ```sudoedit /etc/default/spamd```
+
+Single execution
+```shell
+sudo -u debian-spamd env "PATH=$PATH" "NODE_PATH=$NODE_PATH" npm start
+```
+
+Infinit execution with 300 sec wait time in between
+```shell
+while true; do sudo -u debian-spamd env "PATH=$PATH" "NODE_PATH=$NODE_PATH" npm start; sleep 300; done
+```
+
 
 ## License
 

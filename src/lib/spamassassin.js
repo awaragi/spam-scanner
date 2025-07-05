@@ -3,7 +3,6 @@ import fs from 'fs';
 import {config} from './utils/config.js';
 import {readScannerState, writeScannerState} from './state-manager.js';
 import {count, fetchAllMessages, fetchMessagesByUIDs, moveMessages, open, search, updateLabels} from "./imap-client.js";
-import {homedir} from "node:os";
 import {extractSenders} from "./utils/email.js";
 import {parseEmail, parseSpamAssassinOutput} from "./utils/email-parser.js";
 import {categorizeMessages} from "./utils/spam-classifier.js";
@@ -12,11 +11,11 @@ import {spawnAsync} from "./utils/spawn-async.js";
 const logger = pino();
 
 // Spam label constants
+const USER = config.USER;
+const HOME = config.HOME;
 const SPAM_LABEL_LOW = config.SPAM_LABEL_LOW;
 const SPAM_LABEL_HIGH = config.SPAM_LABEL_HIGH;
 const PROCESS_BATCH_SIZE = config.PROCESS_BATCH_SIZE;
-
-const USER = 'root';
 
 /**
  * for learnFromFolder: Process messages with sa-learn
@@ -77,7 +76,9 @@ async function processWithSpamc(messages) {
         logger.info({uid, date, subject}, 'Starting spamc check');
 
         try {
-            const result = await spawnAsync('spamc', ['--username', USER, '--max-size', '100000000'], raw);
+            const args = ['--username', USER, '--max-size', '100000000'];
+            logger.debug({args}, 'Running spamc');
+            const result = await spawnAsync('spamc', args, raw);
 
             logger.info({uid, subject, code: result.code}, 'spamc check completed');
 
@@ -219,7 +220,7 @@ async function updateWhitelist(email) {
         return;
     }
 
-    const userPrefPath = `${homedir()}/.spamassassin/user_prefs`;
+    const userPrefPath = `${HOME}/.spamassassin/user_prefs`;
     const whitelistEntry = `whitelist_from ${email}`;
 
     try {

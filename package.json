@@ -3,16 +3,22 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "start": "src/start.sh",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "format:src": "prettier --write 'src/**/*.{js,jsx,ts,tsx,json,css,scss,md}'",
     "lint:format": "prettier --check 'src/**/*.{js,jsx,ts,tsx,json,css,scss,md}'",
-    "test": "vitest run"
+    "test": "vitest run",
+
+    "start": "npm run start:train-spam && npm run start:train-ham && npm run start:train-whitelist && npm run start:scan-inbox",
+    "start:train-spam": "env-cmd node src/train-spam.js",
+    "start:train-ham": "env-cmd node src/train-ham.js",
+    "start:train-whitelist": "env-cmd node src/train-whitelist.js",
+    "start:scan-inbox": "env-cmd node src/scan-inbox.js"
   },
   "dependencies": {
     "email-addresses": "^5.0.0",
     "emailjs-mime-codec": "^2.0.9",
+    "env-cmd": "^10.1.0",
     "imapflow": "^1.0.148",
     "pino": "^8.14.1",
     "yargs": "^17.7.2"
