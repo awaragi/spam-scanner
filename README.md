@@ -10,6 +10,8 @@ Supports UID-based incremental scanning, mailbox-contained state, and both manua
 - IMAP inbox scanning using `spamc` and `spamd`
 - UID-based incremental progress tracking (no reprocessing)
 - Manual spam/ham training via dedicated IMAP folders
+- Whitelist training for trusted senders
+- Spam classification with different probability levels (low/high)
 - All state stored inside the mailbox and mirrored to disk
 - Runs in one-shot (cron) or loop mode
 - No external database or file storage required
@@ -24,6 +26,7 @@ Supports UID-based incremental scanning, mailbox-contained state, and both manua
 | Spam destination       | `INBOX.spam`           |
 | Manual spam training   | `INBOX.scanner.train-spam` |
 | Manual ham correction  | `INBOX.scanner.train-ham` |
+| Whitelist training     | `INBOX.scanner.train-whitelist` |
 | Scanner state storage  | `INBOX.scanner.state`  |
 
 Use `INIT_MODE=true` to auto-create the application folders.
@@ -49,12 +52,17 @@ FOLDER_INBOX=INBOX
 FOLDER_SPAM=INBOX.spam
 FOLDER_TRAIN_SPAM=INBOX.scanner.train-spam
 FOLDER_TRAIN_HAM=INBOX.scanner.train-ham
+FOLDER_TRAIN_WHITELIST=INBOX.scanner.train-whitelist
 FOLDER_STATE=INBOX.scanner.state
 
-INIT_MODE=false
-LOOP_MODE=false
-SCAN_INTERVAL=300
 SCAN_BATCH_SIZE=50
+
+SCAN_READ=false
+PROCESS_BATCH_SIZE=5
+STATE_KEY_SCANNER=scanner
+
+SPAM_LABEL_LOW=Spam:Low
+SPAM_LABEL_HIGH=Spam:High
 ```
 
 ---
@@ -146,44 +154,18 @@ node init-folders.js
 node scan-inbox.js
 ```
 
-Run `spamd` locally if needed:
-
-```bash
-docker run -d --name spamd -p 783:783 instrumentisto/spamassassin
-```
-
-### SpamAssassin Configuration
-
-You can map the following folders to link your local and your container spam rules and data
-- /root/.spamassassin
-- /var/lib/spamassassin
-- /etc/spamassassin
-- /usr/share/spamassassin
-
-If you installed spamd directly on your system:
-
-**On Ubuntu/Debian:**
-``` bash
-sudo systemctl restart spamassassin
-```
-or
-``` bash
-sudo systemctl restart spamd
-```
-
-
-**On CentOS/RHEL:**
-``` bash
-sudo service spamassassin restart
-```
-
-
 ### CLI Tools
 
 - `read-state.js` → reads IMAP state and prints JSON
 - `write-state.js` → accepts JSON from stdin and updates IMAP
-- `reset-statel.js` -> resets the IMAP state to last_uid=0
+- `delete-state.js` → deletes scanner state from IMAP
+- `reset-state.js` → resets the IMAP state to last_uid=0
 - `uid-on-date.js FOLDER [--since date] [--write]` → finds first UID on/after a date
+- `list-all.js` → lists all messages in a folder
+- `read-email.js` → reads and displays a specific email
+- `train-spam.js` → processes messages in spam training folder
+- `train-ham.js` → processes messages in ham training folder
+- `train-whitelist.js` → processes messages in whitelist training folder
 
 ---
 
@@ -210,34 +192,15 @@ export $(grep -v '^#' .env.test.local | xargs)
 
 ---
 
-## SPAMD/SPAMASSASSIN Rules
-
-Install KAM.cf
-
-```shell
-wget https://mcgrail.com/downloads/kam.sa-channels.mcgrail.com.key
-sudo sa-update --import kam.sa-channels.mcgrail.com.key
-sudo sa-update --gpgkey 24C063D8 --channel kam.sa-channels.mcgrail.com
-```
-
-Update all rulesets
-
-```shell
-sudo sa-update
-sudo sa-compilc
-if systemctl is-active --quiet spamd; then
-  echo 'Reloading spamd'
-  sudo systemctl reload spamd
-fi
-```
 
 
-# Running local outside of Docker
+# Running local
 
 Having given up on running things within Docker with mapped volumes. Here is how I am running locally with 
-- spamd running as root
+- spamd service running as root
 - spamd is configured with helper-home-dir=/var/lib/spamassassin
   - ```sudoedit /etc/default/spamd```
+- debian-spamd as owner with home folder /var/lib/spamassassin 
 
 Single execution
 ```shell

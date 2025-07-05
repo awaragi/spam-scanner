@@ -29,6 +29,7 @@ This system provides a modular, containerized mail-processing pipeline that conn
 | Spam destination       | `FOLDER_SPAM`          | `INBOX.spam`               | No               |
 | Spam training folder   | `FOLDER_TRAIN_SPAM`    | `INBOX.scanner.train-spam` | Yes              |
 | Ham training folder    | `FOLDER_TRAIN_HAM`     | `INBOX.scanner.train-ham`  | Yes              |
+| Whitelist training     | `FOLDER_TRAIN_WHITELIST` | `INBOX.scanner.train-whitelist` | Yes      |
 | Scanner state folder   | `FOLDER_STATE`         | `INBOX.scanner.state`      | Yes              |
 
 ---
@@ -52,14 +53,16 @@ FOLDER_INBOX=INBOX
 FOLDER_SPAM=INBOX.spam
 FOLDER_TRAIN_SPAM=INBOX.scanner.train-spam
 FOLDER_TRAIN_HAM=INBOX.scanner.train-ham
+FOLDER_TRAIN_WHITELIST=INBOX.scanner.train-whitelist
 FOLDER_STATE=INBOX.scanner.state
-INIT_MODE=false
-LOOP_MODE=false
-SCAN_INTERVAL=300
 SCAN_BATCH_SIZE=50
+SCAN_READ=false
+PROCESS_BATCH_SIZE=10
 STATE_KEY_SCANNER=scanner
 LOG_LEVEL=info
 SYNC_STATE_FROM_FILE=false
+SPAM_LABEL_LOW=Spam:Low
+SPAM_LABEL_HIGH=Spam:High
 ```
 
 ---
@@ -71,11 +74,15 @@ SYNC_STATE_FROM_FILE=false
 | `init-folders.js`   | Creates folders and exits (`INIT_MODE=true`)              |
 | `train-spam.js`     | Trains SpamAssassin with `--spam` from TrainSpam          |
 | `train-ham.js`      | Trains SpamAssassin with `--ham` from TrainHam            |
+| `train-whitelist.js`| Trains SpamAssassin with `--ham` and adds senders to whitelist |
 | `scan-inbox.js`     | Scans INBOX for new messages (UID > last_uid), detects spam |
 | `read-state.js`     | Reads scanner state from IMAP, outputs JSON to stdout     |
 | `write-state.js`    | Writes scanner state to IMAP, reads JSON from stdin       |
 | `delete-state.js`   | Deletes scanner state from IMAP                           |
+| `reset-state.js`    | Resets scanner state to last_uid=0                        |
 | `uid-on-date.js`    | Finds UID of first message after a timestamp              |
+| `list-all.js`       | Lists all messages in a folder                            |
+| `read-email.js`     | Reads and displays a specific email                       |
 
 ---
 
@@ -86,8 +93,16 @@ The scanner:
 1. Loads scanner state (`last_uid`)
 2. Scans for messages in `FOLDER_INBOX` with `UID > last_uid`
 3. Pipes each message through `spamc`
-4. Moves spam messages to `FOLDER_SPAM`
-5. Updates state and mirrors to `/var/lib/spamassassin/scanner-state.json`
+4. Categorizes messages based on spam score:
+   - Non-spam messages: Score percentage <= 30% (configurable)
+   - Low probability spam: Score between 30-60% (configurable)
+   - High probability spam: Score between 60-100% (configurable)
+   - Definite spam: Explicitly marked as spam by SpamAssassin
+5. Applies labels to messages:
+   - Low probability spam: `SPAM_LABEL_LOW` (default: "Spam:Low")
+   - High probability spam: `SPAM_LABEL_HIGH` (default: "Spam:High")
+6. Moves definite spam messages to `FOLDER_SPAM`
+7. Updates state and mirrors to `/var/lib/spamassassin/scanner-state.json`
 
 State is tracked exclusively by UID. Dates are for reference only.
 
@@ -109,6 +124,16 @@ State is tracked exclusively by UID. Dates are for reference only.
 - User moves false positives here
 - `train-ham.js`:
   - `sa-learn --ham`
+  - Move back to `FOLDER_INBOX`
+
+### Whitelist Training
+
+- Folder: `FOLDER_TRAIN_WHITELIST`
+- User moves messages from trusted senders here
+- `train-whitelist.js`:
+  - `sa-learn --ham`
+  - Extract sender email addresses
+  - Add senders to SpamAssassin whitelist in user_prefs
   - Move back to `FOLDER_INBOX`
 
 ---
