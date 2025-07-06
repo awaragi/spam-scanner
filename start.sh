@@ -11,6 +11,10 @@ fi
 while true
 do
   sudo -u debian-spamd env "PATH=$PATH" "NODE_PATH=$NODE_PATH" npm start
-  echo "Waiting for $SLEEP"
-  sleep $SLEEP
+  echo "Waiting for $SLEEP seconds (press Enter to skip)..."
+  
+  # Use read with timeout
+  if read -t $SLEEP; then
+    echo "Sleep skipped by user input"
+  fi
 done
