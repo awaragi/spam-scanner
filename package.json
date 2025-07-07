@@ -5,15 +5,9 @@
   "scripts": {
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "format:src": "prettier --write 'src/**/*.{js,jsx,ts,tsx,json,css,scss,md}'",
-    "lint:format": "prettier --check 'src/**/*.{js,jsx,ts,tsx,json,css,scss,md}'",
-    "test": "vitest run",
-
-    "start": "npm run start:train-spam && npm run start:train-ham && npm run start:train-whitelist && npm run start:scan-inbox",
-    "start:train-spam": "env-cmd node src/train-spam.js",
-    "start:train-ham": "env-cmd node src/train-ham.js",
-    "start:train-whitelist": "env-cmd node src/train-whitelist.js",
-    "start:scan-inbox": "env-cmd node src/scan-inbox.js"
+    "format:src": "prettier --write '**/*.{js,jsx,ts,tsx,json,css,scss,md}' --ignore-path .gitignore",
+    "lint:format": "prettier --check '**/*.{js,jsx,ts,tsx,json,css,scss,md}' --ignore-path .gitignore",
+    "test": "vitest run"
   },
   "dependencies": {
     "email-addresses": "^5.0.0",
