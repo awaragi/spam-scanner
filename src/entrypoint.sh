@@ -26,9 +26,20 @@ case "$MODE" in
     run_scripts
     ;;
   update)
-    # Run sa-update as sauser to maintain consistent permissions
+    # Check if running as root for update operations
+    if [ "$(id -u)" != "0" ]; then
+      echo "Error: 'update' mode requires root privileges"
+      echo "Please run with: docker run --rm --user root spam-scanner update"
+      exit 1
+    fi
+
+    # Run sa-update and sa-compile as root (these write to privileged paths)
     sa-update --gpgkey 24C063D8 --channel kam.sa-channels.mcgrail.com
     sa-compile
+
+    # Ensure proper ownership after updates
+    chown -R sauser:sauser /home/sauser/.spamassassin
+    chmod 700 /home/sauser/.spamassassin
     ;;
   reset)
     node reset-state.js

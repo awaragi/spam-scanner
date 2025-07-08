@@ -6,9 +6,10 @@ RUN apt-get update && apt-get install -y \
 
 RUN useradd -ms /bin/bash sauser
 
-# Create application folder
-RUN mkdir -p /app/
-RUN chown -R sauser:sauser /app
+# Create application folder and spamassassin directory
+RUN mkdir -p /app/ /home/sauser/.spamassassin
+RUN chown -R sauser:sauser /app /home/sauser
+RUN chmod 700 /home/sauser/.spamassassin
 WORKDIR /app
 
 # Execute on its own to speed rebuild
