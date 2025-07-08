@@ -1,13 +1,21 @@
 FROM node:20-slim
 
 RUN apt-get update && apt-get install -y \
-    spamassassin spamc sa-compile gnupg re2c gcc make tini wget \
+    spamassassin spamc sa-compile gnupg re2c gcc make tini \
+    wget procps less \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN wget https://mcgrail.com/downloads/kam.sa-channels.mcgrail.com.key
+RUN sa-update -v --import kam.sa-channels.mcgrail.com.key
+RUN sa-update -v --gpgkey 24C063D8 --channel kam.sa-channels.mcgrail.com
+RUN rm kam.sa-channels.mcgrail.com.key
+RUN sa-compile
 
 RUN useradd -ms /bin/bash sauser
 
 # Create application folder and spamassassin directory
 RUN mkdir -p /app/ /home/sauser/.spamassassin
+RUN echo $(date -u +"%Y-%m-%dT%H:%M:%SZ") > /home/sauser/.spamassassin/created.txt
 RUN chown -R sauser:sauser /app /home/sauser
 RUN chmod 700 /home/sauser/.spamassassin
 WORKDIR /app
@@ -18,10 +26,6 @@ RUN npm install --omit=dev
 
 # Copy files from src/ directly to /app/ (no src folder in container)
 COPY src/ /app/
-
-RUN wget https://mcgrail.com/downloads/kam.sa-channels.mcgrail.com.key \
-    && sa-update --import kam.sa-channels.mcgrail.com.key \
-    && rm kam.sa-channels.mcgrail.com.key
 
 USER sauser
 ENTRYPOINT ["/app/entrypoint.sh"]

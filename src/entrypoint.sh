@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-MODE="${1:-$ENTRYPOINT_MODE}"
+MODE="${ENTRYPOINT_MODE:-$1}"
 
 # Function to run all training and scanning scripts
 run_scripts() {
@@ -34,7 +34,9 @@ case "$MODE" in
     fi
 
     # Run sa-update and sa-compile as root (these write to privileged paths)
-    sa-update --gpgkey 24C063D8 --channel kam.sa-channels.mcgrail.com
+    echo "Running sa-update..."
+    sa-update -v --gpgkey 24C063D8 --channel kam.sa-channels.mcgrail.com
+    echo "Running sa-compile..."
     sa-compile
 
     # Ensure proper ownership after updates
