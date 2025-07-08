@@ -17,7 +17,7 @@ RUN useradd -ms /bin/bash sauser
 RUN mkdir -p /app/ /home/sauser/.spamassassin
 RUN echo $(date -u +"%Y-%m-%dT%H:%M:%SZ") > /home/sauser/.spamassassin/created.txt
 RUN chown -R sauser:sauser /app /home/sauser
-RUN chmod 700 /home/sauser/.spamassassin
+RUN chmod 755 /home/sauser/.spamassassin
 WORKDIR /app
 
 # Execute on its own to speed rebuild

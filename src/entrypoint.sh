@@ -11,12 +11,15 @@ run_scripts() {
   node scan-inbox.js
 }
 
+echo "Running mode: $MODE as user $(whoami)"
+
 case "$MODE" in
   loop)
     spamd -d -c -m 5 --helper-home=/home/sauser -s stderr
     sleep 2
     while true; do
       run_scripts
+      echo "Sleeping for $SCAN_INTERVAL"
       sleep "${SCAN_INTERVAL:-300}"
     done
     ;;
