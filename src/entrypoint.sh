@@ -38,13 +38,20 @@ case "$MODE" in
 
     # Run sa-update and sa-compile as root (these write to privileged paths)
     echo "Running sa-update..."
-    sa-update -v --gpgkey 24C063D8 --channel kam.sa-channels.mcgrail.com
-    echo "Running sa-compile..."
-    sa-compile
+    # Run sa-update and capture its exit code properly
+    if sa-update -v --gpgkey 24C063D8 --channel kam.sa-channels.mcgrail.com; then
+        echo "Running sa-compile..."
+        sa-compile
+        echo "sa-compile completed"
+    else
+        echo "Skipping sa-compile due to sa-update not succeeding"
+    fi
 
     # Ensure proper ownership after updates
+    echo "Reset permissions on spamassassin user data"
     chown -R sauser:sauser /home/sauser/.spamassassin
-    chmod 700 /home/sauser/.spamassassin
+    chmod 755 /home/sauser/.spamassassin
+    echo "Update process completed"
     ;;
   reset)
     node reset-state.js
