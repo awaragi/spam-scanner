@@ -11,11 +11,15 @@ run_scripts() {
   node scan-inbox.js
 }
 
+launch_spamd() {
+  spamd -D -c -m 5 --helper-home=/home/sauser -s stderr --listen=127.0.0.1,::1 &
+}
+
 echo "Running mode: $MODE as user $(whoami)"
 
 case "$MODE" in
   loop)
-    spamd -d -c -m 5 --helper-home=/home/sauser -s stderr
+    launch_spamd
     sleep 2
     while true; do
       run_scripts
@@ -24,7 +28,7 @@ case "$MODE" in
     done
     ;;
   once)
-    spamd -d -c -m 5 --helper-home=/home/sauser -s stderr
+    launch_spamd
     sleep 2
     run_scripts
     ;;

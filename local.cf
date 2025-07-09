@@ -1,0 +1,12 @@
+###############################################################################
+# spam-scanner local.cf configuration (minimal, non-network, header-injection)
+###############################################################################
+
+# Inject headers into original message (no MIME wrapping)
+report_safe 0
+
+# Add useful X-Spam headers
+add_header all Score _SCORE_
+add_header all Level _STARS(_SCORE_)_
+add_header all Status _YESNO_, score=_SCORE_ required=_REQD_ tests=_TESTS_
+add_header all Report _REPORT_

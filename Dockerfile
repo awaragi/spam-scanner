@@ -2,8 +2,12 @@ FROM node:20-slim
 
 RUN apt-get update && apt-get install -y \
     spamassassin spamc sa-compile gnupg re2c gcc make tini \
-    wget procps less \
+    wget procps less nano \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Production level local.cf
+RUN mv /etc/spamassassin/local.cf /etc/spamassassin/local.cf.factory
+COPY local.cf /etc/spamassassin/local.cf
 
 RUN wget https://mcgrail.com/downloads/kam.sa-channels.mcgrail.com.key
 RUN sa-update -v --import kam.sa-channels.mcgrail.com.key
