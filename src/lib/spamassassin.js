@@ -29,7 +29,7 @@ async function processWithSALearn(message, learnCmd, type) {
         const result = await spawnAsync('sa-learn', ['--max-size=100000000', learnCmd],  raw);
 
         if (result.code !== 0) {
-            throw new Error(`sa-learn failed for message ${uid} with code ${result.code}`);
+            throw new Error(`sa-learn failed for message ${uid} with code ${result.code} - ${result.stderr}`);
         }
 
         const {stdout} = result;

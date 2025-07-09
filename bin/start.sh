@@ -34,17 +34,33 @@ load_env() {
         fi
     done < "$ENV_FILE"
 }
+
 # Function to run a Node.js script with proper user and environment
 run_script() {
     local script_name="$1"
     echo "Running $script_name..."
-    # Pass all environment variables to sudo
-    sudo -u debian-spamd whoami
-    sudo -u debian-spamd --preserve-env env "PATH=$PATH" "NODE_PATH=$NODE_PATH" node "src/$script_name.js"
+    # Pass all path and nodejs environment variables to sudo
+    sudo \
+      -u debian-spamd \
+      --preserve-env \
+      env \
+        "PATH=$PATH" \
+        "NODE_PATH=$NODE_PATH" \
+        "HOME=/var/lib/spamassassin" \
+        "USER=debian-spamd" \
+      node "src/$script_name.js"
 }
 
 # Load environment variables safely
 load_env
+
+# Check if IMAP_HOST is set
+if [ -z "$IMAP_HOST" ]; then
+    echo "Error: IMAP_HOST environment variable is not set!"
+    exit 1
+else
+    echo "Connecting to $IMAP_HOST using credentials of $IMAP_USER"
+fi
 
 # Array of scripts to run in order
 scripts=("train-spam" "train-ham" "train-whitelist" "scan-inbox")
