@@ -1,6 +1,6 @@
 # spam-scanner
 
-A modular, containerized IMAP spam scanner and trainer powered by SpamAssassin.  
+A modular IMAP spam scanner and trainer powered by SpamAssassin.  
 Supports UID-based incremental scanning, mailbox-contained state, and both manual and automatic spam/ham training.
 
 ---
@@ -14,7 +14,7 @@ Supports UID-based incremental scanning, mailbox-contained state, and both manua
 - Blacklist training for known spam senders
 - Spam classification with different probability levels (low/high)
 - All state stored inside the mailbox and mirrored to disk
-- Runs in one-shot (cron) or loop mode
+- Runs in one-shot or continuous loop mode
 - No external database or file storage required
 
 ---
@@ -31,7 +31,7 @@ Supports UID-based incremental scanning, mailbox-contained state, and both manua
 | Blacklist training     | `INBOX.scanner.train-blacklist` |
 | Scanner state storage  | `INBOX.scanner.state`  |
 
-Use `INIT_MODE=true` to auto-create the application folders.
+Use the initialization script to auto-create the application folders.
 
 ---
 
@@ -58,10 +58,10 @@ FOLDER_TRAIN_WHITELIST=INBOX.scanner.train-whitelist
 FOLDER_TRAIN_BLACKLIST=INBOX.scanner.train-blacklist
 FOLDER_STATE=INBOX.scanner.state
 
-SCAN_BATCH_SIZE=50
-
-SCAN_READ=false
-PROCESS_BATCH_SIZE=5
+SCAN_BATCH_SIZE=10000
+SCAN_INTERVAL=300
+SCAN_READ=true
+PROCESS_BATCH_SIZE=10
 STATE_KEY_SCANNER=scanner
 
 SPAM_LABEL_LOW=Spam:Low
@@ -72,63 +72,164 @@ SPAM_LABEL_HIGH=Spam:High
 
 ## Setup
 
-### 1. Build the image
+### 1. Install Dependencies
 
+Ensure you have the following installed:
+- Node.js (v20 or higher)
+- SpamAssassin (`spamd` and `spamc`)
+
+On Debian/Ubuntu:
 ```bash
-docker build -t spam-scanner .
+sudo apt-get update
+sudo apt-get install spamassassin spamc
 ```
 
-### 2. Initialize folders (one-time)
+### 2. Configure SpamAssassin
+
+SpamAssassin should be configured with:
+- User: debian-spamd
+- Home directory: /var/lib/spamassassin
+
+Edit the SpamAssassin configuration:
+```bash
+sudo nano /etc/default/spamd
+```
+
+Ensure it contains:
+```
+OPTIONS="--create-prefs --max-children 5 --helper-home-dir=/var/lib/spamassassin"
+```
+
+### 3. Install Application
 
 ```bash
-docker run --rm -e INIT_MODE=true --env-file .env spam-scanner
+git clone https://github.com/yourusername/spam-scanner.git
+cd spam-scanner
+npm install
+```
+
+### 4. Configure Environment
+
+```bash
+cp .env.example .env
+# Edit .env with your IMAP settings
+nano .env
+```
+
+### 5. Initialize Folders (one-time)
+
+```bash
+node src/init-folders.js
 ```
 
 ---
 
 ## Usage
 
-### One-shot mode (cron)
+### One-shot Mode (Manual Run)
+
+Run the scripts in sequence:
 
 ```bash
-docker run --rm --env-file .env -v spamdata:/var/lib/spamassassin spam-scanner
+sudo -u debian-spamd env "PATH=$PATH" "NODE_PATH=$NODE_PATH" node src/train-spam.js
+sudo -u debian-spamd env "PATH=$PATH" "NODE_PATH=$NODE_PATH" node src/train-ham.js
+sudo -u debian-spamd env "PATH=$PATH" "NODE_PATH=$NODE_PATH" node src/train-whitelist.js
+sudo -u debian-spamd env "PATH=$PATH" "NODE_PATH=$NODE_PATH" node src/train-blacklist.js
+sudo -u debian-spamd env "PATH=$PATH" "NODE_PATH=$NODE_PATH" node src/scan-inbox.js
 ```
 
-### Loop mode (always-on)
+### Continuous Mode (Loop)
+
+Use the provided start script:
 
 ```bash
-docker run -d   --env-file .env   -e LOOP_MODE=true   -v spamdata:/var/lib/spamassassin   spam-scanner
+# Run with default .env file
+./bin/local/start.sh
+
+# Or specify a custom env file
+./bin/local/start.sh .env.custom
+```
+
+This script:
+1. Loads environment variables from the specified .env file
+2. Runs all training and scanning scripts in sequence
+3. Waits for the interval specified in SCAN_INTERVAL (default: 300 seconds)
+4. Repeats the process indefinitely
+
+You can press Enter during the wait period to skip the remaining wait time.
+
+### Running as a Service (untested)
+
+To run as a systemd service:
+
+1. Create a service file:
+```bash
+sudo nano /etc/systemd/system/spam-scanner.service
+```
+
+2. Add the following content:
+```
+[Unit]
+Description=IMAP Spam Scanner
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/path/to/spam-scanner
+ExecStart=/path/to/spam-scanner/bin/local/start.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+3. Enable and start the service:
+```bash
+sudo systemctl enable spam-scanner
+sudo systemctl start spam-scanner
 ```
 
 ---
 
-## Entrypoint Behavior
+## Script Execution Order
 
-Runs the following steps in order:
+The application runs the following steps in order:
 
-1. Start `spamd` daemon
-2. Run:
-   - `train-spam.js`
-   - `train-ham.js`
-   - `train-whitelist.js`
-   - `train-blacklist.js`
-   - `scan-inbox.js`
-   - `read-state.js > /var/lib/spamassassin/scanner-state.json`
+1. `train-spam.js` - Process messages in spam training folder
+2. `train-ham.js` - Process messages in ham training folder
+3. `train-whitelist.js` - Process messages in whitelist training folder
+4. `train-blacklist.js` - Process messages in blacklist training folder
+5. `scan-inbox.js` - Scan inbox for spam messages
 
 ---
 
 ## Backup & Restore
 
-### Backup
+### Backup SpamAssassin Data
 
 ```bash
-docker run --rm -v spamdata:/data -v $(pwd):/backup alpine   tar czf /backup/spamdata.tar.gz -C /data .
+sudo tar czf spamdata.tar.gz -C /var/lib/spamassassin .spamassassin
+```
+
+### Restore SpamAssassin Data
+
+```bash
+sudo tar xzf spamdata.tar.gz -C /var/lib/spamassassin
+sudo chown -R debian-spamd:debian-spamd /var/lib/spamassassin/.spamassassin
+```
+
+### Backup Scanner State
+
+```bash
+node src/read-state.js > scanner-state.json
 ```
 
 ### Restore Scanner State
 
 ```bash
-cat scanner-state.json | docker run -i spam-scanner node write-state.js
+cat scanner-state.json | node src/write-state.js
 ```
 
 ---
@@ -150,13 +251,13 @@ cat scanner-state.json | docker run -i spam-scanner node write-state.js
 
 ## Development
 
-### Local
+### Local Development
 
 ```bash
 npm install
-export $(cat .env | xargs)  # inject env into shell
-node init-folders.js
-node scan-inbox.js
+export $(grep -v '^#' .env | xargs)  # inject env into shell
+node src/init-folders.js
+node src/scan-inbox.js
 ```
 
 ### CLI Tools
@@ -175,13 +276,6 @@ node scan-inbox.js
 
 ---
 
-### Environment variables
-
-To load environment variables from command line
-```bash
-export $(grep -v '^#' .env.test.local | xargs)
-```
-
 ## Logging
 
 - Logs are JSON-formatted via `pino`
@@ -197,27 +291,6 @@ export $(grep -v '^#' .env.test.local | xargs)
 ```
 
 ---
-
-
-
-# Running local
-
-Having given up on running things within Docker with mapped volumes. Here is how I am running locally with 
-- spamd service running as root
-- spamd is configured with helper-home-dir=/var/lib/spamassassin
-  - ```sudoedit /etc/default/spamd```
-- debian-spamd as owner with home folder /var/lib/spamassassin 
-
-Single execution
-```shell
-sudo -u debian-spamd env "PATH=$PATH" "NODE_PATH=$NODE_PATH" npm start
-```
-
-Infinit execution with 300 sec wait time in between
-```shell
-while true; do sudo -u debian-spamd env "PATH=$PATH" "NODE_PATH=$NODE_PATH" npm start; sleep 300; done
-```
-
 
 ## License
 
