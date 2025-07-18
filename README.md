@@ -11,6 +11,7 @@ Supports UID-based incremental scanning, mailbox-contained state, and both manua
 - UID-based incremental progress tracking (no reprocessing)
 - Manual spam/ham training via dedicated IMAP folders
 - Whitelist training for trusted senders
+- Blacklist training for known spam senders
 - Spam classification with different probability levels (low/high)
 - All state stored inside the mailbox and mirrored to disk
 - Runs in one-shot (cron) or loop mode
@@ -27,6 +28,7 @@ Supports UID-based incremental scanning, mailbox-contained state, and both manua
 | Manual spam training   | `INBOX.scanner.train-spam` |
 | Manual ham correction  | `INBOX.scanner.train-ham` |
 | Whitelist training     | `INBOX.scanner.train-whitelist` |
+| Blacklist training     | `INBOX.scanner.train-blacklist` |
 | Scanner state storage  | `INBOX.scanner.state`  |
 
 Use `INIT_MODE=true` to auto-create the application folders.
@@ -53,6 +55,7 @@ FOLDER_SPAM=INBOX.spam
 FOLDER_TRAIN_SPAM=INBOX.scanner.train-spam
 FOLDER_TRAIN_HAM=INBOX.scanner.train-ham
 FOLDER_TRAIN_WHITELIST=INBOX.scanner.train-whitelist
+FOLDER_TRAIN_BLACKLIST=INBOX.scanner.train-blacklist
 FOLDER_STATE=INBOX.scanner.state
 
 SCAN_BATCH_SIZE=50
@@ -107,6 +110,8 @@ Runs the following steps in order:
 2. Run:
    - `train-spam.js`
    - `train-ham.js`
+   - `train-whitelist.js`
+   - `train-blacklist.js`
    - `scan-inbox.js`
    - `read-state.js > /var/lib/spamassassin/scanner-state.json`
 
@@ -166,6 +171,7 @@ node scan-inbox.js
 - `train-spam.js` → processes messages in spam training folder
 - `train-ham.js` → processes messages in ham training folder
 - `train-whitelist.js` → processes messages in whitelist training folder
+- `train-blacklist.js` → processes messages in blacklist training folder
 
 ---
 

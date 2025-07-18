@@ -213,15 +213,16 @@ async function scanMessages(imap, uids, state) {
     };
 }
 
-// Update whitelist in user preferences file
-async function updateWhitelist(email) {
+// Update whitelist or blacklist in user preferences file
+async function updateList(email, listType) {
     if (!email) {
-        logger.warn('No email address found to whitelist');
+        logger.warn(`No email address found to ${listType}`);
         return;
     }
 
     const userPrefPath = `${HOME}/.spamassassin/user_prefs`;
-    const whitelistEntry = `whitelist_from ${email}`;
+    const entryPrefix = listType === 'whitelist' ? 'whitelist_from' : 'blacklist_from';
+    const entry = `${entryPrefix} ${email}`;
 
     try {
         // Check if file exists
@@ -234,18 +235,27 @@ async function updateWhitelist(email) {
         }
 
         // Check if entry already exists
-        if (content.includes(whitelistEntry)) {
-            logger.info({email}, 'Email already in whitelist');
+        if (content.includes(entry)) {
+            logger.info({email}, `Email already in ${listType}`);
             return;
         }
 
         // Append entry to file
-        fs.appendFileSync(userPrefPath, `${content ? '\n' : ''}${whitelistEntry}`);
-        logger.info({email}, 'Added email to whitelist');
+        fs.appendFileSync(userPrefPath, `${content ? '\n' : ''}${entry}`);
+        logger.info({email}, `Added email to ${listType}`);
     } catch (err) {
-        logger.error({email, error: err.message}, 'Failed to update whitelist');
+        logger.error({email, error: err.message}, `Failed to update ${listType}`);
         throw err;
     }
+}
+
+// Wrapper functions for backward compatibility
+async function updateWhitelist(email) {
+    return updateList(email, 'whitelist');
+}
+
+async function updateBlacklist(email) {
+    return updateList(email, 'blacklist');
 }
 
 // Learn from folder function for spam and ham
@@ -289,11 +299,13 @@ export async function learnFromFolder(imap, type) {
     }
 }
 
-// Separate function for whitelist learning
-export async function learnWhitelist(imap) {
-    const folder = config.FOLDER_TRAIN_WHITELIST;
-    const learnCmd = '--ham'; // Whitelist messages are treated as ham for SpamAssassin
-    const destFolder = config.FOLDER_INBOX;
+// Parameterized function for whitelist/blacklist learning
+async function learnList(imap, listType) {
+    const isWhitelist = listType === 'whitelist';
+    const folder = isWhitelist ? config.FOLDER_TRAIN_WHITELIST : config.FOLDER_TRAIN_BLACKLIST;
+    const learnCmd = isWhitelist ? '--ham' : '--spam'; // Whitelist as ham, blacklist as spam
+    const destFolder = isWhitelist ? config.FOLDER_INBOX : config.FOLDER_SPAM;
+    const updateFn = isWhitelist ? updateWhitelist : updateBlacklist;
 
     try {
         const box = await open(imap, folder);
@@ -312,31 +324,40 @@ export async function learnWhitelist(imap) {
                 from: i,
                 to: Math.min(i + PROCESS_BATCH_SIZE, messages.length),
                 total: messages.length,
-            }, 'Whitelist batch');
+            }, `${listType} batch`);
             const batchMessages = messages.slice(i, i + PROCESS_BATCH_SIZE);
 
-            // Train as ham
-            await train(batchMessages, learnCmd, 'whitelist');
+            // Train with appropriate command
+            await train(batchMessages, learnCmd, listType);
 
-            // Extract sender email and update whitelist
+            // Extract sender email and update list
             for (const message of batchMessages) {
                 const emails = extractSenders(message.headers);
 
                 if (emails) {
-                    logger.info({emails}, 'Whitelisting emails');
+                    logger.info({emails}, `${isWhitelist ? 'Whitelisting' : 'Blacklisting'} emails`);
                     for (let i = 0; i < emails.length; i++) {
-                        await updateWhitelist(emails[i]);
+                        await updateFn(emails[i]);
                     }
                 }
             }
 
-            // Move messages to inbox
+            // Move messages to destination folder
             await moveMessages(imap, batchMessages, destFolder);
         }
-        logger.info({folder, processedCount: messages.length}, 'All whitelist operations completed');
+        logger.info({folder, processedCount: messages.length}, `All ${listType} operations completed`);
 
     } catch (error) {
-        logger.error({folder, error: error.message}, 'Error in learnWhitelist process');
+        logger.error({folder, error: error.message}, `Error in learn${listType} process`);
         throw error;
     }
+}
+
+// Wrapper functions for backward compatibility and exports
+export async function learnWhitelist(imap) {
+    return learnList(imap, 'whitelist');
+}
+
+export async function learnBlacklist(imap) {
+    return learnList(imap, 'blacklist');
 }

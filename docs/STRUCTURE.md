@@ -20,6 +20,7 @@ spam-scanner/
 │   ├── train-spam.js               ← sa-learn --spam
 │   ├── train-ham.js                ← sa-learn --ham
 │   ├── train-whitelist.js          ← whitelist training
+│   ├── train-blacklist.js          ← blacklist training
 │   ├── scan-inbox.js               ← scans inbox, updates state
 │   ├── init-folders.js             ← creates folders
 │   ├── read-state.js               ← reads state, prints to stdout

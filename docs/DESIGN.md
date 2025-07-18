@@ -30,6 +30,7 @@ This system provides a modular, containerized mail-processing pipeline that conn
 | Spam training folder   | `FOLDER_TRAIN_SPAM`    | `INBOX.scanner.train-spam` | Yes              |
 | Ham training folder    | `FOLDER_TRAIN_HAM`     | `INBOX.scanner.train-ham`  | Yes              |
 | Whitelist training     | `FOLDER_TRAIN_WHITELIST` | `INBOX.scanner.train-whitelist` | Yes      |
+| Blacklist training     | `FOLDER_TRAIN_BLACKLIST` | `INBOX.scanner.train-blacklist` | Yes      |
 | Scanner state folder   | `FOLDER_STATE`         | `INBOX.scanner.state`      | Yes              |
 
 ---
@@ -54,6 +55,7 @@ FOLDER_SPAM=INBOX.spam
 FOLDER_TRAIN_SPAM=INBOX.scanner.train-spam
 FOLDER_TRAIN_HAM=INBOX.scanner.train-ham
 FOLDER_TRAIN_WHITELIST=INBOX.scanner.train-whitelist
+FOLDER_TRAIN_BLACKLIST=INBOX.scanner.train-blacklist
 FOLDER_STATE=INBOX.scanner.state
 SCAN_BATCH_SIZE=50
 SCAN_READ=false
@@ -75,6 +77,7 @@ SPAM_LABEL_HIGH=Spam:High
 | `train-spam.js`     | Trains SpamAssassin with `--spam` from TrainSpam          |
 | `train-ham.js`      | Trains SpamAssassin with `--ham` from TrainHam            |
 | `train-whitelist.js`| Trains SpamAssassin with `--ham` and adds senders to whitelist |
+| `train-blacklist.js`| Trains SpamAssassin with `--spam` and adds senders to blacklist |
 | `scan-inbox.js`     | Scans INBOX for new messages (UID > last_uid), detects spam |
 | `read-state.js`     | Reads scanner state from IMAP, outputs JSON to stdout     |
 | `write-state.js`    | Writes scanner state to IMAP, reads JSON from stdin       |
@@ -135,6 +138,16 @@ State is tracked exclusively by UID. Dates are for reference only.
   - Extract sender email addresses
   - Add senders to SpamAssassin whitelist in user_prefs
   - Move back to `FOLDER_INBOX`
+
+### Blacklist Training
+
+- Folder: `FOLDER_TRAIN_BLACKLIST`
+- User moves messages from known spam senders here
+- `train-blacklist.js`:
+  - `sa-learn --spam`
+  - Extract sender email addresses
+  - Add senders to SpamAssassin blacklist in user_prefs
+  - Move to `FOLDER_SPAM`
 
 ---
 

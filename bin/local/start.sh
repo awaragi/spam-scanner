@@ -63,7 +63,7 @@ else
 fi
 
 # Array of scripts to run in order
-scripts=("train-spam" "train-ham" "train-whitelist" "scan-inbox")
+scripts=("train-spam" "train-ham" "train-whitelist" "train-blacklist" "scan-inbox")
 
 while true
 do
