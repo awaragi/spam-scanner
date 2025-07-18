@@ -29,7 +29,7 @@ async function processWithSALearn(message, learnCmd, type) {
         const result = await spawnAsync('sa-learn', ['--max-size=100000000', learnCmd],  raw);
 
         if (result.code !== 0) {
-            throw new Error(`sa-learn failed for message ${uid} with code ${result.code}`);
+            throw new Error(`sa-learn failed for message ${uid} with code ${result.code} - ${result.stderr}`);
         }
 
         const {stdout} = result;
@@ -92,7 +92,7 @@ async function processWithSpamc(messages) {
 
             // Parse SpamAssassin output
             const { score, required, level, isSpam } = parseSpamAssassinOutput(headers);
-            logger.info({uid, score, required, level, isSpam, date, subject,}, 'spamc scan results');
+            logger.info({uid, score, required, level, isSpam, date, subject,headers}, 'spamc scan results');
 
             // Add message to processed messages with spam information
             const messageWithSpamInfo = {...message, spamInfo: {score, required, level, isSpam, subject, date}};
