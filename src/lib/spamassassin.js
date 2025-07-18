@@ -92,7 +92,7 @@ async function processWithSpamc(messages) {
 
             // Parse SpamAssassin output
             const { score, required, level, isSpam } = parseSpamAssassinOutput(headers);
-            logger.info({uid, score, required, level, isSpam, date, subject,}, 'spamc scan results');
+            logger.info({uid, score, required, level, isSpam, date, subject,headers}, 'spamc scan results');
 
             // Add message to processed messages with spam information
             const messageWithSpamInfo = {...message, spamInfo: {score, required, level, isSpam, subject, date}};

@@ -12,10 +12,12 @@ run_scripts() {
 }
 
 launch_spamd() {
-  spamd -D -c -m 5 --helper-home=/home/sauser -s stderr --listen=127.0.0.1,::1 &
+  echo "Starting spamd as user $(whoami)"
+  # spamd -D for debug
+  spamd -c -m 5 --helper-home=/home/sauser -s stderr &
 }
 
-echo "Running mode: $MODE as user $(whoami)"
+echo "Running: $MODE as user: $(whoami)"
 
 case "$MODE" in
   loop)

@@ -18,6 +18,10 @@ fi
 
 # Copy data from specified folder to sa-data volume
 echo "Copying data from $SOURCE_FOLDER to sa-data volume..."
-docker run --rm -v spamassassin-data:/data -v "$SOURCE_FOLDER":/source busybox cp -r /source/. /data
+docker run --rm \
+  -v spamassassin-data:/data \
+  -v "$SOURCE_FOLDER":/source \
+  busybox \
+  sh -c "cp -r /source/. /data && chown -R 1001:1001 /data"
 
 echo "Data copied successfully to sa-data volume"

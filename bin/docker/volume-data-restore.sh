@@ -33,6 +33,10 @@ trap 'rm -rf "$TEMP_DIR"' EXIT
 tar -xzf "$BACKUP_FILE" -C "$TEMP_DIR"
 
 # Copy data from temp directory to volume
-docker run --rm -v spamassassin-data:/data -v "$TEMP_DIR":/backup busybox sh -c "rm -rf /data/* && cp -r /backup/. /data"
+docker run --rm \
+  -v spamassassin-data:/data \
+  -v "$TEMP_DIR":/backup \
+  busybox \
+  sh -c "rm -rf /data/* && cp -r /backup/. /data && chown -R 1001:1001 /data"
 
 echo "Restore completed successfully"

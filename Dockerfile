@@ -6,8 +6,8 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Production level local.cf
-RUN mv /etc/spamassassin/local.cf /etc/spamassassin/local.cf.factory
-COPY local.cf /etc/spamassassin/local.cf
+# RUN mv /etc/spamassassin/local.cf /etc/spamassassin/local.cf.factory
+# COPY local.cf /etc/spamassassin/local.cf
 
 RUN wget https://mcgrail.com/downloads/kam.sa-channels.mcgrail.com.key
 RUN sa-update -v --import kam.sa-channels.mcgrail.com.key
@@ -15,7 +15,8 @@ RUN sa-update -v --gpgkey 24C063D8 --channel kam.sa-channels.mcgrail.com
 RUN rm kam.sa-channels.mcgrail.com.key
 RUN sa-compile
 
-RUN useradd -ms /bin/bash sauser
+ARG SAUSER_UID=1001
+RUN useradd -u $SAUSER_UID -ms /bin/bash sauser
 
 # Create application folder and spamassassin directory
 RUN mkdir -p /app/ /home/sauser/.spamassassin
