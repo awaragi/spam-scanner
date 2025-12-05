@@ -3,7 +3,7 @@ import fs from 'fs';
 import {config} from './utils/config.js';
 import {readScannerState, writeScannerState} from './state-manager.js';
 import {count, fetchAllMessages, fetchMessagesByUIDs, moveMessages, open, search, updateLabels} from "./imap-client.js";
-import {extractSenders} from "./utils/email.js";
+import {extractSenders, dateToString} from "./utils/email.js";
 import {parseEmail, parseSpamAssassinOutput} from "./utils/email-parser.js";
 import {categorizeMessages} from "./utils/spam-classifier.js";
 import {spawnAsync} from "./utils/spawn-async.js";
@@ -71,7 +71,7 @@ async function processWithSpamc(messages) {
     await Promise.all(messages.map(async message => {
         const {uid, envelope, raw,} = message;
         const subject = envelope.subject;
-        const date = envelope.date ? envelope.date.toISOString() : '';
+        const date = dateToString(envelope.date);
 
         logger.info({uid, date, subject}, 'Starting spamc check');
 
@@ -183,9 +183,9 @@ async function scanMessages(imap, uids, state) {
     last_uid = Math.max(state.last_uid, last_uid);
 
     const last_seen_date = messages.reduce((maxDate, message) => {
-        const date = message.envelope.date.toISOString();
+        const date = dateToString(message.envelope.date);
         if (!date) return maxDate;
-        return (date.localeCompare(maxDate) ? date : maxDate);
+        return (date.localeCompare(maxDate) > 0 ? date : maxDate);
     }, new Date(0).toISOString());
     const last_checked = new Date().toISOString();
 
