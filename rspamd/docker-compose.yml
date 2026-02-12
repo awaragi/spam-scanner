@@ -1,0 +1,30 @@
+services:
+  rspamd:
+    image: rspamd/rspamd:latest
+    container_name: rspamd
+    ports:
+      - "11332:11332"  # Proxy worker
+      - "11334:11334"  # Web interface
+    volumes:
+      - ./config:/etc/rspamd/local.d
+      - ./data:/var/lib/rspamd
+      - ./logs:/var/log/rspamd
+    depends_on:
+      - redis
+      - unbound
+    restart: unless-stopped
+
+  redis:
+    image: redis:alpine
+    container_name: rspamd-redis
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+  unbound:
+    image: klutchell/unbound:latest
+    container_name: rspamd-unbound
+    restart: unless-stopped
+
+volumes:
+  redis-data:
