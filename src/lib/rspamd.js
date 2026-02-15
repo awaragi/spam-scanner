@@ -1,67 +1,54 @@
 import pino from 'pino';
-import fs from 'fs';
 import {config} from './utils/config.js';
 import {readScannerState, writeScannerState} from './state-manager.js';
 import {count, fetchAllMessages, fetchMessagesByUIDs, moveMessages, open, search, updateLabels} from "./imap-client.js";
 import {extractSenders, dateToString} from "./utils/email.js";
-import {parseEmail, parseSpamAssassinOutput} from "./utils/email-parser.js";
+import {parseEmail, parseRspamdOutput} from "./utils/email-parser.js";
 import {categorizeMessages} from "./utils/spam-classifier.js";
-import {spawnAsync} from "./utils/spawn-async.js";
+import {checkEmail, learnHam, learnSpam} from "./rspamd-client.js";
 
 const logger = pino();
 
 // Spam label constants
-const USER = config.USER;
-const HOME = config.HOME;
 const SPAM_LABEL_LOW = config.SPAM_LABEL_LOW;
 const SPAM_LABEL_HIGH = config.SPAM_LABEL_HIGH;
 const PROCESS_BATCH_SIZE = config.PROCESS_BATCH_SIZE;
 
 /**
- * for learnFromFolder: Process messages with sa-learn
+ * Process messages with Rspamd learning
  */
-async function processWithSALearn(message, learnCmd, type) {
+async function processWithRspamdLearn(message, learnFn, type) {
     const {uid, raw} = message;
-    logger.info({uid, type}, 'Learning message');
+    logger.info({uid, type}, 'Learning message with Rspamd');
 
     let subject = message.envelope.subject;
     try {
-        const result = await spawnAsync('sa-learn', ['--max-size=100000000', learnCmd],  raw);
-
-        if (result.code !== 0) {
-            throw new Error(`sa-learn failed for message ${uid} with code ${result.code} - ${result.stderr}`);
-        }
-
-        const {stdout} = result;
-        logger.info({uid, subject, stdout}, 'Message processed with sa-learn');
+        const result = await learnFn(raw);
+        logger.info({uid, subject, result}, 'Message processed with Rspamd learn');
     } catch (err) {
-        // Write raw message to file for debugging
-        const logPath = `./failed_message_${uid}_${Date.now()}.txt`;
-        fs.writeFileSync(logPath, raw);
-
-        logger.error({uid, subject, error: err.message, logPath}, 'sa-learn process error');
+        logger.error({uid, subject, error: err.message}, 'Rspamd learn process error');
         throw err;
     }
 }
 
-async function train(messages, learnCmd, type) {
+async function train(messages, learnFn, type) {
     if (messages.length === 0) {
         return;
     }
 
     let processedCount = 0;
     await Promise.all(messages.map(async message => {
-        await processWithSALearn(message, learnCmd, type);
+        await processWithRspamdLearn(message, learnFn, type);
         processedCount++;
     }));
 
-    logger.info({type, processedCount}, 'All messages processed with sa-learn');
+    logger.info({type, processedCount}, 'All messages processed with Rspamd learn');
 }
 
 /**
- * for scanInbox: Process messages with SpamAssassin check
+ * Process messages with Rspamd check
  */
-async function processWithSpamc(messages) {
+async function processWithRspamd(messages) {
     if (messages.length === 0) {
         return [];
     }
@@ -73,38 +60,29 @@ async function processWithSpamc(messages) {
         const subject = envelope.subject;
         const date = dateToString(envelope.date);
 
-        logger.info({uid, date, subject}, 'Starting spamc check');
+        logger.info({uid, date, subject}, 'Starting Rspamd check');
 
         try {
-            const args = ['--username', USER, '--max-size', '100000000'];
-            logger.debug({args}, 'Running spamc');
-            const result = await spawnAsync('spamc', args, raw);
+            logger.debug({uid}, 'Checking email with Rspamd');
+            const result = await checkEmail(raw);
 
-            logger.info({uid, subject, code: result.code}, 'spamc check completed');
+            logger.info({uid, subject, action: result.action, score: result.score}, 'Rspamd check completed');
 
-            if (result.code !== 0) {
-                logger.error({uid, subject, code: result.code}, 'spamc process failed');
-                throw new Error(`Unable to process spamc (code = ${result.code}: ${result.stderr}`);
-            }
-
-            // parse result
-            const { headers, body } = parseEmail(result.stdout);
-
-            // Parse SpamAssassin output
-            const { score, required, level, isSpam } = parseSpamAssassinOutput(headers);
-            logger.info({uid, score, required, level, isSpam, date, subject,headers}, 'spamc scan results');
+            // Parse Rspamd output
+            const { score, required, level, isSpam } = parseRspamdOutput(result);
+            logger.info({uid, score, required, level, isSpam, date, subject}, 'Rspamd scan results');
 
             // Add message to processed messages with spam information
             const messageWithSpamInfo = {...message, spamInfo: {score, required, level, isSpam, subject, date}};
 
             processedMessages.push(messageWithSpamInfo);
         } catch (err) {
-            logger.error({uid, error: err.message}, 'spamc process error');
+            logger.error({uid, error: err.message}, 'Rspamd check process error');
             throw err;
         }
     }));
 
-    logger.info({total: processedMessages.length,}, 'Messages processed with spamc');
+    logger.info({total: processedMessages.length,}, 'Messages processed with Rspamd');
     return processedMessages;
 }
 
@@ -160,7 +138,7 @@ export async function scanInbox(imap) {
 async function scanMessages(imap, uids, state) {
     const messages = await fetchMessagesByUIDs(imap, uids);
 
-    const processedMessages = await processWithSpamc(messages);
+    const processedMessages = await processWithRspamd(messages);
 
     // TODO extract headers as a lot of functions just work on headers
 
@@ -213,51 +191,6 @@ async function scanMessages(imap, uids, state) {
     };
 }
 
-// Update whitelist or blacklist in user preferences file
-async function updateList(email, listType) {
-    if (!email) {
-        logger.warn(`No email address found to ${listType}`);
-        return;
-    }
-
-    const userPrefPath = `${HOME}/.spamassassin/user_prefs`;
-    const entryPrefix = listType === 'whitelist' ? 'whitelist_from' : 'blacklist_from';
-    const entry = `${entryPrefix} ${email}`;
-
-    try {
-        // Check if file exists
-        let content = '';
-        try {
-            content = fs.readFileSync(userPrefPath, 'utf8');
-        } catch (err) {
-            // File doesn't exist, create it
-            logger.info({path: userPrefPath}, 'Creating user preferences file');
-        }
-
-        // Check if entry already exists
-        if (content.includes(entry)) {
-            logger.info({email}, `Email already in ${listType}`);
-            return;
-        }
-
-        // Append entry to file
-        fs.appendFileSync(userPrefPath, `${content ? '\n' : ''}${entry}`);
-        logger.info({email}, `Added email to ${listType}`);
-    } catch (err) {
-        logger.error({email, error: err.message}, `Failed to update ${listType}`);
-        throw err;
-    }
-}
-
-// Wrapper functions for backward compatibility
-async function updateWhitelist(email) {
-    return updateList(email, 'whitelist');
-}
-
-async function updateBlacklist(email) {
-    return updateList(email, 'blacklist');
-}
-
 // Learn from folder function for spam and ham
 export async function learnFromFolder(imap, type) {
     if (type !== 'spam' && type !== 'ham') {
@@ -265,7 +198,7 @@ export async function learnFromFolder(imap, type) {
     }
 
     const folder = type === 'spam' ? config.FOLDER_TRAIN_SPAM : config.FOLDER_TRAIN_HAM;
-    const learnCmd = type === 'spam' ? '--spam' : '--ham';
+    const learnFn = type === 'spam' ? learnSpam : learnHam;
     const destFolder = type === 'spam' ? config.FOLDER_SPAM : config.FOLDER_INBOX;
 
     try {
@@ -288,7 +221,7 @@ export async function learnFromFolder(imap, type) {
                 type,
             }, 'Learn batch');
             const batchMessages = messages.slice(i, i + PROCESS_BATCH_SIZE);
-            await train(batchMessages, learnCmd, type);
+            await train(batchMessages, learnFn, type);
             await moveMessages(imap, batchMessages, destFolder);
         }
         logger.info({folder, type, total: messages.length}, 'All operations completed');
@@ -299,65 +232,18 @@ export async function learnFromFolder(imap, type) {
     }
 }
 
-// Parameterized function for whitelist/blacklist learning
-async function learnList(imap, listType) {
-    const isWhitelist = listType === 'whitelist';
-    const folder = isWhitelist ? config.FOLDER_TRAIN_WHITELIST : config.FOLDER_TRAIN_BLACKLIST;
-    const learnCmd = isWhitelist ? '--ham' : '--spam'; // Whitelist as ham, blacklist as spam
-    const destFolder = isWhitelist ? config.FOLDER_INBOX : config.FOLDER_SPAM;
-    const updateFn = isWhitelist ? updateWhitelist : updateBlacklist;
-
-    try {
-        const box = await open(imap, folder);
-
-        const messageCount = count(box);
-
-        if (messageCount === 0) {
-            logger.info({folder}, 'No messages in folder to process');
-            return;
-        }
-
-        const messages = await fetchAllMessages(imap);
-
-        for (let i = 0; i < messages.length; i += PROCESS_BATCH_SIZE) {
-            logger.info({
-                from: i,
-                to: Math.min(i + PROCESS_BATCH_SIZE, messages.length),
-                total: messages.length,
-            }, `${listType} batch`);
-            const batchMessages = messages.slice(i, i + PROCESS_BATCH_SIZE);
-
-            // Train with appropriate command
-            await train(batchMessages, learnCmd, listType);
-
-            // Extract sender email and update list
-            for (const message of batchMessages) {
-                const emails = extractSenders(message.headers);
-
-                if (emails) {
-                    logger.info({emails}, `${isWhitelist ? 'Whitelisting' : 'Blacklisting'} emails`);
-                    for (let i = 0; i < emails.length; i++) {
-                        await updateFn(emails[i]);
-                    }
-                }
-            }
-
-            // Move messages to destination folder
-            await moveMessages(imap, batchMessages, destFolder);
-        }
-        logger.info({folder, processedCount: messages.length}, `All ${listType} operations completed`);
-
-    } catch (error) {
-        logger.error({folder, error: error.message}, `Error in learn${listType} process`);
-        throw error;
-    }
-}
-
-// Wrapper functions for backward compatibility and exports
+/**
+ * Placeholder function for whitelist learning (to be implemented later)
+ */
 export async function learnWhitelist(imap) {
-    return learnList(imap, 'whitelist');
+    logger.info('learnWhitelist is a placeholder for future implementation');
+    // TODO: Implement whitelist learning with Rspamd
 }
 
+/**
+ * Placeholder function for blacklist learning (to be implemented later)
+ */
 export async function learnBlacklist(imap) {
-    return learnList(imap, 'blacklist');
+    logger.info('learnBlacklist is a placeholder for future implementation');
+    // TODO: Implement blacklist learning with Rspamd
 }

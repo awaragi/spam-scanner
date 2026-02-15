@@ -200,7 +200,7 @@ graph TB
   - `/learnspam`: Train classifier with spam email
 
 - **Configuration**: Environment variables via existing config.js
-  - `RSPAMD_URL`: Base URL (default: `http://localhost:11333`)
+  - `RSPAMD_URL`: Base URL (default: `http://localhost:11334`)
   - `RSPAMD_PASSWORD`: Optional password for controller API
   - Reuse existing spam threshold and label configuration
 
@@ -308,7 +308,7 @@ RSPAMD_PASSWORD=
 
 **Config Object** (add to `src/lib/utils/config.js`):
 ```javascript
-RSPAMD_URL: process.env.RSPAMD_URL || 'http://localhost:11333',
+RSPAMD_URL: process.env.RSPAMD_URL || 'http://localhost:11334',
 RSPAMD_PASSWORD: process.env.RSPAMD_PASSWORD || ''
 ```
 

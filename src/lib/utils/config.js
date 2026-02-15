@@ -27,7 +27,10 @@ export const config = (() => {
     PROCESS_BATCH_SIZE: parseInt(process.env.PROCESS_BATCH_SIZE || '10'),
 
     SPAM_LABEL_LOW: process.env.SPAM_LABEL_LOW || 'Spam:Low',
-    SPAM_LABEL_HIGH: process.env.SPAM_LABEL_HIGH || 'Spam:High'
+    SPAM_LABEL_HIGH: process.env.SPAM_LABEL_HIGH || 'Spam:High',
+
+    RSPAMD_URL: process.env.RSPAMD_URL || 'http://localhost:11334',
+    RSPAMD_PASSWORD: process.env.RSPAMD_PASSWORD || ''
   };
 
   logger.debug(c,'Loading configuration');

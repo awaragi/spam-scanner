@@ -112,3 +112,30 @@ export function parseSpamAssassinOutput(headers) {
   };
 }
 
+/**
+ * Parses Rspamd JSON response to extract spam information
+ * @param {Object} response - JSON response object from Rspamd /checkv2 endpoint
+ * @returns {Object} - Object containing spam information
+ */
+export function parseRspamdOutput(response) {
+  if (!response || typeof response !== 'object') {
+    throw new Error('Invalid Rspamd response format');
+  }
+
+  const score = response.score || 0;
+  const required = response.required_score || 0;
+  
+  // Map Rspamd actions to isSpam boolean
+  // "reject" and "add header" are spam actions
+  // "no action", "greylist" are non-spam actions
+  const action = response.action || 'no action';
+  const isSpam = action === 'reject' || action === 'add header';
+
+  return {
+    score,
+    required,
+    level: null,
+    isSpam,
+  };
+}
+

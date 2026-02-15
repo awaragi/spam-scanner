@@ -111,7 +111,7 @@ export function processMessage(message) {
   const raw = stripSpamHeaders(message.source.toString());
   const {body, headers} = parseEmail(raw);
 
-  logger.info({uid}, 'Message read');
+  logger.debug({uid}, 'Message read');
 
   return {
     uid,

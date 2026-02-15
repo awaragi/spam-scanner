@@ -35,20 +35,11 @@ load_env() {
     done < "$ENV_FILE"
 }
 
-# Function to run a Node.js script with proper user and environment
+# Function to run a Node.js script
 run_script() {
     local script_name="$1"
     echo "Running $script_name..."
-    # Pass all path and nodejs environment variables to sudo
-    sudo \
-      -u debian-spamd \
-      --preserve-env \
-      env \
-        "PATH=$PATH" \
-        "NODE_PATH=$NODE_PATH" \
-        "HOME=/var/lib/spamassassin" \
-        "USER=debian-spamd" \
-      node "src/$script_name.js"
+    node "src/$script_name.js"
 }
 
 # Load environment variables safely
@@ -63,7 +54,8 @@ else
 fi
 
 # Array of scripts to run in order
-scripts=("train-spam" "train-ham" "train-whitelist" "train-blacklist" "scan-inbox")
+scripts=("train-spam" "train-ham" "scan-inbox")
+# scripts=("train-spam" "train-ham" "train-whitelist" "train-blacklist" )
 
 while true
 do

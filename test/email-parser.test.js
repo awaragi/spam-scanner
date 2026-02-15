@@ -2,6 +2,7 @@ import {
   extractDateFromRaw,
   extractHeaders, parseEmail,
   parseSpamAssassinOutput,
+  parseRspamdOutput,
   stripSpamHeaders
 } from '../src/lib/utils/email-parser.js';
 
@@ -243,5 +244,113 @@ describe('parseSpamAssassinOutput', () => {
       required: 5.0,
       isSpam: false
     });
+  });
+});
+
+describe('parseRspamdOutput', () => {
+  test('should parse Rspamd response with spam action', () => {
+    const response = {
+      action: 'add header',
+      score: 8.5,
+      required_score: 10.0,
+      symbols: {
+        TEST_SYMBOL: { score: 2.5 }
+      }
+    };
+
+    const result = parseRspamdOutput(response);
+    expect(result).toEqual({
+      score: 8.5,
+      required: 10.0,
+      level: null,
+      isSpam: true
+    });
+  });
+
+  test('should parse Rspamd response with reject action', () => {
+    const response = {
+      action: 'reject',
+      score: 15.0,
+      required_score: 10.0,
+      symbols: {}
+    };
+
+    const result = parseRspamdOutput(response);
+    expect(result).toEqual({
+      score: 15.0,
+      required: 10.0,
+      level: null,
+      isSpam: true
+    });
+  });
+
+  test('should parse Rspamd response with no action (not spam)', () => {
+    const response = {
+      action: 'no action',
+      score: 0.5,
+      required_score: 10.0,
+      symbols: {}
+    };
+
+    const result = parseRspamdOutput(response);
+    expect(result).toEqual({
+      score: 0.5,
+      required: 10.0,
+      level: null,
+      isSpam: false
+    });
+  });
+
+  test('should parse Rspamd response with greylist action', () => {
+    const response = {
+      action: 'greylist',
+      score: 7.0,
+      required_score: 10.0,
+      symbols: {}
+    };
+
+    const result = parseRspamdOutput(response);
+    expect(result).toEqual({
+      score: 7.0,
+      required: 10.0,
+      level: null,
+      isSpam: false
+    });
+  });
+
+  test('should handle missing fields with defaults', () => {
+    const response = {};
+
+    const result = parseRspamdOutput(response);
+    expect(result).toEqual({
+      score: 0,
+      required: 0,
+      level: null,
+      isSpam: false
+    });
+  });
+
+  test('should handle null action field', () => {
+    const response = {
+      action: null,
+      score: 5.0,
+      required_score: 10.0
+    };
+
+    const result = parseRspamdOutput(response);
+    expect(result).toEqual({
+      score: 5.0,
+      required: 10.0,
+      level: null,
+      isSpam: false
+    });
+  });
+
+  test('should throw error for non-object response', () => {
+    expect(() => parseRspamdOutput('invalid')).toThrow('Invalid Rspamd response format');
+  });
+
+  test('should throw error for null response', () => {
+    expect(() => parseRspamdOutput(null)).toThrow('Invalid Rspamd response format');
   });
 });

@@ -1,21 +1,20 @@
 # spam-scanner
 
-A modular IMAP spam scanner and trainer powered by SpamAssassin.  
-Supports UID-based incremental scanning, mailbox-contained state, and both manual and automatic spam/ham training.
+A modular IMAP spam scanner and trainer powered by Rspamd.  
+Supports UID-based incremental scanning, mailbox-contained state, and both manual and automatic spam/ham training using Rspamd's HTTP API.
 
 ---
 
 ## Features
 
-- IMAP inbox scanning using `spamc` and `spamd`
+- IMAP inbox scanning using Rspamd HTTP API
 - UID-based incremental progress tracking (no reprocessing)
 - Manual spam/ham training via dedicated IMAP folders
-- Whitelist training for trusted senders
-- Blacklist training for known spam senders
 - Spam classification with different probability levels (low/high)
 - All state stored inside the mailbox and mirrored to disk
 - Runs in one-shot or continuous loop mode
 - No external database or file storage required
+- Docker-based Rspamd deployment
 
 ---
 
@@ -66,6 +65,9 @@ STATE_KEY_SCANNER=scanner
 
 SPAM_LABEL_LOW=Spam:Low
 SPAM_LABEL_HIGH=Spam:High
+
+RSPAMD_URL=http://localhost:11334
+RSPAMD_PASSWORD=
 ```
 
 ---
@@ -76,28 +78,22 @@ SPAM_LABEL_HIGH=Spam:High
 
 Ensure you have the following installed:
 - Node.js (v20 or higher)
-- SpamAssassin (`spamd` and `spamc`)
+- Docker and Docker Compose (for running Rspamd)
 
-On Debian/Ubuntu:
+### 2. Setup Rspamd with Docker
+
+Rspamd is configured to run in Docker. Start it with:
+
 ```bash
-sudo apt-get update
-sudo apt-get install spamassassin spamc
+cd rspamd
+docker-compose up -d
 ```
 
-### 2. Configure SpamAssassin
+Rspamd will be available at `http://localhost:11333` (default `RSPAMD_URL`).
 
-SpamAssassin should be configured with:
-- User: debian-spamd
-- Home directory: /var/lib/spamassassin
-
-Edit the SpamAssassin configuration:
+To stop Rspamd:
 ```bash
-sudo nano /etc/default/spamd
-```
-
-Ensure it contains:
-```
-OPTIONS="--create-prefs --max-children 5 --helper-home-dir=/var/lib/spamassassin"
+docker-compose down
 ```
 
 ### 3. Install Application
@@ -112,7 +108,7 @@ npm install
 
 ```bash
 cp .env.example .env
-# Edit .env with your IMAP settings
+# Edit .env with your IMAP and Rspamd settings
 nano .env
 ```
 
@@ -131,11 +127,11 @@ node src/init-folders.js
 Run the scripts in sequence:
 
 ```bash
-sudo -u debian-spamd env "PATH=$PATH" "NODE_PATH=$NODE_PATH" node src/train-spam.js
-sudo -u debian-spamd env "PATH=$PATH" "NODE_PATH=$NODE_PATH" node src/train-ham.js
-sudo -u debian-spamd env "PATH=$PATH" "NODE_PATH=$NODE_PATH" node src/train-whitelist.js
-sudo -u debian-spamd env "PATH=$PATH" "NODE_PATH=$NODE_PATH" node src/train-blacklist.js
-sudo -u debian-spamd env "PATH=$PATH" "NODE_PATH=$NODE_PATH" node src/scan-inbox.js
+node src/train-spam.js
+node src/train-ham.js
+node src/train-whitelist.js
+node src/train-blacklist.js
+node src/scan-inbox.js
 ```
 
 ### Continuous Mode (Loop)
@@ -158,66 +154,32 @@ This script:
 
 You can press Enter during the wait period to skip the remaining wait time.
 
-### Running as a Service (untested)
-
-To run as a systemd service:
-
-1. Create a service file:
-```bash
-sudo nano /etc/systemd/system/spam-scanner.service
-```
-
-2. Add the following content:
-```
-[Unit]
-Description=IMAP Spam Scanner
-After=network.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/path/to/spam-scanner
-ExecStart=/path/to/spam-scanner/bin/local/start.sh
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-3. Enable and start the service:
-```bash
-sudo systemctl enable spam-scanner
-sudo systemctl start spam-scanner
-```
-
----
-
 ## Script Execution Order
 
 The application runs the following steps in order:
 
 1. `train-spam.js` - Process messages in spam training folder
 2. `train-ham.js` - Process messages in ham training folder
-3. `train-whitelist.js` - Process messages in whitelist training folder
-4. `train-blacklist.js` - Process messages in blacklist training folder
+3. `train-whitelist.js` - Process messages in whitelist training folder (placeholder for future)
+4. `train-blacklist.js` - Process messages in blacklist training folder (placeholder for future)
 5. `scan-inbox.js` - Scan inbox for spam messages
 
 ---
 
 ## Backup & Restore
 
-### Backup SpamAssassin Data
+### Backup Rspamd Data
+
+The Rspamd state is stored in Docker volume. To backup:
 
 ```bash
-sudo tar czf spamdata.tar.gz -C /var/lib/spamassassin .spamassassin
+docker-compose -f rspamd/docker-compose.yml exec rspamd /bin/bash -c "tar czf - -C /data ." > rspamd-data.tar.gz
 ```
 
-### Restore SpamAssassin Data
+### Restore Rspamd Data
 
 ```bash
-sudo tar xzf spamdata.tar.gz -C /var/lib/spamassassin
-sudo chown -R debian-spamd:debian-spamd /var/lib/spamassassin/.spamassassin
+docker-compose -f rspamd/docker-compose.yml exec -T rspamd /bin/bash -c "tar xzf - -C /data" < rspamd-data.tar.gz
 ```
 
 ### Backup Scanner State
@@ -271,8 +233,8 @@ node src/scan-inbox.js
 - `read-email.js` → reads and displays a specific email
 - `train-spam.js` → processes messages in spam training folder
 - `train-ham.js` → processes messages in ham training folder
-- `train-whitelist.js` → processes messages in whitelist training folder
-- `train-blacklist.js` → processes messages in blacklist training folder
+- `train-whitelist.js` → processes messages in whitelist training folder (placeholder for future)
+- `train-blacklist.js` → processes messages in blacklist training folder (placeholder for future)
 
 ---
 
