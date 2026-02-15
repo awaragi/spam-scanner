@@ -129,7 +129,9 @@ export function parseRspamdOutput(response) {
   // "reject" and "add header" are spam actions
   // "no action", "greylist" are non-spam actions
   const action = response.action || 'no action';
-  const isSpam = action === 'reject' || action === 'add header';
+  // Only "reject" action means definite spam
+  // "add header" means suspicious but below spam threshold
+  const isSpam = action === 'reject';
 
   return {
     score,
