@@ -21,6 +21,8 @@ export const config = (() => {
     FOLDER_TRAIN_BLACKLIST: process.env.FOLDER_TRAIN_BLACKLIST || 'INBOX.scanner.train-blacklist',
     FOLDER_STATE: process.env.FOLDER_STATE || 'scanner.state',
     STATE_KEY_SCANNER: process.env.STATE_KEY_SCANNER || 'scanner',
+    STATE_KEY_WHITELIST_MAP: process.env.STATE_KEY_WHITELIST_MAP || 'rspamd-whitelist-map',
+    STATE_KEY_BLACKLIST_MAP: process.env.STATE_KEY_BLACKLIST_MAP || 'rspamd-blacklist-map',
 
     SCAN_BATCH_SIZE: parseInt(process.env.SCAN_BATCH_SIZE || '200', 10),
     SCAN_READ: process.env.SCAN_READ === 'true',
@@ -30,7 +32,9 @@ export const config = (() => {
     SPAM_LABEL_HIGH: process.env.SPAM_LABEL_HIGH || 'Spam:High',
 
     RSPAMD_URL: process.env.RSPAMD_URL || 'http://localhost:11334',
-    RSPAMD_PASSWORD: process.env.RSPAMD_PASSWORD || ''
+    RSPAMD_PASSWORD: process.env.RSPAMD_PASSWORD || '',
+    RSPAMD_WHITELIST_MAP_PATH: process.env.RSPAMD_WHITELIST_MAP_PATH || 'rspamd/maps/whitelist.map',
+    RSPAMD_BLACKLIST_MAP_PATH: process.env.RSPAMD_BLACKLIST_MAP_PATH || 'rspamd/maps/blacklist.map'
   };
 
   logger.debug(c,'Loading configuration');

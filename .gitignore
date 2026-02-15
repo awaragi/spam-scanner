@@ -139,3 +139,6 @@ dist
 data/
 .env.test
 .env.production
+
+# Rspamd map files (dynamically managed at runtime)
+rspamd/maps/

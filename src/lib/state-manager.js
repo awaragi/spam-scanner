@@ -8,6 +8,25 @@ const criteria = {
   }
 };
 
+function buildStateCriteria(stateKey) {
+  return {
+    header: {
+      'X-App-State': stateKey
+    }
+  };
+}
+
+function formatMapAsEmail(mapContent, stateKey) {
+  return `From: Map State <scanner@localhost>
+To: Map State <scanner@localhost>
+Subject: AppState: ${stateKey}
+X-App-State: ${stateKey}
+Content-Type: text/plain; charset=utf-8
+MIME-Version: 1.0
+
+${mapContent}`;
+}
+
 export async function readScannerState(imap, defaultState) {
     // remember original mailbox
     const originalPath = imap.mailbox?.path;
@@ -78,6 +97,32 @@ export async function writeScannerState(imap, state) {
         if (originalPath) {
             await imap.mailboxOpen(originalPath);
         }
+
+    return true;
+}
+
+export async function writeMapState(imap, mapStateKey, mapContent) {
+    if (typeof mapContent !== 'string') {
+      throw new Error('Invalid map content: expected a string');
+    }
+
+    const originalPath = imap.mailbox?.path;
+    const raw = formatMapAsEmail(mapContent, mapStateKey);
+    const mapCriteria = buildStateCriteria(mapStateKey);
+
+    await imap.mailboxOpen(config.FOLDER_STATE, {readOnly: false});
+
+    const results = await search(imap, mapCriteria);
+
+    if (results.length > 0) {
+      await imap.messageDelete(mapCriteria);
+    }
+
+    await imap.append(config.FOLDER_STATE, raw, ['\\Seen']);
+
+    if (originalPath) {
+      await imap.mailboxOpen(originalPath);
+    }
 
     return true;
 }

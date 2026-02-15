@@ -1,11 +1,14 @@
 import pino from 'pino';
 import {config} from './utils/config.js';
-import {readScannerState, writeScannerState} from './state-manager.js';
+import {readScannerState, writeMapState, writeScannerState} from './state-manager.js';
 import {count, fetchAllMessages, fetchMessagesByUIDs, moveMessages, open, search, updateLabels} from "./imap-client.js";
 import {extractSenders, dateToString} from "./utils/email.js";
 import {parseEmail, parseRspamdOutput} from "./utils/email-parser.js";
 import {categorizeMessages} from "./utils/spam-classifier.js";
 import {checkEmail, learnHam, learnSpam} from "./rspamd-client.js";
+import {updateMap} from "./utils/rspamd-maps.js";
+import path from 'path';
+import fs from 'fs/promises';
 
 const logger = pino();
 
@@ -233,17 +236,96 @@ export async function learnFromFolder(imap, type) {
 }
 
 /**
- * Placeholder function for whitelist learning (to be implemented later)
+ * Learn from whitelist training folder and update map file
  */
 export async function learnWhitelist(imap) {
-    logger.info('learnWhitelist is a placeholder for future implementation');
-    // TODO: Implement whitelist learning with Rspamd
+    await learnFromMap(imap, 'whitelist');
 }
 
 /**
- * Placeholder function for blacklist learning (to be implemented later)
+ * Learn from blacklist training folder and update map file
  */
 export async function learnBlacklist(imap) {
-    logger.info('learnBlacklist is a placeholder for future implementation');
-    // TODO: Implement blacklist learning with Rspamd
+    await learnFromMap(imap, 'blacklist');
+}
+
+/**
+ * Learn from map training folder (whitelist or blacklist)
+ * Extracts senders and updates the corresponding map file
+ */
+async function learnFromMap(imap, type) {
+    if (type !== 'whitelist' && type !== 'blacklist') {
+        throw new Error(`Invalid map type: ${type}. Expected 'whitelist' or 'blacklist'.`);
+    }
+
+    const folder = type === 'whitelist' ? config.FOLDER_TRAIN_WHITELIST : config.FOLDER_TRAIN_BLACKLIST;
+    const mapPath = type === 'whitelist' ? config.RSPAMD_WHITELIST_MAP_PATH : config.RSPAMD_BLACKLIST_MAP_PATH;
+
+    // Resolve map path relative to repo root if it's not absolute
+    const resolvedMapPath = path.isAbsolute(mapPath)
+        ? mapPath
+        : path.resolve(process.cwd(), mapPath);
+
+    try {
+        const box = await open(imap, folder);
+        const messageCount = count(box);
+
+        if (messageCount === 0) {
+            logger.info({folder, type}, 'No messages in training folder');
+            return;
+        }
+
+        const messages = await fetchAllMessages(imap);
+        const senders = [];
+
+        // Extract senders from all messages
+        for (const message of messages) {
+            const {uid, headers} = message;
+            const messageSenders = extractSenders(headers);
+
+            if (messageSenders.length > 0) {
+                senders.push(...messageSenders);
+                logger.debug({uid, senders: messageSenders}, `Extracted senders for ${type}`);
+            } else {
+                logger.debug({uid}, `No extractable senders found for ${type}`);
+            }
+        }
+
+        if (senders.length === 0) {
+            logger.info({folder, type}, 'No extractable senders found in training folder');
+            return;
+        }
+
+        // Update map file with senders
+        const result = await updateMap(resolvedMapPath, senders);
+        logger.info({folder, type, ...result}, `${type} map updated`);
+
+        let mapContent = null;
+        try {
+            mapContent = await fs.readFile(resolvedMapPath, 'utf-8');
+        } catch (err) {
+            if (err.code === 'ENOENT') {
+                logger.info({mapPath: resolvedMapPath, type}, 'Map file not found for state backup');
+            } else {
+                throw err;
+            }
+        }
+
+        if (mapContent !== null) {
+            const mapStateKey = type === 'whitelist'
+                ? config.STATE_KEY_WHITELIST_MAP
+                : config.STATE_KEY_BLACKLIST_MAP;
+            await writeMapState(imap, mapStateKey, mapContent);
+            logger.info({folder, type, mapStateKey}, 'Map state backup updated');
+        }
+
+        // Move processed messages to destination folder
+        const destFolder = type === 'whitelist' ? config.FOLDER_INBOX : config.FOLDER_SPAM;
+        await moveMessages(imap, messages, destFolder);
+        logger.info({folder, type, destFolder, total: messages.length}, 'Training messages moved');
+
+    } catch (error) {
+        logger.error({folder, type, error: error.message}, 'Error in learnFromMap process');
+        throw error;
+    }
 }

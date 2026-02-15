@@ -10,11 +10,30 @@ Supports UID-based incremental scanning, mailbox-contained state, and both manua
 - IMAP inbox scanning using Rspamd HTTP API
 - UID-based incremental progress tracking (no reprocessing)
 - Manual spam/ham training via dedicated IMAP folders
+- Whitelist and blacklist email maps with automatic updates
 - Spam classification with different probability levels (low/high)
 - All state stored inside the mailbox and mirrored to disk
 - Runs in one-shot or continuous loop mode
 - No external database or file storage required
 - Docker-based Rspamd deployment
+
+---
+
+## Whitelist & Blacklist Maps
+
+The application supports email address whitelisting and blacklisting via static Rspamd multimap rules:
+
+- **Whitelist**: Emails from whitelisted senders receive -5.0 score adjustment (trusted senders)
+- **Blacklist**: Emails from blacklisted senders receive +8.0 score adjustment (blocked senders)
+
+Map files are simple text files with one email address per line (normalized to lowercase):
+
+```
+user1@trusted-company.com
+user2@trusted-company.com
+```
+
+Training messages by moving them to the `INBOX.scanner.train-whitelist` or `INBOX.scanner.train-blacklist` folder will automatically extract sender addresses and add them to the corresponding map file. The map files are mounted in the Rspamd container and auto-reloaded.
 
 ---
 
@@ -68,6 +87,8 @@ SPAM_LABEL_HIGH=Spam:High
 
 RSPAMD_URL=http://localhost:11334
 RSPAMD_PASSWORD=
+RSPAMD_WHITELIST_MAP_PATH=rspamd/maps/whitelist.map
+RSPAMD_BLACKLIST_MAP_PATH=rspamd/maps/blacklist.map
 ```
 
 ---
