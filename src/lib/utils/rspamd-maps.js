@@ -1,8 +1,8 @@
 import fs from 'fs/promises';
 import path from 'path';
-import pino from 'pino';
+import {rootLogger} from './logger.js';
 
-const logger = pino();
+const logger = rootLogger.forComponent('rspamd-maps');
 
 /**
  * Normalize email address: trim, lowercase

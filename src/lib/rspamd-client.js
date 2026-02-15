@@ -1,7 +1,7 @@
-import pino from 'pino';
+import {rootLogger} from './utils/logger.js';
 import {config} from './utils/config.js';
 
-const logger = pino();
+const logger = rootLogger.forComponent('rspamd');
 
 const RSPAMD_URL = config.RSPAMD_URL;
 const RSPAMD_PASSWORD = config.RSPAMD_PASSWORD;

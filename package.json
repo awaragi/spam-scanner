@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "@types/emailjs-mime-codec": "^2.0.2",
+    "pino-pretty": "^10.0.0",
     "prettier": "^3.6.2",
     "vitest": "^3.2.4"
   }

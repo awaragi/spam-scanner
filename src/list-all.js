@@ -1,10 +1,10 @@
 import {newClient} from './lib/imap-client.js';
 import {config} from './lib/utils/config.js';
-import pino from 'pino';
+import {rootLogger} from './lib/utils/logger.js';
 
 const mailbox = config.FOLDER_INBOX;
 
-const logger = pino();
+const logger = rootLogger.forComponent('list-all');
 const imap = newClient();
 
 let i = 1;

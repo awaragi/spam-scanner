@@ -1,4 +1,4 @@
-import pino from 'pino';
+import {rootLogger} from './utils/logger.js';
 import {config} from './utils/config.js';
 import {readScannerState, writeMapState, writeScannerState} from './state-manager.js';
 import {count, fetchAllMessages, fetchMessagesByUIDs, moveMessages, open, search, updateLabels} from "./imap-client.js";
@@ -10,7 +10,7 @@ import {updateMap} from "./utils/rspamd-maps.js";
 import path from 'path';
 import fs from 'fs/promises';
 
-const logger = pino();
+const logger = rootLogger.forComponent('engine');
 
 // Spam label constants
 const SPAM_LABEL_LOW = config.SPAM_LABEL_LOW;
@@ -22,14 +22,15 @@ const PROCESS_BATCH_SIZE = config.PROCESS_BATCH_SIZE;
  */
 async function processWithRspamdLearn(message, learnFn, type) {
     const {uid, raw} = message;
-    logger.info({uid, type}, 'Learning message with Rspamd');
+    const messageLogger = logger.forMessage(uid);
+    messageLogger.info({type}, 'Learning message with Rspamd');
 
     let subject = message.envelope.subject;
     try {
         const result = await learnFn(raw);
-        logger.info({uid, subject, result}, 'Message processed with Rspamd learn');
+        messageLogger.info({subject, result}, 'Message processed with Rspamd learn');
     } catch (err) {
-        logger.error({uid, subject, error: err.message}, 'Rspamd learn process error');
+        messageLogger.error({subject, error: err.message}, 'Rspamd learn process error');
         throw err;
     }
 }
@@ -60,27 +61,28 @@ async function processWithRspamd(messages) {
 
     await Promise.all(messages.map(async message => {
         const {uid, envelope, raw,} = message;
+        const messageLogger = logger.forMessage(uid);
         const subject = envelope.subject;
         const date = dateToString(envelope.date);
 
-        logger.info({uid, date, subject}, 'Starting Rspamd check');
+        messageLogger.info({date, subject}, 'Starting Rspamd check');
 
         try {
-            logger.debug({uid}, 'Checking email with Rspamd');
+            messageLogger.debug('Checking email with Rspamd');
             const result = await checkEmail(raw);
 
-            logger.info({uid, subject, action: result.action, score: result.score}, 'Rspamd check completed');
+            messageLogger.info({subject, action: result.action, score: result.score}, 'Rspamd check completed');
 
             // Parse Rspamd output
             const { score, required, level, isSpam } = parseRspamdOutput(result);
-            logger.info({uid, score, required, level, isSpam, date, subject}, 'Rspamd scan results');
+            messageLogger.info({score, required, level, isSpam, date, subject}, 'Rspamd scan results');
 
             // Add message to processed messages with spam information
             const messageWithSpamInfo = {...message, spamInfo: {score, required, level, isSpam, subject, date}};
 
             processedMessages.push(messageWithSpamInfo);
         } catch (err) {
-            logger.error({uid, error: err.message}, 'Rspamd check process error');
+            messageLogger.error({error: err.message}, 'Rspamd check process error');
             throw err;
         }
     }));
@@ -281,13 +283,14 @@ async function learnFromMap(imap, type) {
         // Extract senders from all messages
         for (const message of messages) {
             const {uid, headers} = message;
+            const messageLogger = logger.forMessage(uid);
             const messageSenders = extractSenders(headers);
 
             if (messageSenders.length > 0) {
                 senders.push(...messageSenders);
-                logger.debug({uid, senders: messageSenders}, `Extracted senders for ${type}`);
+                messageLogger.debug({senders: messageSenders}, `Extracted senders for ${type}`);
             } else {
-                logger.debug({uid}, `No extractable senders found for ${type}`);
+                messageLogger.debug(`No extractable senders found for ${type}`);
             }
         }
 

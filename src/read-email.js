@@ -1,6 +1,6 @@
 import {newClient, processMessage} from './lib/imap-client.js';
 import {config} from './lib/utils/config.js';
-import pino from 'pino';
+import {rootLogger} from './lib/utils/logger.js';
 import path from 'path';
 import fs from 'fs/promises';
 
@@ -11,7 +11,7 @@ const mailbox = config.FOLDER_INBOX;
 const UID = 2201; // Replace with actual UID
 const MESSAGE_ID = '<83181f5681bd89f619b2b1e48210f391@eidiant.com>'; // Replace with actual Message-ID
 
-const logger = pino();
+const logger = rootLogger.forComponent('read-email');
 const imap = newClient();
 
 async function fetchAndSaveEmail(uid, messageId) {

@@ -1,8 +1,8 @@
 import emailAddresses from 'email-addresses';
-import pino from 'pino';
+import {rootLogger} from './logger.js';
 
 const {parseOneAddress} = emailAddresses;
-const logger = pino();
+const logger = rootLogger.forComponent('email-utils');
 
 /**
  * Checks if an email address appears to be human-generated.

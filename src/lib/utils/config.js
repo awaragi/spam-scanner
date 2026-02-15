@@ -1,6 +1,7 @@
-import pino from 'pino';
+import {rootLogger} from './logger.js';
 import {homedir, userInfo} from "os";
-const logger = pino();
+
+const logger = rootLogger.forComponent('config');
 
 export const config = (() => {
   const c = {
@@ -15,10 +16,10 @@ export const config = (() => {
 
     FOLDER_INBOX: process.env.FOLDER_INBOX || 'INBOX',
     FOLDER_SPAM: process.env.FOLDER_SPAM || 'INBOX.spam',
-    FOLDER_TRAIN_SPAM: process.env.FOLDER_TRAIN_SPAM || 'INBOX.scanner.train-spam',
-    FOLDER_TRAIN_HAM: process.env.FOLDER_TRAIN_HAM || 'INBOX.scanner.train-ham',
-    FOLDER_TRAIN_WHITELIST: process.env.FOLDER_TRAIN_WHITELIST || 'INBOX.scanner.train-whitelist',
-    FOLDER_TRAIN_BLACKLIST: process.env.FOLDER_TRAIN_BLACKLIST || 'INBOX.scanner.train-blacklist',
+    FOLDER_TRAIN_SPAM: process.env.FOLDER_TRAIN_SPAM || 'INBOX.scanner.train.spam',
+    FOLDER_TRAIN_HAM: process.env.FOLDER_TRAIN_HAM || 'INBOX.scanner.train.ham',
+    FOLDER_TRAIN_WHITELIST: process.env.FOLDER_TRAIN_WHITELIST || 'INBOX.scanner.train.whitelist',
+    FOLDER_TRAIN_BLACKLIST: process.env.FOLDER_TRAIN_BLACKLIST || 'INBOX.scanner.train.blacklist',
     FOLDER_STATE: process.env.FOLDER_STATE || 'scanner.state',
     STATE_KEY_SCANNER: process.env.STATE_KEY_SCANNER || 'scanner',
     STATE_KEY_WHITELIST_MAP: process.env.STATE_KEY_WHITELIST_MAP || 'rspamd-whitelist-map',

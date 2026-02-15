@@ -1,10 +1,10 @@
 import {ImapFlow} from 'imapflow';
 import {config} from './utils/config.js';
-import pino from 'pino';
+import {rootLogger} from './utils/logger.js';
 import {parseEmail, stripSpamHeaders} from './utils/email-parser.js';
 import {collectFoldersToCreate} from "./utils/mailboxes-utils.js";
 
-const logger = pino();
+const logger = rootLogger.forComponent('imap');
 
 export function newClient() {
   return new ImapFlow({
@@ -15,7 +15,7 @@ export function newClient() {
       user: config.IMAP_USER,
       pass: config.IMAP_PASSWORD
     },
-    logger: logger.child({ component: 'imapflow' }),
+    logger: rootLogger.forComponent('imapflow'),
     emitLogs: false
   });
 }
@@ -107,11 +107,12 @@ export async function findFirstUIDOnDate(imap, folder, dateString) {
  */
 export function processMessage(message) {
   const {uid, flags, envelope} = message;
+  const messageLogger = logger.forMessage(uid);
   // ImapFlow returns a Buffer for message.source
   const raw = stripSpamHeaders(message.source.toString());
   const {body, headers} = parseEmail(raw);
 
-  logger.debug({uid}, 'Message read');
+  messageLogger.debug('Message read');
 
   return {
     uid,
@@ -236,20 +237,21 @@ export async function fetchMessagesByUIDs(imap, uids) {
  * @returns {Promise<void>}
  */
 export async function moveMessage(imap, uid, dest) {
+  const messageLogger = logger.forMessage(uid);
   try {
-    logger.debug({uid, destFolder: dest}, 'Moving message by UID');
+    messageLogger.debug({destFolder: dest}, 'Moving message by UID');
 
     // Move the message
     await imap.messageMove({ uid }, dest);
-    logger.info({uid, destFolder: dest}, 'Successfully moved message by UID');
+    messageLogger.info({destFolder: dest}, 'Successfully moved message by UID');
 
     // Expunge to ensure the move is committed
     logger.debug('Expunging to finalize the move operation');
     await imap.mailboxExpunge();
 
-    logger.info({uid, destFolder: dest}, 'Move completed with expunge');
+    messageLogger.info({destFolder: dest}, 'Move completed with expunge');
   } catch (err) {
-    logger.error({uid, destFolder: dest, error: err.message}, 'Failed to move message by UID');
+    messageLogger.error({destFolder: dest, error: err.message}, 'Failed to move message by UID');
     throw err;
   }
 }

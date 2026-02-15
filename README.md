@@ -89,6 +89,9 @@ RSPAMD_URL=http://localhost:11334
 RSPAMD_PASSWORD=
 RSPAMD_WHITELIST_MAP_PATH=rspamd/maps/whitelist.map
 RSPAMD_BLACKLIST_MAP_PATH=rspamd/maps/blacklist.map
+
+LOG_LEVEL=info
+LOG_FORMAT=json
 ```
 
 ---
@@ -261,17 +264,68 @@ node src/scan-inbox.js
 
 ## Logging
 
-- Logs are JSON-formatted via `pino`
-- Example entry:
+### Configuration
 
+The application uses centralized structured logging via Pino with configurable output formats.
+
+**Environment Variables:**
+
+- **`LOG_LEVEL`** (default: `info`) - Controls log verbosity
+  - Options: `trace`, `debug`, `info`, `warn`, `error`, `fatal`
+  - Use `debug` for development, `info` for production
+
+- **`LOG_FORMAT`** (default: `json`) - Controls log output format
+  - `json` or `jsonl` - Structured JSON format (one log entry per line, ideal for log aggregation)
+  - `pretty` - Human-readable colored output (recommended for development)
+
+**Examples:**
+
+```bash
+# Development (human-readable logs)
+LOG_LEVEL=debug LOG_FORMAT=pretty node src/scan-inbox.js
+
+# Production (structured JSON logs)
+LOG_LEVEL=info LOG_FORMAT=json node src/scan-inbox.js
+```
+
+### Log Structure
+
+All logs include contextual information for tracing:
+
+**Component-level logs:**
 ```json
 {
-  "uid": 12455,
+  "level": "info",
+  "time": "2026-02-15T12:34:56.789Z",
+  "component": "rspamd",
   "folder": "INBOX",
-  "result": "spam",
-  "msg": "Scanned message"
+  "msg": "Scanning batch"
 }
 ```
+
+**Message-level logs (with UID correlation):**
+```json
+{
+  "level": "info",
+  "time": "2026-02-15T12:34:56.789Z",
+  "component": "rspamd",
+  "uid": 12455,
+  "score": 8.5,
+  "action": "add header",
+  "msg": "Rspamd check completed"
+}
+```
+
+The `uid` field allows you to trace all operations related to a specific email message across the entire processing pipeline.
+
+**Component names:**
+- `config` - Configuration loading
+- `imap` - IMAP operations
+- `imapflow` - IMAP protocol library logs
+- `rspamd` - Rspamd integration
+- `rspamd-maps` - Email map file operations
+- `email-utils` - Email parsing utilities
+- `scan-inbox`, `train-spam`, etc. - Script-level operations
 
 ---
 
