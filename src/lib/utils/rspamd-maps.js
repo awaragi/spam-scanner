@@ -20,7 +20,7 @@ function normalizeEmail(email) {
 
 /**
  * Read existing entries from map file
- * Returns array of normalized email addresses (sorted)
+ * Returns all lines (preserves empty lines, no sorting)
  */
 async function readMapFile(mapPath) {
   try {
@@ -28,11 +28,7 @@ async function readMapFile(mapPath) {
     if (!content.trim()) {
       return [];
     }
-    return content
-      .split('\n')
-      .map(normalizeEmail)
-      .filter(email => email !== null)
-      .sort();
+    return content.split('\n');
   } catch (err) {
     if (err.code === 'ENOENT') {
       logger.debug({mapPath}, 'Map file does not exist, starting with empty array');
@@ -44,15 +40,16 @@ async function readMapFile(mapPath) {
 }
 
 /**
- * Write entries to map file (one email per line)
+ * Write entries to map file (one email per line, preserves empty lines)
  */
-async function writeMapFile(mapPath, emails) {
+async function writeMapFile(mapPath, lines) {
   try {
     const dir = path.dirname(mapPath);
     await fs.mkdir(dir, {recursive: true});
-    const content = emails.join('\n');
+    const content = lines.join('\n');
     await fs.writeFile(mapPath, content, 'utf-8');
-    logger.debug({mapPath, count: emails.length}, 'Map file written');
+    const emailCount = lines.filter(l => l.trim()).length;
+    logger.debug({mapPath, count: emailCount}, 'Map file written');
   } catch (err) {
     logger.error({mapPath, error: err.message}, 'Error writing map file');
     throw err;
@@ -61,14 +58,19 @@ async function writeMapFile(mapPath, emails) {
 
 /**
  * Update map file with new emails
- * - Preserves existing entries
+ * - Preserves existing entries and empty lines
  * - Deduplicates entries
  * - Returns result with added/skipped count
  */
 export async function updateMap(mapPath, newEmails) {
   try {
-    // Read existing entries
-    const existingEmails = await readMapFile(mapPath);
+    // Read existing lines (preserves empty lines, maintains order)
+    const lines = await readMapFile(mapPath);
+
+    // Extract existing emails for deduplication
+    const existingEmails = lines
+      .map(normalizeEmail)
+      .filter(email => email !== null);
     const existingSet = new Set(existingEmails);
 
     // Normalize and filter new emails
@@ -99,16 +101,16 @@ export async function updateMap(mapPath, newEmails) {
       };
     }
 
-    // Write updated list (existing + new)
-    const allEmails = Array.from(existingSet).sort();
-    await writeMapFile(mapPath, allEmails);
+    // Append new emails to existing lines (preserve structure)
+    const outputLines = [...lines, ...added];
+    await writeMapFile(mapPath, outputLines);
 
-    logger.info({mapPath, addedCount: added.length, skippedCount: skipped.length, totalCount: allEmails.length}, 'Map file updated');
+    logger.info({mapPath, addedCount: added.length, skippedCount: skipped.length, totalCount: existingSet.size}, 'Map file updated');
 
     return {
       added,
       skipped,
-      total: allEmails.length,
+      total: existingSet.size,
     };
   } catch (err) {
     logger.error({mapPath, error: err.message}, 'Error updating map file');
@@ -118,15 +120,21 @@ export async function updateMap(mapPath, newEmails) {
 
 /**
  * Seed map file with initial entries
- * Overwrites existing file
+ * Overwrites existing file, preserves input order (no sorting)
  */
 export async function seedMap(mapPath, emails) {
   try {
-    const normalizedEmails = emails
-      .map(normalizeEmail)
-      .filter(email => email !== null);
+    // Normalize, deduplicate, preserve input order
+    const uniqueEmails = [];
+    const seen = new Set();
 
-    const uniqueEmails = Array.from(new Set(normalizedEmails)).sort();
+    for (const email of emails) {
+      const normalized = normalizeEmail(email);
+      if (normalized && !seen.has(normalized)) {
+        uniqueEmails.push(normalized);
+        seen.add(normalized);
+      }
+    }
 
     await writeMapFile(mapPath, uniqueEmails);
 
