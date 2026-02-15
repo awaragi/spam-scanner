@@ -6,15 +6,17 @@ const logger = pino();
 
 /**
  * Checks if an email address appears to be human-generated.
+ * Filters out per-message tokens and relay addresses while keeping
+ * legitimate corporate senders (even if automated).
  */
-function isHumanReadable(email) {
+export function isHumanReadable(email) {
     if (!email) return false;
     const [local, domain] = email.split('@');
     if (!local || !domain) return false;
 
     const localLower = local.toLowerCase();
 
-    // 1. Known bounce/relay patterns
+    // 1. Known bounce/relay patterns in local part
     if (/^(bounce[_\-+]|bounces[+])/.test(localLower)) return false;
 
     // 2. Tokenized or entropy-heavy local part (long and random)
@@ -29,20 +31,20 @@ function isHumanReadable(email) {
     // 4. Multiple dot-separated numeric tokens
     if ((local.match(/\d+\.\d+/g) || []).length >= 2) return false;
 
-    // 5. Long token ending in subdomain that indicates ESP or relay
-    const domainLower = domain.toLowerCase();
-    const relayIndicators = [
-        'bounces.', 'bounce.', 'email.', 'mailer', 'relay',
-    ];
-    if (relayIndicators.some(prefix => domainLower.includes(prefix))) return false;
+    // 5. UUID-like patterns (8-4-4-4-12 hex format with dashes or without)
+    if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(local)) return false;
+    if (/^[a-f0-9]{32,}$/i.test(local)) return false; // Long hex strings
 
+    // 6. Domain checks - only filter obvious relay/bounce subdomains
+    const domainLower = domain.toLowerCase();
+    
+    // Check for bounce/relay subdomains at the start (more specific than before)
+    if (/^(bounces?\.|relay\.|mailer\.)/.test(domainLower)) return false;
+    
+    // Known relay domains that generate per-message addresses
     const knownRelays = [
         'lnk01.com',
         'cyberimpact.com',
-        'amazonmusic.com',
-        'primevideo.com',
-        'questrade.com',
-        'res-marriott.com',
     ];
     if (knownRelays.some(relay => domainLower.endsWith(relay))) {
         return false;
