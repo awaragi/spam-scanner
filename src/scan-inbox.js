@@ -1,4 +1,4 @@
-import { scanInbox } from './lib/rspamd.js';
+import { scanInbox } from './lib/engine.js';
 import { newClient } from './lib/imap-client.js';
 
 const imap = newClient();

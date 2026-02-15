@@ -18,7 +18,7 @@
 - [x] **Step 2.1: Update src/lib/utils/config.js**
 - [x] **Step 2.2: Update src/lib/imap-client.js**
 - [x] **Step 2.3: Update src/lib/rspamd-client.js**
-- [x] **Step 2.4: Update src/lib/rspamd.js**
+- [x] **Step 2.4: Update src/lib/engine.js**
 - [x] **Step 2.5: Update src/lib/utils/email.js**
 - [x] **Step 2.6: Update src/lib/utils/rspamd-maps.js**
 
@@ -42,7 +42,7 @@
 - [x] **Step 5.5: Update src/reset-state.js**
 
 ### Phase 6: Message Logger Implementation
-- [x] **Step 6.1: Add message loggers to src/lib/rspamd.js**
+- [x] **Step 6.1: Add message loggers to src/lib/engine.js**
 - [x] **Step 6.2: Add message loggers to src/lib/imap-client.js**
 
 ### Phase 7: Testing
@@ -152,10 +152,10 @@
 
 ---
 
-### Phase 7: Update rspamd.js (Basic Migration)
+### Phase 7: Update engine.js (Basic Migration)
 
-#### Step 7.1: Update src/lib/rspamd.js
-- **Files**: `src/lib/rspamd.js`
+#### Step 7.1: Update src/lib/engine.js
+- **Files**: `src/lib/engine.js`
 - **Action**: 
   - Remove `import pino from 'pino'`
   - Remove `const logger = pino()`
@@ -376,10 +376,10 @@
 
 ---
 
-### Phase 23: Add Message Loggers to rspamd.js
+### Phase 23: Add Message Loggers to engine.js
 
-#### Step 23.1: Update src/lib/rspamd.js (message loggers)
-- **Files**: `src/lib/rspamd.js`
+#### Step 23.1: Update src/lib/engine.js (message loggers)
+- **Files**: `src/lib/engine.js`
 - **Action**: 
   - In `processWithRspamdLearn()`: Create `const messageLogger = logger.forMessage(uid)`, use messageLogger for all logs in function
   - In `checkMessagesWithRspamd()`: Create message logger per message in loop, use for message-specific logs

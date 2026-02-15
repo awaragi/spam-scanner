@@ -1,4 +1,4 @@
-import { learnBlacklist } from './lib/rspamd.js';
+import { learnBlacklist } from './lib/engine.js';
 import { newClient } from './lib/imap-client.js';
 
 const imap = newClient();

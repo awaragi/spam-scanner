@@ -1,4 +1,4 @@
-import { learnFromFolder } from './lib/rspamd.js';
+import { learnFromFolder } from './lib/engine.js';
 import { newClient } from './lib/imap-client.js';
 
 const imap = newClient();

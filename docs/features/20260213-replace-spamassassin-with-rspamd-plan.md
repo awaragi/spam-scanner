@@ -21,7 +21,7 @@
 - [x] **Step 3.2: Update email-parser unit tests**
 
 ### Phase 4: Replace SpamAssassin Module
-- [x] **Step 4.1: Create rspamd.js from spamassassin.js**
+- [x] **Step 4.1: Create engine.js from spamassassin.js**
 - [x] **Step 4.2: Update script imports**
 - [x] **Step 4.3: Delete spamassassin.js**
 - [x] **Step 4.4: Remove whitelist/blacklist scripts**
@@ -82,14 +82,14 @@
 
 ### Phase 4: Replace SpamAssassin Module
 
-#### Step 4.1: Create rspamd.js from spamassassin.js
-- **Files**: `src/lib/rspamd.js` (create new from spamassassin.js)
+#### Step 4.1: Create engine.js from spamassassin.js
+- **Files**: `src/lib/engine.js` (create new from spamassassin.js)
 - **Action**: Replace processWithSpamc() with processWithRspamd() using rspamd-client; replace processWithSALearn() with processWithRspamdLearn(); update imports to use parseRspamdOutput and rspamd-client; remove whitelist/blacklist functions
 - **Module**: nodejs
 
 #### Step 4.2: Update script imports
 - **Files**: `src/scan-inbox.js`, `src/train-ham.js`, `src/train-spam.js`
-- **Action**: Change imports from './lib/spamassassin.js' to './lib/rspamd.js'
+- **Action**: Change imports from './lib/spamassassin.js' to './lib/engine.js'
 - **Module**: nodejs
 
 #### Step 4.3: Delete spamassassin.js

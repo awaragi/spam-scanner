@@ -113,7 +113,7 @@ Complete replacement of SpamAssassin with Rspamd for spam detection and email cl
          │
          ▼
 ┌─────────────────────────┐
-│  rspamd.js (new)        │
+│  engine.js (new)        │
 │  - scanInbox()          │
 │  - learnFromFolder()    │
 └────────┬────────────────┘
@@ -138,8 +138,8 @@ Complete replacement of SpamAssassin with Rspamd for spam detection and email cl
 ```
 
 **New Flow**:
-1. Scripts call functions in `rspamd.js` (renamed from spamassassin.js)
-2. `rspamd.js` uses `rspamd-client.js` HTTP client
+1. Scripts call functions in `engine.js` (renamed from spamassassin.js)
+2. `engine.js` uses `rspamd-client.js` HTTP client
 3. HTTP POST requests to Rspamd endpoints with email content
 4. JSON responses are parsed for scores and classification
 5. Classification logic remains similar (score-based categorization)
@@ -148,7 +148,7 @@ Complete replacement of SpamAssassin with Rspamd for spam detection and email cl
 
 ```mermaid
 graph TB
-    A[IMAP Email Messages] --> B[rspamd.js]
+    A[IMAP Email Messages] --> B[engine.js]
     B --> C{Operation Type}
     C -->|Scan| D[rspamd-client.checkEmail]
     C -->|Learn Ham| E[rspamd-client.learnHam]
@@ -176,7 +176,7 @@ graph TB
 - Separate concerns: client handles HTTP, main module handles business logic
 
 **Module Structure**:
-- Rename `spamassassin.js` → `rspamd.js` (maintains similar exports)
+- Rename `spamassassin.js` → `engine.js` (maintains similar exports)
 - Create new `rspamd-client.js` for low-level HTTP API calls
 - Maintain existing function signatures where possible for minimal impact on scripts
 - Remove `spawn-async.js` dependency from spam detection flow
@@ -208,7 +208,7 @@ graph TB
 
 **Repository Pattern**: `rspamd-client.js` acts as a repository for Rspamd operations, abstracting HTTP details
 
-**Adapter Pattern**: `rspamd.js` adapts the Rspamd client to match existing IMAP scanner interface
+**Adapter Pattern**: `engine.js` adapts the Rspamd client to match existing IMAP scanner interface
 
 **Dependency Injection**: Configuration injected via environment variables
 
@@ -431,7 +431,7 @@ RSPAMD_PASSWORD: process.env.RSPAMD_PASSWORD || ''
 - [x] Design document complete and approved
 - [ ] Implementation plan created and approved
 - [ ] Rspamd client module created and tested
-- [ ] Main rspamd.js module updated
+- [ ] Main engine.js module updated
 - [ ] Email parser updated for Rspamd responses
 - [ ] Configuration added for Rspamd URL and password
 - [ ] All existing unit tests pass with updates

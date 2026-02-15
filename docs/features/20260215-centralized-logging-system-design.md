@@ -82,7 +82,7 @@ src/
 ├── lib/
 │   ├── imap-client.js          → const logger = pino()
 │   ├── rspamd-client.js        → const logger = pino()
-│   ├── rspamd.js               → const logger = pino()
+│   ├── engine.js               → const logger = pino()
 │   └── utils/
 │       ├── config.js           → const logger = pino()
 │       ├── email.js            → const logger = pino()
@@ -104,7 +104,7 @@ src/
 │   │   └── logger.js                 → NEW: Central logger factory
 │   ├── imap-client.js                → import { logger } from './utils/logger.js'
 │   ├── rspamd-client.js              → import { logger } from './utils/logger.js'
-│   ├── rspamd.js                     → import { loggerForMessage } from './utils/logger.js'
+│   ├── engine.js                     → import { loggerForMessage } from './utils/logger.js'
 │   └── utils/
 │       ├── config.js                 → import { logger } from './logger.js'
 │       ├── email.js                  → import { logger } from './logger.js'
@@ -278,7 +278,7 @@ async function moveMessage(imap, uid, dest, messageLogger) {
 7. Add tests for logger factory and hierarchy
 
 **Component Name Mapping**:
-- `rspamd.js`, `rspamd-client.js` → `'rspamd'`
+- `engine.js`, `rspamd-client.js` → `'rspamd'`
 - `imap-client.js` → `'imap'`
 - `rspamd-maps.js` → `'rspamd-maps'`
 - `email.js` → `'email-utils'`
