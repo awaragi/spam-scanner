@@ -9,7 +9,7 @@ services:
       - ./config:/etc/rspamd/local.d
       - ./data:/var/lib/rspamd
       - ./logs:/var/log/rspamd
-      - ./maps:/var/lib/rspamd/maps
+      - ./maps:/etc/rspamd/maps
     depends_on:
       - redis
       - unbound
