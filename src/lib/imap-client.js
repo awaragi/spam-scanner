@@ -7,6 +7,8 @@ import {collectFoldersToCreate} from "./utils/mailboxes-utils.js";
 const logger = rootLogger.forComponent('imap');
 
 export function newClient() {
+  const imapflowLogger = rootLogger.forComponent('imapflow');
+  
   return new ImapFlow({
     host: config.IMAP_HOST,
     port: config.IMAP_PORT,
@@ -15,7 +17,14 @@ export function newClient() {
       user: config.IMAP_USER,
       pass: config.IMAP_PASSWORD
     },
-    logger: rootLogger.forComponent('imapflow'),
+    logger: {
+      debug: imapflowLogger.debug.bind(imapflowLogger),
+      info: imapflowLogger.debug.bind(imapflowLogger), // Redirect info to debug
+      warn: imapflowLogger.warn.bind(imapflowLogger),
+      error: imapflowLogger.error.bind(imapflowLogger),
+      fatal: imapflowLogger.fatal.bind(imapflowLogger),
+      trace: imapflowLogger.trace.bind(imapflowLogger)
+    },
     emitLogs: false
   });
 }
