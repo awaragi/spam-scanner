@@ -1,6 +1,6 @@
-import { readScannerState } from './lib/state-manager.js';
-import { newClient } from './lib/imap-client.js';
-import { rootLogger } from './lib/utils/logger.js';
+import { readScannerState } from '../lib/state-manager.js';
+import { newClient } from '../lib/clients/imap-client.js';
+import { rootLogger } from '../lib/utils/logger.js';
 
 const logger = rootLogger.forComponent('read-state');
 const imap = newClient();

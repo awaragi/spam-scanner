@@ -1,5 +1,5 @@
-import {newClient} from "./lib/imap-client.js";
-import {writeScannerState} from "./lib/state-manager.js";
+import {newClient} from "../lib/clients/imap-client.js";
+import {writeScannerState} from "../lib/state-manager.js";
 
 const now = new Date();
 

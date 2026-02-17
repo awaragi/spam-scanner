@@ -1,8 +1,8 @@
 import {ImapFlow} from 'imapflow';
-import {config} from './utils/config.js';
-import {rootLogger} from './utils/logger.js';
-import {parseEmail, stripSpamHeaders} from './utils/email-parser.js';
-import {collectFoldersToCreate} from "./utils/mailboxes-utils.js";
+import {config} from '../utils/config.js';
+import {rootLogger} from '../utils/logger.js';
+import {parseEmail, stripSpamHeaders} from '../utils/email-parser.js';
+import {collectFoldersToCreate} from "../utils/mailboxes-utils.js";
 
 const logger = rootLogger.forComponent('imap');
 

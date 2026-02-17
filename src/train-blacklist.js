@@ -1,11 +1,11 @@
-import { learnBlacklist } from './lib/engine.js';
-import { newClient } from './lib/imap-client.js';
+import { runBlacklist } from './lib/workflows/map-workflow.js';
+import { newClient } from './lib/clients/imap-client.js';
 
 const imap = newClient();
 
 try {
   await imap.connect();
-  await learnBlacklist(imap);
+  await runBlacklist(imap);
 } finally {
   await imap.logout();
 }

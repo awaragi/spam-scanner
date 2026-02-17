@@ -63,8 +63,8 @@ PROCESS_BATCH_SIZE=10
 STATE_KEY_SCANNER=scanner
 LOG_LEVEL=info
 SYNC_STATE_FROM_FILE=false
-SPAM_LABEL_LOW=Spam:Low
-SPAM_LABEL_HIGH=Spam:High
+LABEL_SPAM_LOW=Spam:Low
+LABEL_SPAM_HIGH=Spam:High
 ```
 
 ---
@@ -102,8 +102,8 @@ The scanner:
    - High probability spam: Score between 60-100% (configurable)
    - Definite spam: Explicitly marked as spam by SpamAssassin
 5. Applies labels to messages:
-   - Low probability spam: `SPAM_LABEL_LOW` (default: "Spam:Low")
-   - High probability spam: `SPAM_LABEL_HIGH` (default: "Spam:High")
+   - Low probability spam: `LABEL_SPAM_LOW` (default: "Spam:Low")
+   - High probability spam: `LABEL_SPAM_HIGH` (default: "Spam:High")
 6. Moves definite spam messages to `FOLDER_SPAM`
 7. Updates state and mirrors to `/var/lib/spamassassin/scanner-state.json`
 

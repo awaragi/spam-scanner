@@ -1,5 +1,5 @@
 import {config} from './utils/config.js';
-import {fetchMessagesByUIDs, open, search} from "./imap-client.js";
+import {fetchMessagesByUIDs, open, search} from "./clients/imap-client.js";
 import {formatStateAsEmail, parseStateFromEmail, validateState} from "./utils/state-utils.js";
 
 const criteria = {

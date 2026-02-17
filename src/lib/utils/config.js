@@ -16,6 +16,8 @@ export const config = (() => {
 
     FOLDER_INBOX: process.env.FOLDER_INBOX || 'INBOX',
     FOLDER_SPAM: process.env.FOLDER_SPAM || 'INBOX.spam',
+    FOLDER_SPAM_LOW: process.env.FOLDER_SPAM_LOW || 'INBOX.spam.low',
+    FOLDER_SPAM_HIGH: process.env.FOLDER_SPAM_HIGH || 'INBOX.spam.high',
     FOLDER_TRAIN_SPAM: process.env.FOLDER_TRAIN_SPAM || 'INBOX.scanner.train.spam',
     FOLDER_TRAIN_HAM: process.env.FOLDER_TRAIN_HAM || 'INBOX.scanner.train.ham',
     FOLDER_TRAIN_WHITELIST: process.env.FOLDER_TRAIN_WHITELIST || 'INBOX.scanner.train.whitelist',
@@ -29,8 +31,9 @@ export const config = (() => {
     SCAN_READ: process.env.SCAN_READ === 'true',
     PROCESS_BATCH_SIZE: parseInt(process.env.PROCESS_BATCH_SIZE || '10'),
 
-    SPAM_LABEL_LOW: process.env.SPAM_LABEL_LOW || 'Spam:Low',
-    SPAM_LABEL_HIGH: process.env.SPAM_LABEL_HIGH || 'Spam:High',
+    LABEL_SPAM_LOW: process.env.LABEL_SPAM_LOW || 'Spam:Low',
+    LABEL_SPAM_HIGH: process.env.LABEL_SPAM_HIGH || 'Spam:High',
+    SPAM_PROCESSING_MODE: process.env.SPAM_PROCESSING_MODE || 'label',
 
     RSPAMD_URL: process.env.RSPAMD_URL || 'http://localhost:11334',
     RSPAMD_PASSWORD: process.env.RSPAMD_PASSWORD || '',

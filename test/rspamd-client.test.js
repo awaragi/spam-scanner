@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, vi } from 'vitest';
-import { checkEmail, learnHam, learnSpam } from '../src/lib/rspamd-client.js';
+import { checkEmail, learnHam, learnSpam } from '../src/lib/clients/rspamd-client.js';
 
 // Mock fetch
 global.fetch = vi.fn();

@@ -1,4 +1,4 @@
-import {findFirstUIDOnDate, newClient} from './lib/imap-client.js';
+import {findFirstUIDOnDate, newClient} from '../lib/clients/imap-client.js';
 import yargs from 'yargs';
 import {hideBin} from 'yargs/helpers';
 

@@ -1,6 +1,6 @@
-import {newClient, processMessage} from './lib/imap-client.js';
-import {config} from './lib/utils/config.js';
-import {rootLogger} from './lib/utils/logger.js';
+import {newClient, processMessage} from '../lib/clients/imap-client.js';
+import {config} from '../lib/utils/config.js';
+import {rootLogger} from '../lib/utils/logger.js';
 import path from 'path';
 import fs from 'fs/promises';
 

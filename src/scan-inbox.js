@@ -1,5 +1,5 @@
-import { scanInbox } from './lib/engine.js';
-import { newClient } from './lib/imap-client.js';
+import { run as scanInbox } from './lib/workflows/scan-workflow.js';
+import { newClient } from './lib/clients/imap-client.js';
 
 const imap = newClient();
 

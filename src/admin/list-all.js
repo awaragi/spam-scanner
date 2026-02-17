@@ -1,6 +1,6 @@
-import {newClient} from './lib/imap-client.js';
-import {config} from './lib/utils/config.js';
-import {rootLogger} from './lib/utils/logger.js';
+import {newClient} from '../lib/clients/imap-client.js';
+import {config} from '../lib/utils/config.js';
+import {rootLogger} from '../lib/utils/logger.js';
 
 const mailbox = config.FOLDER_INBOX;
 

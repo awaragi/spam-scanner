@@ -1,5 +1,5 @@
-import {writeScannerState} from './lib/state-manager.js';
-import {newClient} from './lib/imap-client.js';
+import {writeScannerState} from '../lib/state-manager.js';
+import {newClient} from '../lib/clients/imap-client.js';
 
 let data = '';
 process.stdin.on('data', chunk => data += chunk);
