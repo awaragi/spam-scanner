@@ -54,7 +54,6 @@ else
 fi
 
 # Array of scripts to run in order
-# scripts=("train-spam" "train-ham" "scan-inbox")
 scripts=("init-folders" "train-spam" "train-ham" "train-whitelist" "train-blacklist" "scan-inbox")
 
 while true

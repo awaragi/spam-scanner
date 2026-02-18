@@ -21,7 +21,7 @@ try {
   
   // Add spam likelihood folders if processing mode is 'folder'
   if (config.SPAM_PROCESSING_MODE === 'folder') {
-    logger.info('Processing mode is "folder", including spam likelihood folders');
+    logger.info('Processing mode is folder, including spam likelihood folders');
     folders.push(config.FOLDER_SPAM_LOW, config.FOLDER_SPAM_HIGH);
   }
   

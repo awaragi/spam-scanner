@@ -137,8 +137,9 @@ dist
 
 /.idea/
 data/
-.env.test
-.env.production
+.env
+.env.*
+!.env.example
 
 # Rspamd map files (dynamically managed at runtime)
 rspamd/maps/
