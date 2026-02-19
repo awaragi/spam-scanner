@@ -53,8 +53,12 @@ else
     echo "Connecting to $IMAP_HOST using credentials of $IMAP_USER"
 fi
 
-# Array of scripts to run in order
-scripts=("init-folders" "train-spam" "train-ham" "train-whitelist" "train-blacklist" "scan-inbox")
+# Initialize IMAP folders once at startup
+echo "Initializing IMAP folders..."
+run_script "init-folders"
+
+# Array of scripts to run in loop (training and scanning)
+scripts=("train-spam" "train-ham" "train-whitelist" "train-blacklist" "scan-inbox")
 
 while true
 do

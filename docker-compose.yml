@@ -1,0 +1,56 @@
+services:
+  spam-scanner:
+    build: .
+    container_name: spam-scanner
+    env_file: .env
+    depends_on:
+      - rspamd
+    restart: unless-stopped
+    environment:
+      # Hardcode internal Rspamd URL for service-to-service communication
+      - RSPAMD_URL=http://rspamd:11334
+      # Interpolate password from .env file
+      - RSPAMD_PASSWORD=${RSPAMD_PASSWORD}
+    networks:
+      - spam-network
+
+  rspamd:
+    image: rspamd/rspamd:latest
+    container_name: rspamd
+    ports:
+      - "11332:11332"  # Proxy worker
+      - "11334:11334"  # Web interface
+    volumes:
+      - ./rspamd/config:/etc/rspamd/local.d
+      - ./rspamd/data:/var/lib/rspamd
+      - ./rspamd/logs:/var/log/rspamd
+      - ./rspamd/maps:/etc/rspamd/maps
+    depends_on:
+      - redis
+      - unbound
+    restart: unless-stopped
+    networks:
+      - spam-network
+
+  redis:
+    image: redis:alpine
+    container_name: rspamd-redis
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - spam-network
+
+  unbound:
+    image: klutchell/unbound:latest
+    container_name: rspamd-unbound
+    restart: unless-stopped
+    networks:
+      - spam-network
+
+volumes:
+  redis-data:
+
+networks:
+  spam-network:
+    driver: bridge

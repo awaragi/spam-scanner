@@ -1,0 +1,48 @@
+# Node modules (installed in Docker)
+node_modules
+npm-debug.log
+
+# Environment files (passed via docker-compose)
+.env
+.env.*
+!.env.example
+
+# Rspamd data and logs (mounted as volumes)
+rspamd/data
+rspamd/logs
+
+# Test and development files
+test
+coverage
+*.test.js
+
+# Documentation (except README)
+docs
+*.md
+!README.md
+
+# Git files
+.git
+.gitignore
+.github
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Build artifacts
+dist
+build
+
+# Log files
+*.log
+logs
+
+# macOS files
+.DS_Store
+
+# Rspamd maps (mounted separately)
+rspamd/maps/*.map

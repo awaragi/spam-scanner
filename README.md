@@ -98,6 +98,10 @@ LOG_FORMAT=json
 
 ## Setup
 
+### Local Development Setup
+
+For local development with a standalone Rspamd instance:
+
 ### 1. Install Dependencies
 
 Ensure you have the following installed:
@@ -113,7 +117,7 @@ cd rspamd
 docker-compose up -d
 ```
 
-Rspamd will be available at `http://localhost:11333` (default `RSPAMD_URL`).
+Rspamd will be available at `http://localhost:11334`.
 
 To stop Rspamd:
 ```bash
@@ -141,6 +145,132 @@ nano .env
 ```bash
 node src/init-folders.js
 ```
+
+---
+
+## Docker Deployment
+
+For production deployment using Docker, all services (spam-scanner, Rspamd, Redis, Unbound) are orchestrated via a single docker-compose configuration.
+
+### Prerequisites
+
+- Docker Engine 20.10+
+- Docker Compose v2.0+
+
+### Quick Start
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/yourusername/spam-scanner.git
+   cd spam-scanner
+   ```
+
+2. **Configure environment**:
+   ```bash
+   cp .env.example .env
+   nano .env  # Edit with your IMAP credentials
+   ```
+   
+   **Important**: In Docker deployment, `RSPAMD_URL` is automatically set to `http://rspamd:11334` (internal service communication). You only need to configure `RSPAMD_PASSWORD` and your IMAP credentials.
+
+3. **Start all services**:
+   ```bash
+   docker-compose up -d
+   ```
+
+4. **View logs**:
+   ```bash
+   # Follow spam-scanner logs
+   docker-compose logs -f spam-scanner
+   
+   # View all service logs
+   docker-compose logs -f
+   ```
+
+5. **Stop services**:
+   ```bash
+   docker-compose down
+   ```
+
+### Docker Services
+
+The docker-compose configuration includes four services:
+
+- **spam-scanner**: Main application container running the scanning/training scripts
+- **rspamd**: Spam filtering engine with machine learning
+- **redis**: Cache and storage backend for Rspamd
+- **unbound**: DNS resolver for Rspamd
+
+### Data Persistence
+
+The following data is persisted across container restarts using Docker volumes:
+
+- **rspamd-data**: Bayes classifier database and statistics
+- **rspamd-logs**: Rspamd service logs
+- **redis-data**: Redis persistence data
+
+Additionally, these directories are bind-mounted from your host:
+- `./rspamd/config`: Rspamd configuration files
+- `./rspamd/maps`: Whitelist and blacklist email maps
+
+**Note**: Stopping and restarting containers (`docker-compose down` / `docker-compose up`) preserves all learned spam patterns and map configurations.
+
+### Environment Variables for Docker
+
+When using Docker deployment:
+
+- **RSPAMD_URL**: Automatically set to `http://rspamd:11334` (do not override)
+- **RSPAMD_PASSWORD**: Required in `.env` file (used for Rspamd web UI authentication)
+- **IMAP_*** : All IMAP configuration must be set in `.env`
+- **SCAN_INTERVAL**: Controls sleep time between scan cycles (default: 300 seconds)
+- **LOG_FORMAT**: Use `json` for production, `pretty` for debugging
+
+### Accessing Rspamd Web Interface
+
+The Rspamd web interface is exposed on port 11334:
+
+```
+http://localhost:11334
+```
+
+Login with the password specified in your `.env` file (`RSPAMD_PASSWORD`).
+
+### Rebuilding After Code Changes
+
+After modifying source code:
+
+```bash
+docker-compose up --build -d
+```
+
+### Troubleshooting Docker Deployment
+
+**Container won't start**:
+- Check logs: `docker-compose logs spam-scanner`
+- Verify `.env` file exists and contains required variables
+- Ensure IMAP credentials are correct
+
+**Cannot connect to Rspamd**:
+- Verify all services are running: `docker-compose ps`
+- Check Rspamd logs: `docker-compose logs rspamd`
+- Restart services: `docker-compose restart`
+
+**Data loss after restart**:
+- Use `docker-compose down` (preserves volumes)
+- Avoid `docker-compose down -v` (removes volumes)
+
+### Local Development vs Docker
+
+| Aspect | Local Development | Docker Deployment |
+|--------|-------------------|-------------------|
+| Rspamd | `cd rspamd && docker-compose up -d` | Included in root docker-compose.yml |
+| Application | `./bin/local/start.sh` | Runs automatically in container |
+| RSPAMD_URL | `http://localhost:11334` | `http://rspamd:11334` (auto-set) |
+| State | Developers control script execution | Continuous loop in container |
+
+---
+
+## Setup (Legacy - for reference)
 
 ---
 
