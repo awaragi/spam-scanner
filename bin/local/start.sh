@@ -38,8 +38,10 @@ load_env() {
 # Function to run a Node.js script
 run_script() {
     local script_name="$1"
-    echo "Running $script_name..."
+    echo ""
+    echo ">>> Running ${script_name}..."
     node "src/$script_name.js"
+    echo "<<< ${script_name} completed"
 }
 
 # Load environment variables safely
@@ -54,6 +56,7 @@ else
 fi
 
 # Initialize IMAP folders once at startup
+echo ""
 echo "Initializing IMAP folders..."
 run_script "init-folders"
 
@@ -62,15 +65,21 @@ scripts=("train-spam" "train-ham" "train-whitelist" "train-blacklist" "scan-inbo
 
 while true
 do
-    echo "Starting spam scanner sequence..."
+    echo ""
+    echo "========================================="
+    echo "Starting spam-scanner sequence..."
+    echo "========================================="
     
     # Run each script in the array
     for script in "${scripts[@]}"; do
         run_script "$script"
     done
     
+    echo ""
+    echo "========================================="
     echo "Spam scanner sequence completed."
     echo "Waiting for $SLEEP seconds (press Enter to skip)..."
+    echo "========================================="
     
     # Use read with timeout
     if read -t $SLEEP; then
