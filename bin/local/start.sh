@@ -50,10 +50,25 @@ load_env
 # Check if IMAP_HOST is set
 if [ -z "$IMAP_HOST" ]; then
     echo "Error: IMAP_HOST environment variable is not set!"
+    echo "Please set IMAP_HOST in your .env file."
     exit 1
-else
-    echo "Connecting to $IMAP_HOST using credentials of $IMAP_USER"
 fi
+
+if [ -z "$IMAP_USER" ]; then
+    echo "Error: IMAP_USER environment variable is not set!"
+    echo "Please set IMAP_USER in your .env file."
+    exit 1
+fi
+
+# Display startup information
+echo "========================================="
+echo "Starting spam-scanner..."
+echo "========================================="
+echo "IMAP Server: ${IMAP_HOST}:${IMAP_PORT:-993}"
+echo "IMAP User: ${IMAP_USER}"
+echo "Rspamd URL: ${RSPAMD_URL:-http://localhost:11334}"
+echo "Scan Interval: ${SLEEP} seconds"
+echo "========================================="
 
 # Initialize IMAP folders once at startup
 echo ""
