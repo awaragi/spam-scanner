@@ -22,7 +22,7 @@ async function runTraining(imap, folder, destFolder, trainFn, type) {
     const messageCount = count(box);
 
     if (messageCount === 0) {
-      logger.info({folder}, 'No messages in folder to process');
+      logger.debug({folder}, 'No messages in folder to process');
       return;
     }
 
@@ -30,7 +30,7 @@ async function runTraining(imap, folder, destFolder, trainFn, type) {
 
     // Process messages in batches
     for (let i = 0; i < messages.length; i += PROCESS_BATCH_SIZE) {
-      logger.info({
+      logger.debug({
         from: i,
         to: Math.min(i + PROCESS_BATCH_SIZE, messages.length),
         total: messages.length,

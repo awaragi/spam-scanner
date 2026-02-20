@@ -146,7 +146,7 @@ export async function open(imap, folder, readOnly = false) {
     logger.debug({folder}, 'Opening folder');
     const mailbox = await imap.mailboxOpen(folder, { readOnly });
 
-    logger.info({folder, messageCount: mailbox.exists}, 'Opened folder');
+    logger.debug({folder, messageCount: mailbox.exists}, 'Opened folder');
     return mailbox;
   } catch (err) {
     logger.error({folder, error: err.message}, 'Failed to open folder');
@@ -170,14 +170,14 @@ export function count(box) {
 export async function search(imap, query) {
   try {
     // Convert node-imap style query to ImapFlow style if needed
-    logger.info({ query: query }, 'Searching messages');
+    logger.debug({ query: query }, 'Searching messages');
     const results = await imap.search(query, { uid: true });
 
     if (!results.length) {
-      logger.info({query},'No messages found');
+      logger.debug({query},'No messages found');
       return [];
     } else {
-      logger.info({query, total: results.length}, 'Found messages');
+      logger.debug({query, total: results.length}, 'Found messages');
       return results;
     }
   } catch (err) {
@@ -200,7 +200,7 @@ export async function fetchAllMessages(imap) {
       messages.push(processMessage(message));
     }
 
-    logger.info({messageCount: messages.length}, 'Fetched all messages');
+    logger.debug({messageCount: messages.length}, 'Fetched all messages');
     return messages;
   } catch (err) {
     logger.error({ error: err.message }, 'Error fetching all messages');
@@ -230,7 +230,7 @@ export async function fetchMessagesByUIDs(imap, uids) {
       messages.push(processMessage(message));
     }
 
-    logger.info({uids, messageCount: messages.length}, 'Fetched messages by UIDs');
+    logger.debug({uids, messageCount: messages.length}, 'Fetched messages by UIDs');
     return messages;
   } catch (err) {
     logger.error({ error: err.message, uids }, 'Error fetching messages by UIDs');
@@ -252,13 +252,13 @@ export async function moveMessage(imap, uid, dest) {
 
     // Move the message
     await imap.messageMove({ uid }, dest);
-    messageLogger.info({destFolder: dest}, 'Successfully moved message by UID');
+    messageLogger.debug({destFolder: dest}, 'Successfully moved message by UID');
 
     // Expunge to ensure the move is committed
     logger.debug('Expunging to finalize the move operation');
     await imap.mailboxExpunge();
 
-    messageLogger.info({destFolder: dest}, 'Move completed with expunge');
+    messageLogger.debug({destFolder: dest}, 'Move completed with expunge');
   } catch (err) {
     messageLogger.error({destFolder: dest, error: err.message}, 'Failed to move message by UID');
     throw err;
@@ -285,7 +285,7 @@ export async function moveMessages(imap, messages, destFolder) {
     // Move all messages at once
     await imap.messageMove(uids, destFolder, {uid: true});
 
-    logger.info({total: messages.length, destFolder}, 'All messages moved');
+    logger.debug({total: messages.length, destFolder}, 'All messages moved');
   } catch (err) {
     logger.error({destFolder, error: err.message}, 'Failed to move messages');
     throw err;
@@ -315,17 +315,17 @@ export async function updateLabels(imap, messages, labelsToSet = [], labelsToUns
     if (labelsToSet.length > 0) {
       logger.debug({uids, flags: labelsToSet}, 'Adding flags to messages');
       await imap.messageFlagsAdd({ uid: uids }, labelsToSet, options);
-      logger.info({uids, flags: labelsToSet}, 'Flags added successfully');
+      logger.debug({uids, flags: labelsToSet}, 'Flags added successfully');
     }
 
     // Remove labels if there are any to unset
     if (labelsToUnset.length > 0) {
       logger.debug({uids, flags: labelsToUnset}, 'Removing flags from messages');
       await imap.messageFlagsRemove({ uid: uids }, labelsToUnset, options);
-      logger.info({uids, flags: labelsToUnset}, 'Flags removed successfully');
+      logger.debug({uids, flags: labelsToUnset}, 'Flags removed successfully');
     }
 
-    logger.info({updatedCount: messages.length}, 'All message flags updated');
+    logger.debug({updatedCount: messages.length}, 'All message flags updated');
   } catch (err) {
     logger.error({error: err.message}, 'Failed to update message flags');
     throw err;

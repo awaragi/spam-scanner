@@ -18,7 +18,7 @@ export class ColorProcessor extends BaseProcessor {
    * @returns {Promise<void>}
    */
   async process(imap, {nonSpamMessages, lowSpamMessages, highSpamMessages}) {
-    logger.info({mode: 'color'}, 'Processing messages with color strategy');
+    logger.debug({mode: 'color'}, 'Processing messages with color strategy');
 
     // Future implementation: Apply color flags to messages
     // This requires implementation of color flag support in imap-client

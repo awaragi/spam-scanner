@@ -23,18 +23,18 @@ export class LabelProcessor extends BaseProcessor {
    * @returns {Promise<void>}
    */
   async process(imap, {nonSpamMessages, lowSpamMessages, highSpamMessages}) {
-    logger.info({mode: 'label'}, 'Processing messages with label strategy');
+    logger.debug({mode: 'label'}, 'Processing messages with label strategy');
 
     // Reset spam labels on non-spam messages
-    logger.info({count: nonSpamMessages.length}, 'Resetting spam labels on clean messages');
+    logger.debug({count: nonSpamMessages.length}, 'Resetting spam labels on clean messages');
     await updateLabels(imap, nonSpamMessages, [], [LABEL_SPAM_LOW, LABEL_SPAM_HIGH]);
 
     // Apply Spam:Low label
-    logger.info({count: lowSpamMessages.length}, 'Applying Spam:Low label');
+    logger.debug({count: lowSpamMessages.length}, 'Applying Spam:Low label');
     await updateLabels(imap, lowSpamMessages, [LABEL_SPAM_LOW], [LABEL_SPAM_HIGH]);
 
     // Apply Spam:High label
-    logger.info({count: highSpamMessages.length}, 'Applying Spam:High label');
+    logger.debug({count: highSpamMessages.length}, 'Applying Spam:High label');
     await updateLabels(imap, highSpamMessages, [LABEL_SPAM_HIGH], [LABEL_SPAM_LOW]);
 
     logger.debug('Label processing completed');

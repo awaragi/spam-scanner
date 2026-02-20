@@ -41,6 +41,6 @@ export async function updateMapFile(mapPath, senders) {
   
   const result = await updateMap(mapPath, senders);
   
-  logger.info({mapPath, ...result}, 'Map file updated');
+  logger.debug({mapPath, ...result}, 'Map file updated');
   return result;
 }

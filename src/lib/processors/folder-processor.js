@@ -20,7 +20,7 @@ export class FolderProcessor extends BaseProcessor {
    * @returns {Promise<void>}
    */
   async process(imap, {nonSpamMessages, lowSpamMessages, highSpamMessages}) {
-    logger.info({mode: 'folder'}, 'Processing messages with folder strategy');
+    logger.debug({mode: 'folder'}, 'Processing messages with folder strategy');
 
     // Validate required configuration
     if (!config.FOLDER_SPAM_LOW) {
@@ -32,10 +32,10 @@ export class FolderProcessor extends BaseProcessor {
     }
 
     // Move messages to spam likelihood folders
-    logger.info({count: lowSpamMessages.length, folder: config.FOLDER_SPAM_LOW}, 'Moving low spam messages');
+    logger.debug({count: lowSpamMessages.length, folder: config.FOLDER_SPAM_LOW}, 'Moving low spam messages');
     await moveMessages(imap, lowSpamMessages, config.FOLDER_SPAM_LOW);
 
-    logger.info({count: highSpamMessages.length, folder: config.FOLDER_SPAM_HIGH}, 'Moving high spam messages');
+    logger.debug({count: highSpamMessages.length, folder: config.FOLDER_SPAM_HIGH}, 'Moving high spam messages');
     await moveMessages(imap, highSpamMessages, config.FOLDER_SPAM_HIGH);
 
     logger.debug('Folder processing completed');

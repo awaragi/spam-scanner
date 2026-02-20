@@ -24,17 +24,17 @@ export async function processWithRspamd(messages) {
     const subject = envelope.subject;
     const date = dateToString(envelope.date);
 
-    messageLogger.info({date, subject}, 'Starting Rspamd check');
+    messageLogger.debug({date, subject}, 'Starting Rspamd check');
 
     try {
       messageLogger.debug('Checking email with Rspamd');
       const result = await checkEmail(raw);
 
-      messageLogger.info({subject, action: result.action, score: result.score}, 'Rspamd check completed');
+      messageLogger.debug({subject, action: result.action, score: result.score}, 'Rspamd check completed');
 
       // Parse Rspamd output
       const {score, required, level, isSpam} = parseRspamdOutput(result);
-      messageLogger.info({score, required, level, isSpam, date, subject}, 'Rspamd scan results');
+      messageLogger.debug({score, required, level, isSpam, date, subject}, 'Rspamd scan results');
 
       // Add message to processed messages with spam information
       const messageWithSpamInfo = {...message, spamInfo: {score, required, level, isSpam, subject, date}};

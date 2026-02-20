@@ -100,7 +100,7 @@ export async function learnHam(emailContent) {
 
     if (result.success !== true) {
       if (isAlreadyLearned(result)) {
-        logger.info({message: result.error}, 'Rspamd learn ham skipped');
+        logger.debug({message: result.error}, 'Rspamd learn ham skipped');
         return {
           success: true,
           message: result.error,
@@ -145,7 +145,7 @@ export async function learnSpam(emailContent) {
 
     if (result.success !== true) {
       if (isAlreadyLearned(result)) {
-        logger.info({message: result.error}, 'Rspamd learn spam skipped');
+        logger.debug({message: result.error}, 'Rspamd learn spam skipped');
         return {
           success: true,
           message: result.error,

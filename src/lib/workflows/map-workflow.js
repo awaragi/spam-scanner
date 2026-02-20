@@ -29,7 +29,7 @@ async function runMapTraining(imap, folder, mapPath, mapStateKey, destFolder, ty
     const messageCount = count(box);
 
     if (messageCount === 0) {
-      logger.info({folder, type}, 'No messages in training folder');
+      logger.debug({folder, type}, 'No messages in training folder');
       return;
     }
 
@@ -37,7 +37,7 @@ async function runMapTraining(imap, folder, mapPath, mapStateKey, destFolder, ty
     const senders = extractSenderAddresses(messages);
 
     if (senders.length === 0) {
-      logger.info({folder, type}, 'No extractable senders found in training folder');
+      logger.debug({folder, type}, 'No extractable senders found in training folder');
       return;
     }
 
@@ -51,7 +51,7 @@ async function runMapTraining(imap, folder, mapPath, mapStateKey, destFolder, ty
       mapContent = await fs.readFile(resolvedMapPath, 'utf-8');
     } catch (err) {
       if (err.code === 'ENOENT') {
-        logger.info({mapPath: resolvedMapPath, type}, 'Map file not found for state backup');
+        logger.debug({mapPath: resolvedMapPath, type}, 'Map file not found for state backup');
       } else {
         throw err;
       }
@@ -59,12 +59,12 @@ async function runMapTraining(imap, folder, mapPath, mapStateKey, destFolder, ty
 
     if (mapContent !== null) {
       await writeMapState(imap, mapStateKey, mapContent);
-      logger.info({folder, type, mapStateKey}, 'Map state backup updated');
+      logger.debug({folder, type, mapStateKey}, 'Map state backup updated');
     }
 
     // Move processed messages to destination folder
     await moveMessages(imap, messages, destFolder);
-    logger.info({folder, type, destFolder, total: messages.length}, 'Training messages moved');
+    logger.debug({folder, type, destFolder, total: messages.length}, 'Training messages moved');
   } catch (error) {
     logger.error({folder, type, error: error.message}, `Error in ${type} workflow`);
     throw error;

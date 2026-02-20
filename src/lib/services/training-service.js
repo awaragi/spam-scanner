@@ -13,12 +13,12 @@ const logger = rootLogger.forComponent('training-service');
 async function processWithRspamdLearn(message, learnFn, type) {
   const {uid, raw} = message;
   const messageLogger = logger.forMessage(uid);
-  messageLogger.info({type}, 'Learning message with rspamd');
+  messageLogger.debug({type}, 'Learning message with rspamd');
 
   const subject = message.envelope.subject;
   try {
     const result = await learnFn(raw);
-    messageLogger.info({type, subject, result}, 'Message processed with rspamd learn');
+    messageLogger.debug({type, subject, result}, 'Message processed with rspamd learn');
   } catch (err) {
     messageLogger.error({type, subject, error: err.message}, 'rspamd learn process error');
     throw err;

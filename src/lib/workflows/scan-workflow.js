@@ -30,7 +30,7 @@ async function scanBatch(imap, uids, state, processor) {
   await processor.process(imap, {nonSpamMessages, lowSpamMessages, highSpamMessages});
 
   // Move spam messages to spam folder
-  logger.info({count: spamMessages.length}, 'Moving spam messages to spam folder');
+  logger.debug({count: spamMessages.length}, 'Moving spam messages to spam folder');
   await moveMessages(imap, spamMessages, config.FOLDER_SPAM);
 
   // Calculate last_uid from all processed messages
@@ -97,7 +97,7 @@ export async function run(imap) {
     }
     const newUIDs = await search(imap, query);
     if (newUIDs.length === 0) {
-      logger.info({folder: config.FOLDER_INBOX}, 'No new messages to process');
+      logger.debug({folder: config.FOLDER_INBOX}, 'No new messages to process');
       return;
     }
 
@@ -111,7 +111,7 @@ export async function run(imap) {
 
     // Step 3: Process messages in batches
     for (let i = 0; i < uids.length; i += PROCESS_BATCH_SIZE) {
-      logger.info({
+      logger.debug({
         from: i,
         to: Math.min(i + PROCESS_BATCH_SIZE, uids.length),
         total: uids.length

@@ -85,7 +85,7 @@ export function extractSenders(headers) {
             if (isHumanReadable(parsed.address)) {
                 candidates.push(parsed.address.toLowerCase());
             } else {
-                logger.info({field, email: parsed.address}, 'Email address rejected as non-human-readable');
+                logger.debug({field, email: parsed.address}, 'Email address rejected as non-human-readable');
             }
         }
     }
