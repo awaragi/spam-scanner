@@ -6,11 +6,16 @@ services:
     depends_on:
       - rspamd
     restart: unless-stopped
+    volumes:
+      - ${SPAM_SCANNER_DATA}/rspamd/maps:/data/rspamd/maps
     environment:
       # Hardcode internal Rspamd URL for service-to-service communication
       - RSPAMD_URL=http://rspamd:11334
       # Interpolate password from .env file
       - RSPAMD_PASSWORD=${RSPAMD_PASSWORD}
+      # Map paths inside the container (mounted above)
+      - RSPAMD_WHITELIST_MAP_PATH=/data/rspamd/maps/whitelist.map
+      - RSPAMD_BLACKLIST_MAP_PATH=/data/rspamd/maps/blacklist.map
     networks:
       - spam-network
 
@@ -22,9 +27,9 @@ services:
       - "11334:11334"  # Web interface
     volumes:
       - ./rspamd/config:/etc/rspamd/local.d
-      - ./rspamd/data:/var/lib/rspamd
-      - ./rspamd/logs:/var/log/rspamd
-      - ./rspamd/maps:/etc/rspamd/maps
+      - ${SPAM_SCANNER_DATA}/rspamd/data:/var/lib/rspamd
+      - ${SPAM_SCANNER_DATA}/rspamd/logs:/var/log/rspamd
+      - ${SPAM_SCANNER_DATA}/rspamd/maps:/etc/rspamd/maps
     depends_on:
       - redis
       - unbound
@@ -36,7 +41,7 @@ services:
     image: redis:alpine
     container_name: rspamd-redis
     volumes:
-      - redis-data:/data
+      - ${SPAM_SCANNER_DATA}/redis:/data
     restart: unless-stopped
     networks:
       - spam-network
@@ -47,9 +52,6 @@ services:
     restart: unless-stopped
     networks:
       - spam-network
-
-volumes:
-  redis-data:
 
 networks:
   spam-network:

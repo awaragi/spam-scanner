@@ -1,9 +1,12 @@
 import {rootLogger} from './logger.js';
 import {homedir, userInfo} from "os";
+import path from 'path';
 
 const logger = rootLogger.forComponent('config');
 
 export const config = (() => {
+  const dataDir = process.env.SPAM_SCANNER_DATA || path.join(homedir(), '.spam-scanner');
+
   const c = {
     HOME: homedir(),
     USER: userInfo().username,
@@ -37,8 +40,8 @@ export const config = (() => {
 
     RSPAMD_URL: process.env.RSPAMD_URL || 'http://localhost:11334',
     RSPAMD_PASSWORD: process.env.RSPAMD_PASSWORD || '',
-    RSPAMD_WHITELIST_MAP_PATH: process.env.RSPAMD_WHITELIST_MAP_PATH || 'rspamd/maps/whitelist.map',
-    RSPAMD_BLACKLIST_MAP_PATH: process.env.RSPAMD_BLACKLIST_MAP_PATH || 'rspamd/maps/blacklist.map'
+    RSPAMD_WHITELIST_MAP_PATH: process.env.RSPAMD_WHITELIST_MAP_PATH || path.join(dataDir, 'rspamd/maps/whitelist.map'),
+    RSPAMD_BLACKLIST_MAP_PATH: process.env.RSPAMD_BLACKLIST_MAP_PATH || path.join(dataDir, 'rspamd/maps/blacklist.map')
   };
 
   logger.debug(c,'Loading configuration');

@@ -1,0 +1,40 @@
+# Local development stack for rspamd, Redis, and Unbound.
+#
+# IMPORTANT: Always invoke via the wrapper script or with --project-directory:
+#   bin/local/rspamd.sh [init|up|down|logs]
+#
+# Or manually from the project root:
+#   docker compose --project-directory . -f bin/local/docker-compose.yml up -d
+#
+# Docker Compose v2 resolves .env AND relative volume paths from the project
+# directory. The --project-directory flag pins that to the project root, so
+# paths like ./rspamd/config resolve correctly from there.
+
+services:
+  rspamd:
+    image: rspamd/rspamd:latest
+    container_name: rspamd
+    ports:
+      - "11332:11332"  # Proxy worker
+      - "11334:11334"  # Web interface
+    volumes:
+      - ./rspamd/config:/etc/rspamd/local.d
+      - ${SPAM_SCANNER_DATA}/rspamd/data:/var/lib/rspamd
+      - ${SPAM_SCANNER_DATA}/rspamd/logs:/var/log/rspamd
+      - ${SPAM_SCANNER_DATA}/rspamd/maps:/etc/rspamd/maps
+    depends_on:
+      - redis
+      - unbound
+    restart: unless-stopped
+
+  redis:
+    image: redis:alpine
+    container_name: rspamd-redis
+    volumes:
+      - ${SPAM_SCANNER_DATA}/redis:/data
+    restart: unless-stopped
+
+  unbound:
+    image: klutchell/unbound:latest
+    container_name: rspamd-unbound
+    restart: unless-stopped
