@@ -4,10 +4,12 @@
 SLEEP=300
 
 if [ -z "$1" ]; then
-    ENV_FILE=".env"
-else
-    ENV_FILE="$1"
+    echo "Error: ENV file parameter is required!"
+    echo "Usage: $0 <env-file>"
+    exit 1
 fi
+
+ENV_FILE="$1"
 
 if [ ! -f "$ENV_FILE" ]; then
     echo "Error: $ENV_FILE file not found!"
