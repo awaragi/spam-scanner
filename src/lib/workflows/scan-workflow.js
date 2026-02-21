@@ -95,7 +95,10 @@ export async function run(imap) {
     if (!config.SCAN_READ) {
       query.seen = false;
     }
-    const newUIDs = await search(imap, query);
+    // Filter out UIDs <= last_uid: IMAP returns the max UID when the range start
+    // exceeds the mailbox max (e.g. "7385:*" becomes "7384:7385"), causing the
+    // last processed email to always be re-scanned.
+    const newUIDs = (await search(imap, query)).filter(uid => uid > state.last_uid);
     if (newUIDs.length === 0) {
       logger.debug({folder: config.FOLDER_INBOX}, 'No new messages to process');
       return;
