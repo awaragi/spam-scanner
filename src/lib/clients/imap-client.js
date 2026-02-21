@@ -62,7 +62,7 @@ export async function createAppFolders(imap, folders) {
     logger.debug({folder: folderPath}, `Ensuring existence of folder`);
       const res = await imap.mailboxCreate(folderPath);
       if (res.created === false) {
-        logger.info({folder: folderPath}, 'Folder exists');
+        logger.debug({folder: folderPath}, 'Folder exists');
       } else {
         logger.info({folder: folderPath}, 'Created folder');
       }

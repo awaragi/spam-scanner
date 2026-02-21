@@ -5,7 +5,7 @@ import {config} from "./lib/utils/config.js";
 const logger = rootLogger.forComponent('init-folders');
 const imap = newClient();
 
-logger.info('Starting folder initialization');
+logger.debug('Starting folder initialization');
 
 try {
   await imap.connect();
@@ -26,7 +26,7 @@ try {
   }
   
   await createAppFolders(imap, folders);
-  logger.info('Folder initialization completed');
+  logger.debug('Folder initialization completed');
 } finally {
   await imap.logout();
 }
