@@ -52,7 +52,7 @@ async function scanBatch(imap, uids, state, processor) {
 
   state.last_uid = last_uid;
 
-  logger.info({
+  logger.debug({
     folder: config.FOLDER_INBOX,
     processedCount: messages.length,
     spamCount: spamMessages.length,

@@ -77,7 +77,7 @@ FOLDER_TRAIN_BLACKLIST=INBOX.scanner.train-blacklist
 FOLDER_STATE=INBOX.scanner.state
 
 SCAN_BATCH_SIZE=10000
-SCAN_INTERVAL=300
+SCAN_INTERVAL=-1
 SCAN_READ=true
 PROCESS_BATCH_SIZE=10
 STATE_KEY_SCANNER=scanner
@@ -222,7 +222,7 @@ When using Docker deployment:
 - **RSPAMD_URL**: Automatically set to `http://rspamd:11334` (do not override)
 - **RSPAMD_PASSWORD**: Required in `.env` file (used for Rspamd web UI authentication)
 - **IMAP_*** : All IMAP configuration must be set in `.env`
-- **SCAN_INTERVAL**: Controls sleep time between scan cycles (default: 300 seconds)
+- **SCAN_INTERVAL**: Controls sleep time between scan cycles. Defaults to `-1` (single-run mode — one cycle then exit). Set to a positive integer to run continuously with that many seconds between cycles
 - **LOG_FORMAT**: Use `json` for production, `pretty` for debugging
 
 ### Accessing Rspamd Web Interface
@@ -266,7 +266,7 @@ docker-compose up --build -d
 | Rspamd | `cd rspamd && docker-compose up -d` | Included in root docker-compose.yml |
 | Application | `./bin/local/start.sh` | Runs automatically in container |
 | RSPAMD_URL | `http://localhost:11334` | `http://rspamd:11334` (auto-set) |
-| State | Developers control script execution | Continuous loop in container |
+| State | Developers control script execution | Single-run by default; set `SCAN_INTERVAL` for continuous loop |
 
 ---
 
@@ -288,9 +288,25 @@ node src/train-blacklist.js
 node src/scan-inbox.js
 ```
 
+### Single-run Mode (Default)
+
+By default (`SCAN_INTERVAL=-1`), the orchestrator runs one full cycle then exits:
+
+```bash
+node src/orchestrator.js
+```
+
+This is useful for scheduled execution via cron or an external scheduler.
+
 ### Continuous Mode (Loop)
 
-Use the provided start script:
+Set `SCAN_INTERVAL` to a positive number of seconds to run in a continuous loop:
+
+```bash
+SCAN_INTERVAL=300 node src/orchestrator.js
+```
+
+Or use the provided start script, which loads environment variables from a `.env` file:
 
 ```bash
 # Run with default .env file
@@ -299,14 +315,6 @@ Use the provided start script:
 # Or specify a custom env file
 ./bin/local/start.sh .env.custom
 ```
-
-This script:
-1. Loads environment variables from the specified .env file
-2. Runs all training and scanning scripts in sequence
-3. Waits for the interval specified in SCAN_INTERVAL (default: 300 seconds)
-4. Repeats the process indefinitely
-
-You can press Enter during the wait period to skip the remaining wait time.
 
 ## Script Execution Order
 
