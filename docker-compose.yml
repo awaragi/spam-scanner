@@ -1,5 +1,6 @@
 services:
   spam-scanner:
+    image: spam-scanner:latest
     build: .
     container_name: spam-scanner
     env_file: .env
