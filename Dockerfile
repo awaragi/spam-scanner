@@ -21,6 +21,9 @@ COPY --from=builder /app/node_modules ./node_modules
 # Copy application source
 COPY src ./src
 
+# Copy package.json for version info
+COPY package.json ./
+
 # Copy Docker entrypoint script
 COPY bin/docker ./bin/docker
 
