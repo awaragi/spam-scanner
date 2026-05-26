@@ -24,6 +24,9 @@ async function runStep(workflowFn) {
   try {
     await imap.connect();
     await workflowFn(imap);
+  } catch (err) {
+    const duration = Date.now() - start;
+    logger.error({step: workflowFn.name, duration, error: err.message}, 'Step failed');
   } finally {
     await imap.logout();
     const duration = Date.now() - start;

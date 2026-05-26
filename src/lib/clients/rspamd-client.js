@@ -92,6 +92,12 @@ export async function learnHam(emailContent) {
 
     if (!response.ok) {
       const error = await response.text();
+      let parsed;
+      try { parsed = JSON.parse(error); } catch (_) { parsed = null; }
+      if (response.status === 404 && isAlreadyLearned(parsed)) {
+        logger.debug({message: parsed?.error}, 'Rspamd learn ham skipped (already learned, 404)');
+        return {success: true, message: parsed?.error, alreadyLearned: true};
+      }
       throw new Error(`Rspamd learn ham failed with status ${response.status}: ${error}`);
     }
 
@@ -137,6 +143,12 @@ export async function learnSpam(emailContent) {
 
     if (!response.ok) {
       const error = await response.text();
+      let parsed;
+      try { parsed = JSON.parse(error); } catch (_) { parsed = null; }
+      if (response.status === 404 && isAlreadyLearned(parsed)) {
+        logger.debug({message: parsed?.error}, 'Rspamd learn spam skipped (already learned, 404)');
+        return {success: true, message: parsed?.error, alreadyLearned: true};
+      }
       throw new Error(`Rspamd learn spam failed with status ${response.status}: ${error}`);
     }
 
