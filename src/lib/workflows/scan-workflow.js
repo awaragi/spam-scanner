@@ -75,9 +75,9 @@ async function scanBatch(imap, uids, state, processor) {
  * Run inbox scanning workflow
  * Orchestrates the complete scanning process: read state, search, batch process, update state
  * @param {Object} imap - ImapFlow client
- * @returns {Promise<void>}
+ * @returns {Promise<{processed: number}>} - Count of messages fetched and processed
  */
-export async function run(imap) {
+export async function runScan(imap) {
   const now = new Date().toISOString();
   const defaultState = {
     last_uid: 0,
@@ -101,7 +101,7 @@ export async function run(imap) {
     const newUIDs = (await search(imap, query)).filter(uid => uid > state.last_uid);
     if (newUIDs.length === 0) {
       logger.debug({folder: config.FOLDER_INBOX}, 'No new messages to process');
-      return;
+      return {processed: 0};
     }
 
     const uids = newUIDs.slice(0, config.SCAN_BATCH_SIZE);
@@ -135,6 +135,8 @@ export async function run(imap) {
       nonSpamTotal,
       spamTotal
     }, 'All scan operations completed');
+
+    return {processed: uids.length};
   } catch (error) {
     logger.error({folder: config.FOLDER_INBOX, error: error.message}, 'Error in scan workflow');
     throw error;

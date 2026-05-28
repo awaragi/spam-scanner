@@ -31,6 +31,7 @@ export const config = (() => {
     STATE_KEY_BLACKLIST_MAP: process.env.STATE_KEY_BLACKLIST_MAP || 'rspamd-blacklist-map',
 
     SCAN_BATCH_SIZE: parseInt(process.env.SCAN_BATCH_SIZE || '200', 10),
+    IDLE_MAX_RETRIES: parseInt(process.env.IDLE_MAX_RETRIES || '5', 10),
     SCAN_READ: process.env.SCAN_READ === 'true',
     PROCESS_BATCH_SIZE: parseInt(process.env.PROCESS_BATCH_SIZE || '10'),
 

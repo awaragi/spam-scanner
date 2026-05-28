@@ -1,4 +1,4 @@
-import { run as scanInbox } from './lib/workflows/scan-workflow.js';
+import { runScan as scanInbox } from './lib/workflows/scan-workflow.js';
 import { newClient } from './lib/clients/imap-client.js';
 
 const imap = newClient();

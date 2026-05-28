@@ -25,7 +25,8 @@ export function newClient() {
       fatal: imapflowLogger.fatal.bind(imapflowLogger),
       trace: imapflowLogger.trace.bind(imapflowLogger)
     },
-    emitLogs: false
+    emitLogs: false,
+    disableAutoIdle: true
   });
 }
 

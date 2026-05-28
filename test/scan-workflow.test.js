@@ -50,7 +50,7 @@ vi.mock('../src/lib/utils/email.js', () => ({
   dateToString: vi.fn(),
 }));
 
-import { run } from '../src/lib/workflows/scan-workflow.js';
+import { runScan } from '../src/lib/workflows/scan-workflow.js';
 import { readScannerState } from '../src/lib/state-manager.js';
 import { search, fetchMessagesByUIDs } from '../src/lib/clients/imap-client.js';
 import { processWithRspamd } from '../src/lib/services/message-service.js';
@@ -80,9 +80,10 @@ describe('scan-workflow UID filter', () => {
     // IMAP wraps 7385:* → returns [7384]
     search.mockResolvedValue([lastUID]);
 
-    await run(mockImap);
+    const result = await runScan(mockImap);
 
     expect(fetchMessagesByUIDs).not.toHaveBeenCalled();
+    expect(result).toEqual({ processed: 0 });
   });
 
   test('Normal case: search returns UIDs greater than lastUID, all are enqueued', async () => {
@@ -96,9 +97,10 @@ describe('scan-workflow UID filter', () => {
       body: '',
     })));
 
-    await run(mockImap);
+    const result = await runScan(mockImap);
 
     expect(fetchMessagesByUIDs).toHaveBeenCalledWith(mockImap, newUIDs);
+    expect(result).toEqual({ processed: newUIDs.length });
   });
 
   test('Mixed case: search returns stale and new UIDs, only new ones are enqueued', async () => {
@@ -113,7 +115,7 @@ describe('scan-workflow UID filter', () => {
       body: '',
     })));
 
-    await run(mockImap);
+    await runScan(mockImap);
 
     expect(fetchMessagesByUIDs).toHaveBeenCalledWith(mockImap, newUIDs);
   });
