@@ -26,7 +26,8 @@ export async function runIdle(imap) {
   const lock = await imap.getMailboxLock(config.FOLDER_INBOX, {readOnly: true});
   try {
     logger.debug({folder: config.FOLDER_INBOX, exists: imap.mailbox.exists}, 'Watching for new messages');
-    // ImapFlow auto-enters IDLE after inactivity (maxIdleTime cycles every 29 min).
+    // Immediately enter IDLE without waiting for the 15-second autoidle delay.
+    imap.idle().catch(() => {});
     // Wait here until the server sends an EXISTS notification.
     await existsPromise;
     logger.debug({folder: config.FOLDER_INBOX}, 'IDLE resolved');
