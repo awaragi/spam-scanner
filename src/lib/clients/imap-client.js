@@ -26,7 +26,7 @@ export function newClient() {
       trace: imapflowLogger.trace.bind(imapflowLogger)
     },
     emitLogs: false,
-    disableAutoIdle: true
+    maxIdleTime: 29 * 60 * 1000
   });
 }
 
