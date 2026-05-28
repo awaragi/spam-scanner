@@ -2,11 +2,12 @@
 
 if [ -z "$1" ]; then
     echo "Error: ENV file parameter is required!"
-    echo "Usage: $0 <env-file>"
+    echo "Usage: $0 <env-file> [script]"
     exit 1
 fi
 
 ENV_FILE="$1"
+SCRIPT="${2:-src/orchestrator.js}"
 
 if [ ! -f "$ENV_FILE" ]; then
     echo "Error: $ENV_FILE file not found!"
@@ -37,4 +38,4 @@ load_env() {
 # Load environment variables safely
 load_env
 
-exec node src/orchestrator.js
+exec node "$SCRIPT"
