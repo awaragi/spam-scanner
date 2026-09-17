@@ -7,13 +7,16 @@
     "format:check": "prettier --check .",
     "format:src": "prettier --write '**/*.{js,jsx,ts,tsx,json,css,scss,md}' --ignore-path .gitignore",
     "lint:format": "prettier --check '**/*.{js,jsx,ts,tsx,json,css,scss,md}' --ignore-path .gitignore",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:integration": "env-cmd -f .env vitest run --config vitest.integration.config.js"
   },
   "dependencies": {
     "email-addresses": "^5.0.0",
     "emailjs-mime-codec": "^2.0.9",
     "env-cmd": "^10.1.0",
     "imapflow": "^1.0.148",
+    "mailparser": "^3.9.28",
+    "openai": "^7.17.0",
     "pino": "^8.14.1",
     "yargs": "^17.7.2"
   },

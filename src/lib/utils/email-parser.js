@@ -17,7 +17,10 @@ export function stripSpamHeaders(emailContent) {
     const lowerLine = line.toLowerCase();
 
     // Check if this line starts a header we want to remove
-    if (lowerLine.startsWith('x-spam-') || lowerLine.startsWith('x-ham-report')) {
+    if (
+      lowerLine.startsWith('x-spam-') ||
+      lowerLine.startsWith('x-ham-report')
+    ) {
       skipNextLines = true;
       continue;
     }
@@ -65,7 +68,7 @@ export function extractDateFromRaw(rawEmail) {
  */
 export function parseEmail(rawEmail) {
   const headerEndIndex = rawEmail.search(/\r?\n\r?\n/);
-  if (headerEndIndex === -1) return {headers: {}, body: rawEmail};
+  if (headerEndIndex === -1) return { headers: {}, body: rawEmail };
 
   const headerText = rawEmail.slice(0, headerEndIndex);
   const body = rawEmail.slice(headerEndIndex + 2).trim();
@@ -85,7 +88,7 @@ export function parseEmail(rawEmail) {
     }
   }
 
-  return {headers, body};
+  return { headers, body };
 }
 
 /**
@@ -124,7 +127,7 @@ export function parseRspamdOutput(response) {
 
   const score = response.score || 0;
   const required = response.required_score || 0;
-  
+
   // Map Rspamd actions to isSpam boolean
   // "reject" and "add header" are spam actions
   // "no action", "greylist" are non-spam actions
@@ -133,11 +136,50 @@ export function parseRspamdOutput(response) {
   // "add header" means suspicious but below spam threshold
   const isSpam = action === 'reject';
 
+  // WHITELIST_EMAIL fires when the sender matches whitelist.map (see
+  // rspamd/config/multimap.conf) - a deliberate, human-curated trust decision.
+  const isWhitelisted = Boolean(
+    response.symbols && response.symbols.WHITELIST_EMAIL
+  );
+
   return {
     score,
     required,
     level: null,
     isSpam,
+    isWhitelisted,
   };
 }
 
+/**
+ * Parses an AI chat-completion's text content into a spam classification.
+ * Tolerates markdown code fences (```json ... ``` or ``` ... ```) around the JSON.
+ * @param {string} content - Raw text content from the AI response
+ * @returns {{score: number, reasoning: string}} - Object containing spam classification
+ * @throws {Error} - If content is empty, not valid JSON, or missing a numeric score
+ */
+export function parseAiClassificationOutput(content) {
+  if (!content || typeof content !== 'string') {
+    throw new Error('AI response content is empty');
+  }
+
+  const fenceMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const jsonText = (fenceMatch ? fenceMatch[1] : content).trim();
+
+  let parsed;
+  try {
+    parsed = JSON.parse(jsonText);
+  } catch (err) {
+    throw new Error(`AI response is not valid JSON: ${err.message}`);
+  }
+
+  if (typeof parsed.score !== 'number' || Number.isNaN(parsed.score)) {
+    throw new Error(`AI response missing numeric "score" field: ${jsonText}`);
+  }
+
+  const score = Math.min(Math.max(parsed.score, 0), 100);
+  const reasoning =
+    typeof parsed.reasoning === 'string' ? parsed.reasoning.trim() : '';
+
+  return { score, reasoning };
+}

@@ -56,6 +56,25 @@ logger.info(
   'Starting orchestrator'
 );
 
+logger.info(
+  {
+    enabled: config.AI_ENABLED,
+    ...(config.AI_ENABLED && {
+      model: config.AI_MODEL,
+      baseUrl: config.AI_BASE_URL,
+      timeoutMs: config.AI_TIMEOUT_MS,
+      maxRetries: config.AI_MAX_RETRIES,
+      concurrency: config.AI_CONCURRENCY,
+      maxInputTokens: config.AI_MAX_INPUT_TOKENS,
+      maxOutputTokens: config.AI_MAX_OUTPUT_TOKENS,
+      escalateToLowThreshold: config.AI_ESCALATE_TO_LOW_THRESHOLD,
+      escalateToHighThreshold: config.AI_ESCALATE_TO_HIGH_THRESHOLD,
+      userProfileConfigured: !!config.AI_USER_PROFILE,
+    }),
+  },
+  'AI classification configuration'
+);
+
 await runStep(runInit);
 
 let failures = 0;

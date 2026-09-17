@@ -1,11 +1,20 @@
-import {rootLogger} from '../utils/logger.js';
-import {config} from '../utils/config.js';
-import {readScannerState, writeScannerState} from '../state-manager.js';
-import {open, search, fetchMessagesByUIDs, moveMessages} from '../clients/imap-client.js';
-import {processWithRspamd} from '../services/message-service.js';
-import {categorizeMessages} from '../utils/spam-classifier.js';
-import {createProcessor} from '../processors/base-processor.js';
-import {dateToString} from '../utils/email.js';
+import { rootLogger } from '../utils/logger.js';
+import { config } from '../utils/config.js';
+import { readScannerState, writeScannerState } from '../state-manager.js';
+import {
+  open,
+  search,
+  fetchMessagesByUIDs,
+  moveMessages,
+} from '../clients/imap-client.js';
+import { processWithRspamd } from '../services/message-service.js';
+import {
+  categorizeMessages,
+  applyAiEscalation,
+} from '../utils/spam-classifier.js';
+import { classifyWithAi } from '../services/ai-classification-service.js';
+import { createProcessor } from '../processors/base-processor.js';
+import { dateToString } from '../utils/email.js';
 
 const logger = rootLogger.forComponent('scan-workflow');
 
@@ -24,13 +33,43 @@ async function scanBatch(imap, uids, state, processor) {
 
   const processedMessages = await processWithRspamd(messages);
 
-  const {lowSpamMessages, highSpamMessages, nonSpamMessages, spamMessages} = categorizeMessages(processedMessages);
+  let categorized = categorizeMessages(processedMessages);
+  const whitelistedMessages = categorized.whitelistedMessages;
+
+  if (config.AI_ENABLED) {
+    // Whitelisted senders are never sent to AI - a human-curated whitelist entry
+    // is a stronger trust signal than an AI re-check, and skipping it avoids
+    // spending AI budget on mail the mailbox owner already trusts.
+    const aiResults = await classifyWithAi({
+      nonSpamMessages: categorized.nonSpamMessages,
+      lowSpamMessages: categorized.lowSpamMessages,
+    });
+    categorized = applyAiEscalation(categorized, aiResults, {
+      escalateToLowThreshold: config.AI_ESCALATE_TO_LOW_THRESHOLD,
+      escalateToHighThreshold: config.AI_ESCALATE_TO_HIGH_THRESHOLD,
+    });
+  }
+
+  const { lowSpamMessages, highSpamMessages, spamMessages } = categorized;
+  // Whitelisted messages were held out of AI review; merge them back in as clean
+  // mail for labeling/moving purposes.
+  const nonSpamMessages = [
+    ...categorized.nonSpamMessages,
+    ...whitelistedMessages,
+  ];
 
   // Process messages with the configured strategy (label/folder/color)
-  await processor.process(imap, {nonSpamMessages, lowSpamMessages, highSpamMessages});
+  await processor.process(imap, {
+    nonSpamMessages,
+    lowSpamMessages,
+    highSpamMessages,
+  });
 
   // Move spam messages to spam folder
-  logger.debug({count: spamMessages.length}, 'Moving spam messages to spam folder');
+  logger.debug(
+    { count: spamMessages.length },
+    'Moving spam messages to spam folder'
+  );
   await moveMessages(imap, spamMessages, config.FOLDER_SPAM);
 
   // Calculate last_uid from all processed messages
@@ -40,34 +79,39 @@ async function scanBatch(imap, uids, state, processor) {
   const last_seen_date = messages.reduce((maxDate, message) => {
     const date = dateToString(message.envelope.date);
     if (!date) return maxDate;
-    return (date.localeCompare(maxDate) > 0 ? date : maxDate);
+    return date.localeCompare(maxDate) > 0 ? date : maxDate;
   }, new Date(0).toISOString());
   const last_checked = new Date().toISOString();
 
   await writeScannerState(imap, {
     last_uid,
     last_seen_date,
-    last_checked
+    last_checked,
   });
 
   state.last_uid = last_uid;
 
-  logger.debug({
-    folder: config.FOLDER_INBOX,
-    processedCount: messages.length,
-    spamCount: spamMessages.length,
-    lowSpamCount: lowSpamMessages.length,
-    highSpamCount: highSpamMessages.length,
-    nonSpamCount: nonSpamMessages.length,
-    last_uid,
-    last_seen_date
-  }, 'Batch processing completed');
+  logger.debug(
+    {
+      folder: config.FOLDER_INBOX,
+      processedCount: messages.length,
+      spamCount: spamMessages.length,
+      lowSpamCount: lowSpamMessages.length,
+      highSpamCount: highSpamMessages.length,
+      nonSpamCount: nonSpamMessages.length,
+      whitelistedCount: whitelistedMessages.length,
+      last_uid,
+      last_seen_date,
+    },
+    'Batch processing completed'
+  );
 
   return {
     lowSpamTotal: lowSpamMessages.length,
     highSpamTotal: highSpamMessages.length,
     nonSpamTotal: nonSpamMessages.length,
-    spamTotal: spamMessages.length
+    spamTotal: spamMessages.length,
+    whitelistedTotal: whitelistedMessages.length,
   };
 }
 
@@ -91,17 +135,22 @@ export async function runScan(imap) {
     await open(imap, config.FOLDER_INBOX);
 
     // Step 2: Search for new messages
-    let query = {uid: `${state.last_uid + 1}:*`};
+    let query = { uid: `${state.last_uid + 1}:*` };
     if (!config.SCAN_READ) {
       query.seen = false;
     }
     // Filter out UIDs <= last_uid: IMAP returns the max UID when the range start
     // exceeds the mailbox max (e.g. "7385:*" becomes "7384:7385"), causing the
     // last processed email to always be re-scanned.
-    const newUIDs = (await search(imap, query)).filter(uid => uid > state.last_uid);
+    const newUIDs = (await search(imap, query)).filter(
+      uid => uid > state.last_uid
+    );
     if (newUIDs.length === 0) {
-      logger.debug({folder: config.FOLDER_INBOX}, 'No new messages to process');
-      return {processed: 0};
+      logger.debug(
+        { folder: config.FOLDER_INBOX },
+        'No new messages to process'
+      );
+      return { processed: 0 };
     }
 
     const uids = newUIDs.slice(0, config.SCAN_BATCH_SIZE);
@@ -110,35 +159,50 @@ export async function runScan(imap) {
     const processingMode = config.SPAM_PROCESSING_MODE || 'label';
     const processor = await createProcessor(processingMode);
 
-    let lowSpamTotal = 0, highSpamTotal = 0, nonSpamTotal = 0, spamTotal = 0;
+    let lowSpamTotal = 0,
+      highSpamTotal = 0,
+      nonSpamTotal = 0,
+      spamTotal = 0,
+      whitelistedTotal = 0;
 
     // Step 3: Process messages in batches
     for (let i = 0; i < uids.length; i += PROCESS_BATCH_SIZE) {
-      logger.debug({
-        from: i,
-        to: Math.min(i + PROCESS_BATCH_SIZE, uids.length),
-        total: uids.length
-      }, 'Scanning batch');
+      logger.debug(
+        {
+          from: i,
+          to: Math.min(i + PROCESS_BATCH_SIZE, uids.length),
+          total: uids.length,
+        },
+        'Scanning batch'
+      );
       const batchUids = uids.slice(i, i + PROCESS_BATCH_SIZE);
       const counts = await scanBatch(imap, batchUids, state, processor);
       lowSpamTotal += counts.lowSpamTotal;
       highSpamTotal += counts.highSpamTotal;
       nonSpamTotal += counts.nonSpamTotal;
       spamTotal += counts.spamTotal;
+      whitelistedTotal += counts.whitelistedTotal;
     }
 
-    logger.info({
-      folder: config.FOLDER_INBOX,
-      total: uids.length,
-      lowSpamTotal,
-      highSpamTotal,
-      nonSpamTotal,
-      spamTotal
-    }, 'All scan operations completed');
+    logger.info(
+      {
+        folder: config.FOLDER_INBOX,
+        total: uids.length,
+        lowSpamTotal,
+        highSpamTotal,
+        nonSpamTotal,
+        spamTotal,
+        whitelistedTotal,
+      },
+      'All scan operations completed'
+    );
 
-    return {processed: uids.length};
+    return { processed: uids.length };
   } catch (error) {
-    logger.error({folder: config.FOLDER_INBOX, error: error.message}, 'Error in scan workflow');
+    logger.error(
+      { folder: config.FOLDER_INBOX, error: error.message },
+      'Error in scan workflow'
+    );
     throw error;
   }
 }

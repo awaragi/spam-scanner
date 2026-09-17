@@ -3,6 +3,7 @@ import {
   extractHeaders, parseEmail,
   parseSpamAssassinOutput,
   parseRspamdOutput,
+  parseAiClassificationOutput,
   stripSpamHeaders
 } from '../src/lib/utils/email-parser.js';
 
@@ -263,7 +264,8 @@ describe('parseRspamdOutput', () => {
       score: 8.5,
       required: 10.0,
       level: null,
-      isSpam: true
+      isSpam: true,
+      isWhitelisted: false
     });
   });
 
@@ -280,7 +282,8 @@ describe('parseRspamdOutput', () => {
       score: 15.0,
       required: 10.0,
       level: null,
-      isSpam: true
+      isSpam: true,
+      isWhitelisted: false
     });
   });
 
@@ -297,7 +300,8 @@ describe('parseRspamdOutput', () => {
       score: 0.5,
       required: 10.0,
       level: null,
-      isSpam: false
+      isSpam: false,
+      isWhitelisted: false
     });
   });
 
@@ -314,7 +318,8 @@ describe('parseRspamdOutput', () => {
       score: 7.0,
       required: 10.0,
       level: null,
-      isSpam: false
+      isSpam: false,
+      isWhitelisted: false
     });
   });
 
@@ -326,7 +331,8 @@ describe('parseRspamdOutput', () => {
       score: 0,
       required: 0,
       level: null,
-      isSpam: false
+      isSpam: false,
+      isWhitelisted: false
     });
   });
 
@@ -342,8 +348,37 @@ describe('parseRspamdOutput', () => {
       score: 5.0,
       required: 10.0,
       level: null,
-      isSpam: false
+      isSpam: false,
+      isWhitelisted: false
     });
+  });
+
+  test('should detect a whitelist match via the WHITELIST_EMAIL symbol', () => {
+    const response = {
+      action: 'no action',
+      score: -18.0,
+      required_score: 10.0,
+      symbols: {
+        WHITELIST_EMAIL: { score: -20 }
+      }
+    };
+
+    const result = parseRspamdOutput(response);
+    expect(result.isWhitelisted).toBe(true);
+  });
+
+  test('should not flag isWhitelisted when other symbols fire but not WHITELIST_EMAIL', () => {
+    const response = {
+      action: 'no action',
+      score: 2.0,
+      required_score: 10.0,
+      symbols: {
+        SOME_OTHER_SYMBOL: { score: 2.0 }
+      }
+    };
+
+    const result = parseRspamdOutput(response);
+    expect(result.isWhitelisted).toBe(false);
   });
 
   test('should throw error for non-object response', () => {
@@ -352,5 +387,57 @@ describe('parseRspamdOutput', () => {
 
   test('should throw error for null response', () => {
     expect(() => parseRspamdOutput(null)).toThrow('Invalid Rspamd response format');
+  });
+});
+
+describe('parseAiClassificationOutput', () => {
+  test('should parse a valid JSON response', () => {
+    const result = parseAiClassificationOutput('{"score": 42, "reasoning": "Looks borderline"}');
+    expect(result).toEqual({score: 42, reasoning: 'Looks borderline'});
+  });
+
+  test('should parse a response fenced with ```json', () => {
+    const content = '```json\n{"score": 85, "reasoning": "Phishing link"}\n```';
+    expect(parseAiClassificationOutput(content)).toEqual({score: 85, reasoning: 'Phishing link'});
+  });
+
+  test('should parse a response fenced with plain ``` (no json tag)', () => {
+    const content = '```\n{"score": 10, "reasoning": "Clean"}\n```';
+    expect(parseAiClassificationOutput(content)).toEqual({score: 10, reasoning: 'Clean'});
+  });
+
+  test('should clamp a score above 100', () => {
+    const result = parseAiClassificationOutput('{"score": 150, "reasoning": "Very spammy"}');
+    expect(result.score).toBe(100);
+  });
+
+  test('should clamp a score below 0', () => {
+    const result = parseAiClassificationOutput('{"score": -20, "reasoning": "Negative"}');
+    expect(result.score).toBe(0);
+  });
+
+  test('should throw when score is missing', () => {
+    expect(() => parseAiClassificationOutput('{"reasoning": "No score here"}')).toThrow(/missing numeric "score"/);
+  });
+
+  test('should throw when score is not a number', () => {
+    expect(() => parseAiClassificationOutput('{"score": "high", "reasoning": "bad type"}')).toThrow(/missing numeric "score"/);
+  });
+
+  test('should default reasoning to an empty string when missing', () => {
+    const result = parseAiClassificationOutput('{"score": 30}');
+    expect(result).toEqual({score: 30, reasoning: ''});
+  });
+
+  test('should throw on non-JSON garbage input', () => {
+    expect(() => parseAiClassificationOutput('not json at all')).toThrow(/not valid JSON/);
+  });
+
+  test('should throw on empty content', () => {
+    expect(() => parseAiClassificationOutput('')).toThrow('AI response content is empty');
+  });
+
+  test('should throw on null content', () => {
+    expect(() => parseAiClassificationOutput(null)).toThrow('AI response content is empty');
   });
 });

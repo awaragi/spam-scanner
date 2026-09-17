@@ -42,7 +42,20 @@ export const config = (() => {
     RSPAMD_URL: process.env.RSPAMD_URL || 'http://localhost:11334',
     RSPAMD_PASSWORD: process.env.RSPAMD_PASSWORD || '',
     RSPAMD_WHITELIST_MAP_PATH: process.env.RSPAMD_WHITELIST_MAP_PATH || path.join(dataDir, 'rspamd/maps/whitelist.map'),
-    RSPAMD_BLACKLIST_MAP_PATH: process.env.RSPAMD_BLACKLIST_MAP_PATH || path.join(dataDir, 'rspamd/maps/blacklist.map')
+    RSPAMD_BLACKLIST_MAP_PATH: process.env.RSPAMD_BLACKLIST_MAP_PATH || path.join(dataDir, 'rspamd/maps/blacklist.map'),
+
+    AI_ENABLED: process.env.AI_ENABLED === 'true',
+    AI_BASE_URL: process.env.AI_BASE_URL || 'https://api.openai.com/v1',
+    AI_API_KEY: process.env.AI_API_KEY || '',
+    AI_MODEL: process.env.AI_MODEL || 'gpt-4o-mini',
+    AI_TIMEOUT_MS: parseInt(process.env.AI_TIMEOUT_MS || '15000', 10),
+    AI_MAX_RETRIES: parseInt(process.env.AI_MAX_RETRIES || '1', 10),
+    AI_CONCURRENCY: parseInt(process.env.AI_CONCURRENCY || '5', 10),
+    AI_MAX_INPUT_TOKENS: parseInt(process.env.AI_MAX_INPUT_TOKENS || '6000', 10),
+    AI_MAX_OUTPUT_TOKENS: parseInt(process.env.AI_MAX_OUTPUT_TOKENS || '2000', 10),
+    AI_ESCALATE_TO_LOW_THRESHOLD: parseInt(process.env.AI_ESCALATE_TO_LOW_THRESHOLD || '50', 10),
+    AI_ESCALATE_TO_HIGH_THRESHOLD: parseInt(process.env.AI_ESCALATE_TO_HIGH_THRESHOLD || '80', 10),
+    AI_USER_PROFILE: process.env.AI_USER_PROFILE || ''
   };
 
   logger.debug(c,'Loading configuration');

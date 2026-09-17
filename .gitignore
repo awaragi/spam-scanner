@@ -145,3 +145,4 @@ data/
 
 # Rspamd map files (dynamically managed at runtime)
 rspamd/maps/
+.DS_Store
