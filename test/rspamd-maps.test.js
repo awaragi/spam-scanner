@@ -22,21 +22,25 @@ describe('Rspamd Maps Utility', () => {
   });
 
   describe('updateMap', () => {
-    it('should create a new map file with normalized emails', async () => {
-      const emails = ['Test@Example.Com', 'another@test.org', '  spaced@domain.com  '];
+    it('should create a new map file with normalized emails, preserving insertion order', async () => {
+      const emails = [
+        'Test@Example.Com',
+        'another@test.org',
+        '  spaced@domain.com  ',
+      ];
       const result = await updateMap(testMapPath, emails);
 
       expect(result.added).toHaveLength(3);
       expect(result.skipped).toHaveLength(0);
       expect(result.total).toBe(3);
 
-      // Verify file content
+      // Verify file content - normalized (trimmed, lowercased) but in input order, not sorted
       const content = await fs.readFile(testMapPath, 'utf-8');
       const lines = content.split('\n').filter(l => l);
       expect(lines).toEqual([
+        'test@example.com',
         'another@test.org',
         'spaced@domain.com',
-        'test@example.com'
       ]);
     });
 
@@ -76,7 +80,13 @@ describe('Rspamd Maps Utility', () => {
     });
 
     it('should skip invalid email addresses', async () => {
-      const emails = ['valid@domain.com', 'invalid-email', '', '  ', 'another@valid.org'];
+      const emails = [
+        'valid@domain.com',
+        'invalid-email',
+        '',
+        '  ',
+        'another@valid.org',
+      ];
       const result = await updateMap(testMapPath, emails);
 
       expect(result.added).toHaveLength(2);
@@ -93,23 +103,23 @@ describe('Rspamd Maps Utility', () => {
       expect(result.skipped).toHaveLength(1);
     });
 
-    it('should preserve sort order', async () => {
+    it('should preserve insertion order (no sorting)', async () => {
       const emails = ['z@domain.com', 'a@domain.com', 'm@domain.com'];
       await updateMap(testMapPath, emails);
 
       const content = await fs.readFile(testMapPath, 'utf-8');
       const lines = content.split('\n').filter(l => l);
-      expect(lines).toEqual([
-        'a@domain.com',
-        'm@domain.com',
-        'z@domain.com'
-      ]);
+      expect(lines).toEqual(['z@domain.com', 'a@domain.com', 'm@domain.com']);
     });
   });
 
   describe('seedMap', () => {
     it('should create a new seeded map file', async () => {
-      const emails = ['first@domain.com', 'second@domain.com', 'THIRD@DOMAIN.COM'];
+      const emails = [
+        'first@domain.com',
+        'second@domain.com',
+        'THIRD@DOMAIN.COM',
+      ];
       const result = await seedMap(testMapPath, emails);
 
       expect(result.total).toBe(3);
@@ -183,7 +193,7 @@ describe('Rspamd Maps Utility', () => {
       const emails = [
         'test+tag@domain.com',
         'test.name@domain.co.uk',
-        'user_123@sub-domain.com'
+        'user_123@sub-domain.com',
       ];
       const result = await updateMap(testMapPath, emails);
 

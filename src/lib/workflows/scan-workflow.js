@@ -210,7 +210,7 @@ export async function runScan(imap) {
     last_seen_date: now,
     last_checked: now,
   };
-  const state = await readScannerState(imap, defaultState);
+  const state = await readScannerState(imap, defaultState, config.FOLDER_INBOX);
 
   try {
     // Step 1: Open the inbox folder

@@ -1,7 +1,7 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 
 // Mock all external dependencies so we can isolate the UID filter logic
-const {mockConfig} = vi.hoisted(() => ({
+const { mockConfig } = vi.hoisted(() => ({
   mockConfig: {
     FOLDER_INBOX: 'INBOX',
     FOLDER_SPAM: 'INBOX.spam',
@@ -74,11 +74,22 @@ vi.mock('../src/lib/utils/email.js', () => ({
 }));
 
 import { runScan } from '../src/lib/workflows/scan-workflow.js';
-import { readScannerState } from '../src/lib/state-manager.js';
-import { search, fetchMessagesByUIDs, moveMessages, appendMessage } from '../src/lib/clients/imap-client.js';
+import {
+  readScannerState,
+  writeScannerState,
+} from '../src/lib/state-manager.js';
+import {
+  search,
+  fetchMessagesByUIDs,
+  moveMessages,
+  appendMessage,
+} from '../src/lib/clients/imap-client.js';
 import { processWithRspamd } from '../src/lib/services/message-service.js';
 import { learnHam } from '../src/lib/clients/rspamd-client.js';
-import { categorizeMessages, applyAiEscalation } from '../src/lib/utils/spam-classifier.js';
+import {
+  categorizeMessages,
+  applyAiEscalation,
+} from '../src/lib/utils/spam-classifier.js';
 import { classifyWithAi } from '../src/lib/services/ai-classification-service.js';
 import { markNotified } from '../src/lib/services/ai-failure-tracker.js';
 import { createProcessor } from '../src/lib/processors/base-processor.js';
@@ -107,7 +118,11 @@ describe('scan-workflow UID filter', () => {
 
   test('IMAP range inversion: search returns only lastUID, no messages are processed', async () => {
     const lastUID = 7384;
-    readScannerState.mockResolvedValue({ last_uid: lastUID, last_seen_date: new Date().toISOString(), last_checked: new Date().toISOString() });
+    readScannerState.mockResolvedValue({
+      last_uid: lastUID,
+      last_seen_date: new Date().toISOString(),
+      last_checked: new Date().toISOString(),
+    });
     // IMAP wraps 7385:* → returns [7384]
     search.mockResolvedValue([lastUID]);
 
@@ -115,18 +130,29 @@ describe('scan-workflow UID filter', () => {
 
     expect(fetchMessagesByUIDs).not.toHaveBeenCalled();
     expect(result).toEqual({ processed: 0 });
+    expect(readScannerState).toHaveBeenCalledWith(
+      mockImap,
+      expect.any(Object),
+      mockConfig.FOLDER_INBOX
+    );
   });
 
   test('Normal case: search returns UIDs greater than lastUID, all are enqueued', async () => {
     const lastUID = 7384;
     const newUIDs = [7385, 7386, 7387];
-    readScannerState.mockResolvedValue({ last_uid: lastUID, last_seen_date: new Date().toISOString(), last_checked: new Date().toISOString() });
+    readScannerState.mockResolvedValue({
+      last_uid: lastUID,
+      last_seen_date: new Date().toISOString(),
+      last_checked: new Date().toISOString(),
+    });
     search.mockResolvedValue(newUIDs);
-    fetchMessagesByUIDs.mockResolvedValue(newUIDs.map(uid => ({
-      uid,
-      envelope: { date: new Date() },
-      body: '',
-    })));
+    fetchMessagesByUIDs.mockResolvedValue(
+      newUIDs.map(uid => ({
+        uid,
+        envelope: { date: new Date() },
+        body: '',
+      }))
+    );
 
     const result = await runScan(mockImap);
 
@@ -137,18 +163,78 @@ describe('scan-workflow UID filter', () => {
   test('Mixed case: search returns stale and new UIDs, only new ones are enqueued', async () => {
     const lastUID = 7384;
     const newUIDs = [7385, 7386];
-    readScannerState.mockResolvedValue({ last_uid: lastUID, last_seen_date: new Date().toISOString(), last_checked: new Date().toISOString() });
+    readScannerState.mockResolvedValue({
+      last_uid: lastUID,
+      last_seen_date: new Date().toISOString(),
+      last_checked: new Date().toISOString(),
+    });
     // Server returns lastUID alongside new UIDs
     search.mockResolvedValue([lastUID, ...newUIDs]);
-    fetchMessagesByUIDs.mockResolvedValue(newUIDs.map(uid => ({
-      uid,
-      envelope: { date: new Date() },
-      body: '',
-    })));
+    fetchMessagesByUIDs.mockResolvedValue(
+      newUIDs.map(uid => ({
+        uid,
+        envelope: { date: new Date() },
+        body: '',
+      }))
+    );
 
     await runScan(mockImap);
 
     expect(fetchMessagesByUIDs).toHaveBeenCalledWith(mockImap, newUIDs);
+  });
+});
+
+describe('scan-workflow state advancement past permanently-skipped messages (4.4)', () => {
+  let mockProcessor;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockConfig.AI_ENABLED = false;
+    categorizeMessages.mockReturnValue({
+      whitelistedMessages: [],
+      lowSpamMessages: [],
+      highSpamMessages: [],
+      nonSpamMessages: [],
+      spamMessages: [],
+    });
+    mockProcessor = { process: vi.fn() };
+    createProcessor.mockResolvedValue(mockProcessor);
+  });
+
+  test('last_uid still advances past a message that processWithRspamd permanently skipped', async () => {
+    const lastUID = 100;
+    const fetchedUids = [101, 102];
+    readScannerState.mockResolvedValue({
+      last_uid: lastUID,
+      last_seen_date: new Date().toISOString(),
+      last_checked: new Date().toISOString(),
+    });
+    search.mockResolvedValue(fetchedUids);
+    fetchMessagesByUIDs.mockResolvedValue(
+      fetchedUids.map(uid => ({
+        uid,
+        envelope: { date: new Date() },
+        body: '',
+      }))
+    );
+    // processWithRspamd only returns uid 101 - uid 102 was permanently skipped
+    // internally (e.g. a 4xx from rspamd), but its UID must still be present
+    // in the fetched `messages` array used for the last_uid calculation.
+    processWithRspamd.mockResolvedValue([{ uid: 101 }]);
+    categorizeMessages.mockReturnValue({
+      whitelistedMessages: [],
+      lowSpamMessages: [],
+      highSpamMessages: [],
+      nonSpamMessages: [{ uid: 101 }],
+      spamMessages: [],
+    });
+
+    await runScan(mockImap);
+
+    expect(writeScannerState).toHaveBeenCalledWith(
+      mockImap,
+      expect.objectContaining({ last_uid: 102 })
+    );
   });
 });
 
@@ -159,9 +245,15 @@ describe('scan-workflow AI escalation wiring', () => {
     vi.clearAllMocks();
     mockConfig.AI_ENABLED = false;
 
-    readScannerState.mockResolvedValue({ last_uid: 100, last_seen_date: new Date().toISOString(), last_checked: new Date().toISOString() });
+    readScannerState.mockResolvedValue({
+      last_uid: 100,
+      last_seen_date: new Date().toISOString(),
+      last_checked: new Date().toISOString(),
+    });
     search.mockResolvedValue([101]);
-    fetchMessagesByUIDs.mockResolvedValue([{ uid: 101, envelope: { date: new Date() }, body: '' }]);
+    fetchMessagesByUIDs.mockResolvedValue([
+      { uid: 101, envelope: { date: new Date() }, body: '' },
+    ]);
     processWithRspamd.mockResolvedValue([{ uid: 101 }]);
     mockProcessor = { process: vi.fn() };
     createProcessor.mockResolvedValue(mockProcessor);
@@ -186,7 +278,11 @@ describe('scan-workflow AI escalation wiring', () => {
       lowSpamMessages: categorized.lowSpamMessages,
       highSpamMessages: categorized.highSpamMessages,
     });
-    expect(moveMessages).toHaveBeenCalledWith(mockImap, categorized.spamMessages, 'INBOX.spam');
+    expect(moveMessages).toHaveBeenCalledWith(
+      mockImap,
+      categorized.spamMessages,
+      'INBOX.spam'
+    );
   });
 
   test('AI_ENABLED=true: classifyWithAi and applyAiEscalation are called with the expected args, and their output reaches processor/moveMessages', async () => {
@@ -230,7 +326,11 @@ describe('scan-workflow AI escalation wiring', () => {
       lowSpamMessages: escalated.lowSpamMessages,
       highSpamMessages: escalated.highSpamMessages,
     });
-    expect(moveMessages).toHaveBeenCalledWith(mockImap, escalated.spamMessages, 'INBOX.spam');
+    expect(moveMessages).toHaveBeenCalledWith(
+      mockImap,
+      escalated.spamMessages,
+      'INBOX.spam'
+    );
   });
 
   test('AI_ENABLED=true: whitelisted messages are excluded from classifyWithAi and merged back into nonSpamMessages for processor/moveMessages', async () => {
@@ -274,7 +374,11 @@ describe('scan-workflow AI escalation wiring', () => {
       lowSpamMessages: escalated.lowSpamMessages,
       highSpamMessages: escalated.highSpamMessages,
     });
-    expect(moveMessages).toHaveBeenCalledWith(mockImap, escalated.spamMessages, 'INBOX.spam');
+    expect(moveMessages).toHaveBeenCalledWith(
+      mockImap,
+      escalated.spamMessages,
+      'INBOX.spam'
+    );
   });
 });
 
@@ -285,9 +389,15 @@ describe('scan-workflow AI failure alert wiring', () => {
     vi.clearAllMocks();
     mockConfig.AI_ENABLED = true;
 
-    readScannerState.mockResolvedValue({ last_uid: 100, last_seen_date: new Date().toISOString(), last_checked: new Date().toISOString() });
+    readScannerState.mockResolvedValue({
+      last_uid: 100,
+      last_seen_date: new Date().toISOString(),
+      last_checked: new Date().toISOString(),
+    });
     search.mockResolvedValue([101]);
-    fetchMessagesByUIDs.mockResolvedValue([{ uid: 101, envelope: { date: new Date() }, body: '' }]);
+    fetchMessagesByUIDs.mockResolvedValue([
+      { uid: 101, envelope: { date: new Date() }, body: '' },
+    ]);
     processWithRspamd.mockResolvedValue([{ uid: 101 }]);
     mockProcessor = { process: vi.fn() };
     createProcessor.mockResolvedValue(mockProcessor);

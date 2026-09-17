@@ -1,5 +1,5 @@
-import {rootLogger} from '../utils/logger.js';
-import {config} from '../utils/config.js';
+import { rootLogger } from '../utils/logger.js';
+import { config } from '../utils/config.js';
 
 const logger = rootLogger.forComponent('rspamd');
 
@@ -12,25 +12,26 @@ const RSPAMD_PASSWORD = config.RSPAMD_PASSWORD;
  */
 function buildHeaders() {
   const headers = {
-    'Content-Type': 'text/plain'
+    'Content-Type': 'text/plain',
   };
-  
+
   if (RSPAMD_PASSWORD) {
     headers['Password'] = RSPAMD_PASSWORD;
   }
-  
+
   return headers;
 }
 
 function isAlreadyLearned(result) {
-  const error = typeof result?.error === 'string' ? result.error.toLowerCase() : '';
+  const error =
+    typeof result?.error === 'string' ? result.error.toLowerCase() : '';
   return error.includes('already learned');
 }
 
 async function parseRspamdJson(response) {
   const text = await response.text();
   if (!text) {
-    return {success: true, message: ''};
+    return { success: true, message: '' };
   }
 
   try {
@@ -55,19 +56,26 @@ export async function checkEmail(emailContent) {
     const response = await fetch(`${RSPAMD_URL}/checkv2`, {
       method: 'POST',
       headers: buildHeaders(),
-      body: emailContent
+      body: emailContent,
     });
 
     if (!response.ok) {
       const error = await response.text();
-      throw new Error(`Rspamd check failed with status ${response.status}: ${error}`);
+      const err = new Error(
+        `Rspamd check failed with status ${response.status}: ${error}`
+      );
+      err.status = response.status;
+      throw err;
     }
 
     const result = await response.json();
-    logger.debug({result}, 'Rspamd check response');
+    logger.debug({ result }, 'Rspamd check response');
     return result;
   } catch (err) {
-    logger.error({error: err.message, url: `${RSPAMD_URL}/checkv2`}, 'Rspamd check request failed');
+    logger.error(
+      { error: err.message, url: `${RSPAMD_URL}/checkv2` },
+      'Rspamd check request failed'
+    );
     throw err;
   }
 }
@@ -87,38 +95,52 @@ export async function learnHam(emailContent) {
     const response = await fetch(`${RSPAMD_URL}/learnham`, {
       method: 'POST',
       headers: buildHeaders(),
-      body: emailContent
+      body: emailContent,
     });
 
     if (!response.ok) {
       const error = await response.text();
       let parsed;
-      try { parsed = JSON.parse(error); } catch (_) { parsed = null; }
-      if (response.status === 404 && isAlreadyLearned(parsed)) {
-        logger.debug({message: parsed?.error}, 'Rspamd learn ham skipped (already learned, 404)');
-        return {success: true, message: parsed?.error, alreadyLearned: true};
+      try {
+        parsed = JSON.parse(error);
+      } catch (_) {
+        parsed = null;
       }
-      throw new Error(`Rspamd learn ham failed with status ${response.status}: ${error}`);
+      if (response.status === 404 && isAlreadyLearned(parsed)) {
+        logger.debug(
+          { message: parsed?.error },
+          'Rspamd learn ham skipped (already learned, 404)'
+        );
+        return { success: true, message: parsed?.error, alreadyLearned: true };
+      }
+      throw new Error(
+        `Rspamd learn ham failed with status ${response.status}: ${error}`
+      );
     }
 
     const result = await parseRspamdJson(response);
-    logger.debug({result}, 'Rspamd learn ham response');
+    logger.debug({ result }, 'Rspamd learn ham response');
 
     if (result.success !== true) {
       if (isAlreadyLearned(result)) {
-        logger.debug({message: result.error}, 'Rspamd learn ham skipped');
+        logger.debug({ message: result.error }, 'Rspamd learn ham skipped');
         return {
           success: true,
           message: result.error,
-          alreadyLearned: true
+          alreadyLearned: true,
         };
       }
-      throw new Error(`Rspamd learn ham failed: ${JSON.stringify(result) || 'Unknown error'}`);
+      throw new Error(
+        `Rspamd learn ham failed: ${JSON.stringify(result) || 'Unknown error'}`
+      );
     }
 
     return result;
   } catch (err) {
-    logger.error({error: err.message, url: `${RSPAMD_URL}/learnham`}, 'Rspamd learn ham request failed');
+    logger.error(
+      { error: err.message, url: `${RSPAMD_URL}/learnham` },
+      'Rspamd learn ham request failed'
+    );
     throw err;
   }
 }
@@ -138,38 +160,52 @@ export async function learnSpam(emailContent) {
     const response = await fetch(`${RSPAMD_URL}/learnspam`, {
       method: 'POST',
       headers: buildHeaders(),
-      body: emailContent
+      body: emailContent,
     });
 
     if (!response.ok) {
       const error = await response.text();
       let parsed;
-      try { parsed = JSON.parse(error); } catch (_) { parsed = null; }
-      if (response.status === 404 && isAlreadyLearned(parsed)) {
-        logger.debug({message: parsed?.error}, 'Rspamd learn spam skipped (already learned, 404)');
-        return {success: true, message: parsed?.error, alreadyLearned: true};
+      try {
+        parsed = JSON.parse(error);
+      } catch (_) {
+        parsed = null;
       }
-      throw new Error(`Rspamd learn spam failed with status ${response.status}: ${error}`);
+      if (response.status === 404 && isAlreadyLearned(parsed)) {
+        logger.debug(
+          { message: parsed?.error },
+          'Rspamd learn spam skipped (already learned, 404)'
+        );
+        return { success: true, message: parsed?.error, alreadyLearned: true };
+      }
+      throw new Error(
+        `Rspamd learn spam failed with status ${response.status}: ${error}`
+      );
     }
 
     const result = await parseRspamdJson(response);
-    logger.debug({result}, 'Rspamd learn spam response');
+    logger.debug({ result }, 'Rspamd learn spam response');
 
     if (result.success !== true) {
       if (isAlreadyLearned(result)) {
-        logger.debug({message: result.error}, 'Rspamd learn spam skipped');
+        logger.debug({ message: result.error }, 'Rspamd learn spam skipped');
         return {
           success: true,
           message: result.error,
-          alreadyLearned: true
+          alreadyLearned: true,
         };
       }
-      throw new Error(`Rspamd learn spam failed: ${JSON.stringify(result) || 'Unknown error'}`);
+      throw new Error(
+        `Rspamd learn spam failed: ${JSON.stringify(result) || 'Unknown error'}`
+      );
     }
 
     return result;
   } catch (err) {
-    logger.error({error: err.message, url: `${RSPAMD_URL}/learnspam`}, 'Rspamd learn spam request failed');
+    logger.error(
+      { error: err.message, url: `${RSPAMD_URL}/learnspam` },
+      'Rspamd learn spam request failed'
+    );
     throw err;
   }
 }

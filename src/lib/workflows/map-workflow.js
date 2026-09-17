@@ -1,8 +1,16 @@
-import {rootLogger} from '../utils/logger.js';
-import {config} from '../utils/config.js';
-import {writeMapState} from '../state-manager.js';
-import {open, count, fetchAllMessages, moveMessages} from '../clients/imap-client.js';
-import {extractSenderAddresses, updateMapFile} from '../services/map-service.js';
+import { rootLogger } from '../utils/logger.js';
+import { config } from '../utils/config.js';
+import { writeMapState } from '../state-manager.js';
+import {
+  open,
+  count,
+  fetchAllMessages,
+  moveMessages,
+} from '../clients/imap-client.js';
+import {
+  extractSenderAddresses,
+  updateMapFile,
+} from '../services/map-service.js';
 import path from 'path';
 import fs from 'fs/promises';
 
@@ -18,7 +26,14 @@ const logger = rootLogger.forComponent('map-workflow');
  * @param {string} type - Map type ('whitelist' or 'blacklist')
  * @returns {Promise<void>}
  */
-async function runMapTraining(imap, folder, mapPath, mapStateKey, destFolder, type) {
+async function runMapTraining(
+  imap,
+  folder,
+  mapPath,
+  mapStateKey,
+  destFolder,
+  type
+) {
   // Resolve map path relative to repo root if it's not absolute
   const resolvedMapPath = path.isAbsolute(mapPath)
     ? mapPath
@@ -29,7 +44,7 @@ async function runMapTraining(imap, folder, mapPath, mapStateKey, destFolder, ty
     const messageCount = count(box);
 
     if (messageCount === 0) {
-      logger.debug({folder, type}, 'No messages in training folder');
+      logger.debug({ folder, type }, 'No messages in training folder');
       return;
     }
 
@@ -37,13 +52,16 @@ async function runMapTraining(imap, folder, mapPath, mapStateKey, destFolder, ty
     const senders = extractSenderAddresses(messages);
 
     if (senders.length === 0) {
-      logger.debug({folder, type}, 'No extractable senders found in training folder');
+      logger.debug(
+        { folder, type },
+        'No extractable senders found in training folder'
+      );
       return;
     }
 
     // Update map file with senders
     const result = await updateMapFile(resolvedMapPath, senders);
-    logger.info({folder, type, ...result}, `${type} map updated`);
+    logger.info({ folder, type, ...result }, `${type} map updated`);
 
     // Backup map state
     let mapContent = null;
@@ -51,7 +69,10 @@ async function runMapTraining(imap, folder, mapPath, mapStateKey, destFolder, ty
       mapContent = await fs.readFile(resolvedMapPath, 'utf-8');
     } catch (err) {
       if (err.code === 'ENOENT') {
-        logger.debug({mapPath: resolvedMapPath, type}, 'Map file not found for state backup');
+        logger.debug(
+          { mapPath: resolvedMapPath, type },
+          'Map file not found for state backup'
+        );
       } else {
         throw err;
       }
@@ -59,14 +80,20 @@ async function runMapTraining(imap, folder, mapPath, mapStateKey, destFolder, ty
 
     if (mapContent !== null) {
       await writeMapState(imap, mapStateKey, mapContent);
-      logger.debug({folder, type, mapStateKey}, 'Map state backup updated');
+      logger.debug({ folder, type, mapStateKey }, 'Map state backup updated');
     }
 
     // Move processed messages to destination folder
     await moveMessages(imap, messages, destFolder);
-    logger.debug({folder, type, destFolder, total: messages.length}, 'Training messages moved');
+    logger.debug(
+      { folder, type, destFolder, total: messages.length },
+      'Training messages moved'
+    );
   } catch (error) {
-    logger.error({folder, type, error: error.message}, `Error in ${type} workflow`);
+    logger.error(
+      { folder, type, error: error.message },
+      `Error in ${type} workflow`
+    );
     throw error;
   }
 }

@@ -1,5 +1,9 @@
 import { describe, test, expect, beforeEach, vi } from 'vitest';
-import { checkEmail, learnHam, learnSpam } from '../src/lib/clients/rspamd-client.js';
+import {
+  checkEmail,
+  learnHam,
+  learnSpam,
+} from '../src/lib/clients/rspamd-client.js';
 
 // Mock fetch
 global.fetch = vi.fn();
@@ -17,16 +21,16 @@ describe('rspamd-client', () => {
         score: 8.5,
         required_score: 10.0,
         symbols: {
-          TEST_SYMBOL: { score: 2.5, description: 'Test description' }
+          TEST_SYMBOL: { score: 2.5, description: 'Test description' },
         },
         messages: [],
         'message-id': '123456',
-        subject: 'Test'
+        subject: 'Test',
       };
 
       global.fetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => mockResponse
+        json: async () => mockResponse,
       });
 
       const result = await checkEmail(emailContent);
@@ -36,7 +40,7 @@ describe('rspamd-client', () => {
         expect.objectContaining({
           method: 'POST',
           headers: { 'Content-Type': 'text/plain' },
-          body: emailContent
+          body: emailContent,
         })
       );
       expect(result).toEqual(mockResponse);
@@ -49,7 +53,7 @@ describe('rspamd-client', () => {
       // Mock the config to have a password
       vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
         ok: true,
-        json: async () => mockResponse
+        json: async () => mockResponse,
       });
 
       // This test will work if password is set in environment
@@ -68,10 +72,26 @@ describe('rspamd-client', () => {
       global.fetch.mockResolvedValueOnce({
         ok: false,
         status: 400,
-        text: async () => 'Bad Request'
+        text: async () => 'Bad Request',
       });
 
-      await expect(checkEmail(emailContent)).rejects.toThrow('Rspamd check failed with status 400');
+      await expect(checkEmail(emailContent)).rejects.toThrow(
+        'Rspamd check failed with status 400'
+      );
+    });
+
+    test('should attach the HTTP status to the thrown error on non-ok response', async () => {
+      const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
+
+      global.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: async () => 'Bad Request',
+      });
+
+      await expect(checkEmail(emailContent)).rejects.toMatchObject({
+        status: 400,
+      });
     });
 
     test('should throw error when email content is empty', async () => {
@@ -79,7 +99,9 @@ describe('rspamd-client', () => {
     });
 
     test('should throw error when email content is null', async () => {
-      await expect(checkEmail(null)).rejects.toThrow('Email content is required');
+      await expect(checkEmail(null)).rejects.toThrow(
+        'Email content is required'
+      );
     });
 
     test('should throw error on network failure', async () => {
@@ -98,7 +120,7 @@ describe('rspamd-client', () => {
 
       global.fetch.mockResolvedValueOnce({
         ok: true,
-        text: async () => JSON.stringify(mockResponse)
+        text: async () => JSON.stringify(mockResponse),
       });
 
       const result = await learnHam(emailContent);
@@ -108,7 +130,7 @@ describe('rspamd-client', () => {
         expect.objectContaining({
           method: 'POST',
           headers: { 'Content-Type': 'text/plain' },
-          body: emailContent
+          body: emailContent,
         })
       );
       expect(result).toEqual(mockResponse);
@@ -118,12 +140,12 @@ describe('rspamd-client', () => {
       const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
       const mockResponse = {
         success: false,
-        error: '<msgid@example.com> has been already learned as ham, ignore it'
+        error: '<msgid@example.com> has been already learned as ham, ignore it',
       };
 
       global.fetch.mockResolvedValueOnce({
         ok: true,
-        text: async () => JSON.stringify(mockResponse)
+        text: async () => JSON.stringify(mockResponse),
       });
 
       const result = await learnHam(emailContent);
@@ -131,7 +153,7 @@ describe('rspamd-client', () => {
       expect(result).toEqual({
         success: true,
         message: mockResponse.error,
-        alreadyLearned: true
+        alreadyLearned: true,
       });
     });
 
@@ -141,10 +163,12 @@ describe('rspamd-client', () => {
       global.fetch.mockResolvedValueOnce({
         ok: false,
         status: 401,
-        text: async () => 'Unauthorized'
+        text: async () => 'Unauthorized',
       });
 
-      await expect(learnHam(emailContent)).rejects.toThrow('Rspamd learn ham failed with status 401');
+      await expect(learnHam(emailContent)).rejects.toThrow(
+        'Rspamd learn ham failed with status 401'
+      );
     });
 
     test('should throw error when email content is empty', async () => {
@@ -156,7 +180,9 @@ describe('rspamd-client', () => {
 
       global.fetch.mockRejectedValueOnce(new Error('Connection refused'));
 
-      await expect(learnHam(emailContent)).rejects.toThrow('Connection refused');
+      await expect(learnHam(emailContent)).rejects.toThrow(
+        'Connection refused'
+      );
     });
 
     test('should handle empty response body', async () => {
@@ -164,14 +190,14 @@ describe('rspamd-client', () => {
 
       global.fetch.mockResolvedValueOnce({
         ok: true,
-        text: async () => ''
+        text: async () => '',
       });
 
       const result = await learnHam(emailContent);
 
       expect(result).toEqual({
         success: true,
-        message: ''
+        message: '',
       });
     });
   });
@@ -183,7 +209,7 @@ describe('rspamd-client', () => {
 
       global.fetch.mockResolvedValueOnce({
         ok: true,
-        text: async () => JSON.stringify(mockResponse)
+        text: async () => JSON.stringify(mockResponse),
       });
 
       const result = await learnSpam(emailContent);
@@ -193,7 +219,7 @@ describe('rspamd-client', () => {
         expect.objectContaining({
           method: 'POST',
           headers: { 'Content-Type': 'text/plain' },
-          body: emailContent
+          body: emailContent,
         })
       );
       expect(result).toEqual(mockResponse);
@@ -203,12 +229,13 @@ describe('rspamd-client', () => {
       const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
       const mockResponse = {
         success: false,
-        error: '<msgid@example.com> has been already learned as spam, ignore it'
+        error:
+          '<msgid@example.com> has been already learned as spam, ignore it',
       };
 
       global.fetch.mockResolvedValueOnce({
         ok: true,
-        text: async () => JSON.stringify(mockResponse)
+        text: async () => JSON.stringify(mockResponse),
       });
 
       const result = await learnSpam(emailContent);
@@ -216,7 +243,7 @@ describe('rspamd-client', () => {
       expect(result).toEqual({
         success: true,
         message: mockResponse.error,
-        alreadyLearned: true
+        alreadyLearned: true,
       });
     });
 
@@ -226,10 +253,12 @@ describe('rspamd-client', () => {
       global.fetch.mockResolvedValueOnce({
         ok: false,
         status: 503,
-        text: async () => 'Service Unavailable'
+        text: async () => 'Service Unavailable',
       });
 
-      await expect(learnSpam(emailContent)).rejects.toThrow('Rspamd learn spam failed with status 503');
+      await expect(learnSpam(emailContent)).rejects.toThrow(
+        'Rspamd learn spam failed with status 503'
+      );
     });
 
     test('should throw error when email content is empty', async () => {
@@ -249,14 +278,14 @@ describe('rspamd-client', () => {
 
       global.fetch.mockResolvedValueOnce({
         ok: true,
-        text: async () => ''
+        text: async () => '',
       });
 
       const result = await learnSpam(emailContent);
 
       expect(result).toEqual({
         success: true,
-        message: ''
+        message: '',
       });
     });
   });

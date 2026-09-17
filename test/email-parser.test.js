@@ -1,10 +1,11 @@
 import {
   extractDateFromRaw,
-  extractHeaders, parseEmail,
+  extractHeaders,
+  parseEmail,
   parseSpamAssassinOutput,
   parseRspamdOutput,
   parseAiClassificationOutput,
-  stripSpamHeaders
+  stripSpamHeaders,
 } from '../src/lib/utils/email-parser.js';
 
 describe('stripSpamHeaders', () => {
@@ -80,7 +81,9 @@ Content-Type: text/plain
 This is a test email.`;
 
     const date = extractDateFromRaw(input);
-    expect(date).toBe(new Date('Mon, 15 May 2023 10:30:00 +0000').toISOString());
+    expect(date).toBe(
+      new Date('Mon, 15 May 2023 10:30:00 +0000').toISOString()
+    );
   });
 
   test('should return null for invalid date', () => {
@@ -123,13 +126,13 @@ This is a test email.`;
 
     expect(parsed).toEqual({
       headers: {
-        'from': 'test@example.com',
-        'to': 'recipient@example.com',
-        'subject': 'Test Email',
-        'date': 'Mon, 15 May 2023 10:30:00 +0000',
-        'content-type': 'text/plain'
+        from: 'test@example.com',
+        to: 'recipient@example.com',
+        subject: 'Test Email',
+        date: 'Mon, 15 May 2023 10:30:00 +0000',
+        'content-type': 'text/plain',
       },
-      body: 'This is a test email.'
+      body: 'This is a test email.',
     });
   });
 
@@ -146,7 +149,9 @@ This is a test email.`;
 
     const parsed = parseEmail(rawEmail);
 
-    expect(parsed.headers['x-custom-header']).toBe('This is a long header that spans multiple lines with indentation');
+    expect(parsed.headers['x-custom-header']).toBe(
+      'This is a long header that spans multiple lines with indentation'
+    );
   });
 
   test('should return empty headers for invalid input', () => {
@@ -155,7 +160,7 @@ This is a test email.`;
 
     expect(parsed).toEqual({
       headers: {},
-      body: 'This is not a valid email'
+      body: 'This is not a valid email',
     });
   });
 });
@@ -163,13 +168,13 @@ This is a test email.`;
 describe('parseSpamAssassinOutput', () => {
   test('should parse SpamAssassin output with spam', () => {
     const headers = {
-      'from': 'test@example.com',
-      'to': 'recipient@example.com',
-      'subject': '[SPAM] Test Email',
+      from: 'test@example.com',
+      to: 'recipient@example.com',
+      subject: '[SPAM] Test Email',
       'x-spam-status': 'Yes, score=8.5 required=5.0',
       'x-spam-level': '********',
       'x-spam-flag': 'YES',
-      'content-type': 'text/plain'
+      'content-type': 'text/plain',
     };
 
     const result = parseSpamAssassinOutput(headers);
@@ -183,12 +188,12 @@ describe('parseSpamAssassinOutput', () => {
 
   test('should parse SpamAssassin output without spam', () => {
     const headers = {
-      'from': 'test@example.com',
-      'to': 'recipient@example.com',
-      'subject': 'Test Email',
+      from: 'test@example.com',
+      to: 'recipient@example.com',
+      subject: 'Test Email',
       'x-spam-status': 'No, score=0.5 required=5.0',
       'x-spam-level': '',
-      'content-type': 'text/plain'
+      'content-type': 'text/plain',
     };
 
     const result = parseSpamAssassinOutput(headers);
@@ -196,15 +201,15 @@ describe('parseSpamAssassinOutput', () => {
       score: 0.5,
       level: 0,
       required: 5.0,
-      isSpam: false
+      isSpam: false,
     });
   });
 
   test('should handle missing fields', () => {
     const headers = {
-      'from': 'test@example.com',
-      'to': 'recipient@example.com',
-      'content-type': 'text/plain'
+      from: 'test@example.com',
+      to: 'recipient@example.com',
+      'content-type': 'text/plain',
     };
 
     const result = parseSpamAssassinOutput(headers);
@@ -212,14 +217,14 @@ describe('parseSpamAssassinOutput', () => {
       score: null,
       level: 0,
       required: null,
-      isSpam: false
+      isSpam: false,
     });
   });
 
   test('should handle missing x-spam-flag', () => {
     const headers = {
       'x-spam-status': 'No, score=2.1 required=5.0',
-      'x-spam-level': '**'
+      'x-spam-level': '**',
     };
 
     const result = parseSpamAssassinOutput(headers);
@@ -227,7 +232,7 @@ describe('parseSpamAssassinOutput', () => {
       score: 2.1,
       level: 2,
       required: 5.0,
-      isSpam: false
+      isSpam: false,
     });
   });
 
@@ -235,7 +240,7 @@ describe('parseSpamAssassinOutput', () => {
     const headers = {
       'x-spam-status': 'No, score=-2.3 required=5.0',
       'x-spam-level': '',
-      'x-spam-flag': 'NO'
+      'x-spam-flag': 'NO',
     };
 
     const result = parseSpamAssassinOutput(headers);
@@ -243,20 +248,20 @@ describe('parseSpamAssassinOutput', () => {
       score: -2.3,
       level: 0,
       required: 5.0,
-      isSpam: false
+      isSpam: false,
     });
   });
 });
 
 describe('parseRspamdOutput', () => {
-  test('should parse Rspamd response with spam action', () => {
+  test('should parse Rspamd response with add-header action as not spam (only reject means spam)', () => {
     const response = {
       action: 'add header',
       score: 8.5,
       required_score: 10.0,
       symbols: {
-        TEST_SYMBOL: { score: 2.5 }
-      }
+        TEST_SYMBOL: { score: 2.5 },
+      },
     };
 
     const result = parseRspamdOutput(response);
@@ -264,8 +269,8 @@ describe('parseRspamdOutput', () => {
       score: 8.5,
       required: 10.0,
       level: null,
-      isSpam: true,
-      isWhitelisted: false
+      isSpam: false,
+      isWhitelisted: false,
     });
   });
 
@@ -274,7 +279,7 @@ describe('parseRspamdOutput', () => {
       action: 'reject',
       score: 15.0,
       required_score: 10.0,
-      symbols: {}
+      symbols: {},
     };
 
     const result = parseRspamdOutput(response);
@@ -283,7 +288,7 @@ describe('parseRspamdOutput', () => {
       required: 10.0,
       level: null,
       isSpam: true,
-      isWhitelisted: false
+      isWhitelisted: false,
     });
   });
 
@@ -292,7 +297,7 @@ describe('parseRspamdOutput', () => {
       action: 'no action',
       score: 0.5,
       required_score: 10.0,
-      symbols: {}
+      symbols: {},
     };
 
     const result = parseRspamdOutput(response);
@@ -301,7 +306,7 @@ describe('parseRspamdOutput', () => {
       required: 10.0,
       level: null,
       isSpam: false,
-      isWhitelisted: false
+      isWhitelisted: false,
     });
   });
 
@@ -310,7 +315,7 @@ describe('parseRspamdOutput', () => {
       action: 'greylist',
       score: 7.0,
       required_score: 10.0,
-      symbols: {}
+      symbols: {},
     };
 
     const result = parseRspamdOutput(response);
@@ -319,7 +324,7 @@ describe('parseRspamdOutput', () => {
       required: 10.0,
       level: null,
       isSpam: false,
-      isWhitelisted: false
+      isWhitelisted: false,
     });
   });
 
@@ -332,7 +337,7 @@ describe('parseRspamdOutput', () => {
       required: 0,
       level: null,
       isSpam: false,
-      isWhitelisted: false
+      isWhitelisted: false,
     });
   });
 
@@ -340,7 +345,7 @@ describe('parseRspamdOutput', () => {
     const response = {
       action: null,
       score: 5.0,
-      required_score: 10.0
+      required_score: 10.0,
     };
 
     const result = parseRspamdOutput(response);
@@ -349,7 +354,7 @@ describe('parseRspamdOutput', () => {
       required: 10.0,
       level: null,
       isSpam: false,
-      isWhitelisted: false
+      isWhitelisted: false,
     });
   });
 
@@ -359,8 +364,8 @@ describe('parseRspamdOutput', () => {
       score: -18.0,
       required_score: 10.0,
       symbols: {
-        WHITELIST_EMAIL: { score: -20 }
-      }
+        WHITELIST_EMAIL: { score: -20 },
+      },
     };
 
     const result = parseRspamdOutput(response);
@@ -373,8 +378,8 @@ describe('parseRspamdOutput', () => {
       score: 2.0,
       required_score: 10.0,
       symbols: {
-        SOME_OTHER_SYMBOL: { score: 2.0 }
-      }
+        SOME_OTHER_SYMBOL: { score: 2.0 },
+      },
     };
 
     const result = parseRspamdOutput(response);
@@ -382,62 +387,97 @@ describe('parseRspamdOutput', () => {
   });
 
   test('should throw error for non-object response', () => {
-    expect(() => parseRspamdOutput('invalid')).toThrow('Invalid Rspamd response format');
+    expect(() => parseRspamdOutput('invalid')).toThrow(
+      'Invalid Rspamd response format'
+    );
+  });
+
+  test('should mark the thrown error as permanent for an invalid response shape', () => {
+    try {
+      parseRspamdOutput('invalid');
+      expect.unreachable('parseRspamdOutput should have thrown');
+    } catch (err) {
+      expect(err.permanent).toBe(true);
+    }
   });
 
   test('should throw error for null response', () => {
-    expect(() => parseRspamdOutput(null)).toThrow('Invalid Rspamd response format');
+    expect(() => parseRspamdOutput(null)).toThrow(
+      'Invalid Rspamd response format'
+    );
   });
 });
 
 describe('parseAiClassificationOutput', () => {
   test('should parse a valid JSON response', () => {
-    const result = parseAiClassificationOutput('{"score": 42, "reasoning": "Looks borderline"}');
-    expect(result).toEqual({score: 42, reasoning: 'Looks borderline'});
+    const result = parseAiClassificationOutput(
+      '{"score": 42, "reasoning": "Looks borderline"}'
+    );
+    expect(result).toEqual({ score: 42, reasoning: 'Looks borderline' });
   });
 
   test('should parse a response fenced with ```json', () => {
     const content = '```json\n{"score": 85, "reasoning": "Phishing link"}\n```';
-    expect(parseAiClassificationOutput(content)).toEqual({score: 85, reasoning: 'Phishing link'});
+    expect(parseAiClassificationOutput(content)).toEqual({
+      score: 85,
+      reasoning: 'Phishing link',
+    });
   });
 
   test('should parse a response fenced with plain ``` (no json tag)', () => {
     const content = '```\n{"score": 10, "reasoning": "Clean"}\n```';
-    expect(parseAiClassificationOutput(content)).toEqual({score: 10, reasoning: 'Clean'});
+    expect(parseAiClassificationOutput(content)).toEqual({
+      score: 10,
+      reasoning: 'Clean',
+    });
   });
 
   test('should clamp a score above 100', () => {
-    const result = parseAiClassificationOutput('{"score": 150, "reasoning": "Very spammy"}');
+    const result = parseAiClassificationOutput(
+      '{"score": 150, "reasoning": "Very spammy"}'
+    );
     expect(result.score).toBe(100);
   });
 
   test('should clamp a score below 0', () => {
-    const result = parseAiClassificationOutput('{"score": -20, "reasoning": "Negative"}');
+    const result = parseAiClassificationOutput(
+      '{"score": -20, "reasoning": "Negative"}'
+    );
     expect(result.score).toBe(0);
   });
 
   test('should throw when score is missing', () => {
-    expect(() => parseAiClassificationOutput('{"reasoning": "No score here"}')).toThrow(/missing numeric "score"/);
+    expect(() =>
+      parseAiClassificationOutput('{"reasoning": "No score here"}')
+    ).toThrow(/missing numeric "score"/);
   });
 
   test('should throw when score is not a number', () => {
-    expect(() => parseAiClassificationOutput('{"score": "high", "reasoning": "bad type"}')).toThrow(/missing numeric "score"/);
+    expect(() =>
+      parseAiClassificationOutput('{"score": "high", "reasoning": "bad type"}')
+    ).toThrow(/missing numeric "score"/);
   });
 
   test('should default reasoning to an empty string when missing', () => {
     const result = parseAiClassificationOutput('{"score": 30}');
-    expect(result).toEqual({score: 30, reasoning: ''});
+    expect(result).toEqual({ score: 30, reasoning: '' });
   });
 
   test('should throw on non-JSON garbage input', () => {
-    expect(() => parseAiClassificationOutput('not json at all')).toThrow(/not valid JSON/);
+    expect(() => parseAiClassificationOutput('not json at all')).toThrow(
+      /not valid JSON/
+    );
   });
 
   test('should throw on empty content', () => {
-    expect(() => parseAiClassificationOutput('')).toThrow('AI response content is empty');
+    expect(() => parseAiClassificationOutput('')).toThrow(
+      'AI response content is empty'
+    );
   });
 
   test('should throw on null content', () => {
-    expect(() => parseAiClassificationOutput(null)).toThrow('AI response content is empty');
+    expect(() => parseAiClassificationOutput(null)).toThrow(
+      'AI response content is empty'
+    );
   });
 });

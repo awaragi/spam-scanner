@@ -122,7 +122,9 @@ export function parseSpamAssassinOutput(headers) {
  */
 export function parseRspamdOutput(response) {
   if (!response || typeof response !== 'object') {
-    throw new Error('Invalid Rspamd response format');
+    const err = new Error('Invalid Rspamd response format');
+    err.permanent = true;
+    throw err;
   }
 
   const score = response.score || 0;

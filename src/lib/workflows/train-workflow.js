@@ -1,7 +1,12 @@
-import {rootLogger} from '../utils/logger.js';
-import {config} from '../utils/config.js';
-import {open, count, fetchAllMessages, moveMessages} from '../clients/imap-client.js';
-import {trainSpam, trainHam} from '../services/training-service.js';
+import { rootLogger } from '../utils/logger.js';
+import { config } from '../utils/config.js';
+import {
+  open,
+  count,
+  fetchAllMessages,
+  moveMessages,
+} from '../clients/imap-client.js';
+import { trainSpam, trainHam } from '../services/training-service.js';
 
 const logger = rootLogger.forComponent('train-workflow');
 
@@ -22,7 +27,7 @@ async function runTraining(imap, folder, destFolder, trainFn, type) {
     const messageCount = count(box);
 
     if (messageCount === 0) {
-      logger.debug({folder}, 'No messages in folder to process');
+      logger.debug({ folder }, 'No messages in folder to process');
       return;
     }
 
@@ -30,20 +35,32 @@ async function runTraining(imap, folder, destFolder, trainFn, type) {
 
     // Process messages in batches
     for (let i = 0; i < messages.length; i += PROCESS_BATCH_SIZE) {
-      logger.debug({
-        from: i,
-        to: Math.min(i + PROCESS_BATCH_SIZE, messages.length),
-        total: messages.length,
-        type,
-      }, 'Learn batch');
+      logger.debug(
+        {
+          from: i,
+          to: Math.min(i + PROCESS_BATCH_SIZE, messages.length),
+          total: messages.length,
+          type,
+        },
+        'Learn batch'
+      );
       const batchMessages = messages.slice(i, i + PROCESS_BATCH_SIZE);
-      await trainFn(batchMessages);
-      await moveMessages(imap, batchMessages, destFolder);
+      const { learned } = await trainFn(batchMessages);
+      // Only move messages that were actually learned - a permanently
+      // un-learnable message stays in the training folder rather than being
+      // moved as if it had been trained.
+      await moveMessages(imap, learned, destFolder);
     }
 
-    logger.info({folder, type, total: messages.length}, 'All operations completed');
+    logger.info(
+      { folder, type, total: messages.length },
+      'All operations completed'
+    );
   } catch (error) {
-    logger.error({folder, type, error: error.message}, `Error in ${type} training workflow`);
+    logger.error(
+      { folder, type, error: error.message },
+      `Error in ${type} training workflow`
+    );
     throw error;
   }
 }
@@ -55,7 +72,13 @@ async function runTraining(imap, folder, destFolder, trainFn, type) {
  * @returns {Promise<void>}
  */
 export async function runSpam(imap) {
-  await runTraining(imap, config.FOLDER_TRAIN_SPAM, config.FOLDER_SPAM, trainSpam, 'spam');
+  await runTraining(
+    imap,
+    config.FOLDER_TRAIN_SPAM,
+    config.FOLDER_SPAM,
+    trainSpam,
+    'spam'
+  );
 }
 
 /**
@@ -65,5 +88,11 @@ export async function runSpam(imap) {
  * @returns {Promise<void>}
  */
 export async function runHam(imap) {
-  await runTraining(imap, config.FOLDER_TRAIN_HAM, config.FOLDER_INBOX, trainHam, 'ham');
+  await runTraining(
+    imap,
+    config.FOLDER_TRAIN_HAM,
+    config.FOLDER_INBOX,
+    trainHam,
+    'ham'
+  );
 }

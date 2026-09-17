@@ -1,7 +1,7 @@
-import {BaseProcessor} from './base-processor.js';
-import {moveMessages} from '../clients/imap-client.js';
-import {config} from '../utils/config.js';
-import {rootLogger} from '../utils/logger.js';
+import { BaseProcessor } from './base-processor.js';
+import { moveMessages } from '../clients/imap-client.js';
+import { config } from '../utils/config.js';
+import { rootLogger } from '../utils/logger.js';
 
 const logger = rootLogger.forComponent('folder-processor');
 
@@ -19,23 +19,36 @@ export class FolderProcessor extends BaseProcessor {
    * @param {Array} categorized.highSpamMessages - High spam messages
    * @returns {Promise<void>}
    */
-  async process(imap, {nonSpamMessages, lowSpamMessages, highSpamMessages}) {
-    logger.debug({mode: 'folder'}, 'Processing messages with folder strategy');
+  async process(imap, { nonSpamMessages, lowSpamMessages, highSpamMessages }) {
+    logger.debug(
+      { mode: 'folder' },
+      'Processing messages with folder strategy'
+    );
 
     // Validate required configuration
     if (!config.FOLDER_SPAM_LOW) {
-      throw new Error('FOLDER_SPAM_LOW configuration is required for folder processing mode');
+      throw new Error(
+        'FOLDER_SPAM_LOW configuration is required for folder processing mode'
+      );
     }
-    
+
     if (!config.FOLDER_SPAM_HIGH) {
-      throw new Error('FOLDER_SPAM_HIGH configuration is required for folder processing mode');
+      throw new Error(
+        'FOLDER_SPAM_HIGH configuration is required for folder processing mode'
+      );
     }
 
     // Move messages to spam likelihood folders
-    logger.debug({count: lowSpamMessages.length, folder: config.FOLDER_SPAM_LOW}, 'Moving low spam messages');
+    logger.debug(
+      { count: lowSpamMessages.length, folder: config.FOLDER_SPAM_LOW },
+      'Moving low spam messages'
+    );
     await moveMessages(imap, lowSpamMessages, config.FOLDER_SPAM_LOW);
 
-    logger.debug({count: highSpamMessages.length, folder: config.FOLDER_SPAM_HIGH}, 'Moving high spam messages');
+    logger.debug(
+      { count: highSpamMessages.length, folder: config.FOLDER_SPAM_HIGH },
+      'Moving high spam messages'
+    );
     await moveMessages(imap, highSpamMessages, config.FOLDER_SPAM_HIGH);
 
     logger.debug('Folder processing completed');

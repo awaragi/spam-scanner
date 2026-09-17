@@ -1,5 +1,5 @@
-import {rootLogger} from '../utils/logger.js';
-import {config} from '../utils/config.js';
+import { rootLogger } from '../utils/logger.js';
+import { config } from '../utils/config.js';
 
 const logger = rootLogger.forComponent('idle-workflow');
 
@@ -20,12 +20,18 @@ export async function runIdle(imap) {
   // Register listeners before acquiring the lock so no notification is missed
   // between the lock being granted and the listener being attached.
   const existsPromise = new Promise((resolve, reject) => {
-    onExists = (data) => {
-      logger.debug({folder: config.FOLDER_INBOX, data}, 'EXISTS notification received');
+    onExists = data => {
+      logger.debug(
+        { folder: config.FOLDER_INBOX, data },
+        'EXISTS notification received'
+      );
       resolve();
     };
-    onError = (err) => {
-      logger.debug({folder: config.FOLDER_INBOX, error: err.message}, 'Connection error while waiting for EXISTS');
+    onError = err => {
+      logger.debug(
+        { folder: config.FOLDER_INBOX, error: err.message },
+        'Connection error while waiting for EXISTS'
+      );
       reject(err);
     };
     imap.once('exists', onExists);
@@ -34,7 +40,9 @@ export async function runIdle(imap) {
 
   let lock;
   try {
-    lock = await imap.getMailboxLock(config.FOLDER_INBOX, {readOnly: true});
+    lock = await imap.getMailboxLock(config.FOLDER_INBOX, {
+      readOnly: true,
+    });
   } catch (err) {
     // Lock acquisition failed — clean up listeners so they don't fire later.
     imap.off('exists', onExists);
@@ -43,13 +51,23 @@ export async function runIdle(imap) {
   }
 
   try {
-    logger.debug({folder: config.FOLDER_INBOX, exists: imap.mailbox.exists}, 'Watching for new messages');
+    logger.debug(
+      { folder: config.FOLDER_INBOX, exists: imap.mailbox.exists },
+      'Watching for new messages'
+    );
     // Immediately enter IDLE without waiting for the 15-second autoidle delay.
     // Errors here are expected when IDLE is interrupted (e.g. lock released).
-    imap.idle().catch((err) => logger.debug({folder: config.FOLDER_INBOX, error: err.message}, 'IDLE ended'));
+    imap
+      .idle()
+      .catch(err =>
+        logger.debug(
+          { folder: config.FOLDER_INBOX, error: err.message },
+          'IDLE ended'
+        )
+      );
     // Wait here until the server sends an EXISTS notification or the connection errors.
     await existsPromise;
-    logger.debug({folder: config.FOLDER_INBOX}, 'IDLE resolved');
+    logger.debug({ folder: config.FOLDER_INBOX }, 'IDLE resolved');
   } finally {
     imap.off('exists', onExists);
     imap.off('error', onError);

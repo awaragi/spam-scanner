@@ -28,7 +28,9 @@ describe('idle-workflow', () => {
     mockImap = {
       getMailboxLock: vi.fn().mockResolvedValue(mockLock),
       mailbox: { exists: 0 },
-      once: vi.fn().mockImplementation((event, cb) => { if (event === 'exists') cb({}); }),
+      once: vi.fn().mockImplementation((event, cb) => {
+        if (event === 'exists') cb({});
+      }),
       off: vi.fn(),
       idle: vi.fn().mockResolvedValue(undefined),
     };
@@ -37,7 +39,9 @@ describe('idle-workflow', () => {
   test('acquires the mailbox lock in read-only mode', async () => {
     await runIdle(mockImap);
 
-    expect(mockImap.getMailboxLock).toHaveBeenCalledWith('INBOX', { readOnly: true });
+    expect(mockImap.getMailboxLock).toHaveBeenCalledWith('INBOX', {
+      readOnly: true,
+    });
   });
 
   test('registers exists and error listeners before acquiring the lock', async () => {
@@ -53,8 +57,12 @@ describe('idle-workflow', () => {
 
     await runIdle(mockImap);
 
-    expect(callOrder.indexOf('once:exists')).toBeLessThan(callOrder.indexOf('getMailboxLock'));
-    expect(callOrder.indexOf('once:error')).toBeLessThan(callOrder.indexOf('getMailboxLock'));
+    expect(callOrder.indexOf('once:exists')).toBeLessThan(
+      callOrder.indexOf('getMailboxLock')
+    );
+    expect(callOrder.indexOf('once:error')).toBeLessThan(
+      callOrder.indexOf('getMailboxLock')
+    );
   });
 
   test('enters IDLE immediately after acquiring the lock', async () => {
