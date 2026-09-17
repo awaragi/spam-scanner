@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { rootLogger } from '../utils/logger.js';
 import { config } from '../utils/config.js';
 import { readScannerState, writeScannerState } from '../state-manager.js';
@@ -6,19 +7,99 @@ import {
   search,
   fetchMessagesByUIDs,
   moveMessages,
+  appendMessage,
 } from '../clients/imap-client.js';
 import { processWithRspamd } from '../services/message-service.js';
+import { learnHam } from '../clients/rspamd-client.js';
 import {
   categorizeMessages,
   applyAiEscalation,
 } from '../utils/spam-classifier.js';
 import { classifyWithAi } from '../services/ai-classification-service.js';
+import { markNotified } from '../services/ai-failure-tracker.js';
 import { createProcessor } from '../processors/base-processor.js';
 import { dateToString } from '../utils/email.js';
 
 const logger = rootLogger.forComponent('scan-workflow');
 
 const PROCESS_BATCH_SIZE = config.PROCESS_BATCH_SIZE;
+
+// Distinct from both FOLDER_INBOX's owner domain and "localhost" - rspamd penalizes
+// a Message-ID host that matches the From/To domain (MID_RHS_MATCH_*) as well as one
+// that isn't a dotted hostname at all (MID_RHS_NOT_FQDN); an unrelated dotted host
+// avoids both.
+const ALERT_MESSAGE_ID_DOMAIN = 'spam-scanner.internal';
+
+/**
+ * Builds a plain-text RFC822 message alerting the mailbox owner that AI
+ * classification has been failing repeatedly for the same reason. Includes a
+ * Message-ID (rspamd's MISSING_MID otherwise scores this a few points toward
+ * "low spam", since a locally-appended message has no originating MTA to add one).
+ * @param {{reason: string, count: number, lastError: string, lastAt: string}} alert
+ * @returns {string}
+ */
+function buildAiFailureAlertEmail(alert) {
+  const { reason, count, lastError, lastAt } = alert;
+  return `From: Spam Scanner <scanner@localhost>
+To: ${config.IMAP_USER}
+Subject: Spam Scanner: AI classification failing repeatedly (${reason})
+Message-ID: <${randomUUID()}@${ALERT_MESSAGE_ID_DOMAIN}>
+Date: ${new Date().toUTCString()}
+Content-Type: text/plain; charset=utf-8
+MIME-Version: 1.0
+
+The AI classification safety net has failed ${count} times in a row with the same reason.
+
+Reason: ${reason}
+Consecutive failures: ${count}
+Last error: ${lastError}
+Last failure at: ${lastAt}
+
+This is a one-time notice for this ongoing issue - it will not repeat until AI
+classification succeeds again. Check AI_BASE_URL/AI_API_KEY/AI_MODEL and the
+provider's status if this is unexpected.`;
+}
+
+/**
+ * Posts a one-time INBOX alert when the batch's AI failures crossed the
+ * consecutive-same-reason threshold. Best-effort: an append failure is logged
+ * and left un-notified in the tracker so the next failure retries the post.
+ *
+ * Also trains rspamd's Bayes classifier that this exact template is ham
+ * (fire-and-forget - a training failure never blocks the alert itself). This
+ * is the same `learnHam` mechanism the ham-training folder uses, not the
+ * whitelist map, and is what keeps the alert reliably out of rspamd's spam
+ * buckets on future occurrences (Message-ID alone clears the default
+ * threshold but by a thin margin; Bayes training widens it considerably).
+ * @param {Object} imap - ImapFlow client
+ * @param {{reason: string, count: number, lastError: string, lastAt: string}|null} alert
+ */
+async function postAiFailureAlert(imap, alert) {
+  if (!alert) {
+    return;
+  }
+  const raw = buildAiFailureAlertEmail(alert);
+  try {
+    await appendMessage(imap, config.FOLDER_INBOX, raw);
+    markNotified(alert.reason);
+    logger.warn(alert, 'Posted AI failure alert to INBOX');
+  } catch (err) {
+    logger.error(
+      { ...alert, error: err.message },
+      'Failed to post AI failure alert to INBOX - will retry on next failure'
+    );
+    return;
+  }
+
+  try {
+    await learnHam(raw);
+  } catch (err) {
+    logger.warn(
+      { error: err.message },
+      'Failed to train rspamd on the AI failure alert template (non-critical)'
+    );
+  }
+}
 
 /**
  * Scan and process a batch of messages
@@ -44,6 +125,7 @@ async function scanBatch(imap, uids, state, processor) {
       nonSpamMessages: categorized.nonSpamMessages,
       lowSpamMessages: categorized.lowSpamMessages,
     });
+    await postAiFailureAlert(imap, aiResults.aiFailureAlert);
     categorized = applyAiEscalation(categorized, aiResults, {
       escalateToLowThreshold: config.AI_ESCALATE_TO_LOW_THRESHOLD,
       escalateToHighThreshold: config.AI_ESCALATE_TO_HIGH_THRESHOLD,

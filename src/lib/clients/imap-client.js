@@ -294,6 +294,24 @@ export async function moveMessages(imap, messages, destFolder) {
 }
 
 /**
+ * Append a raw RFC822 message to a folder.
+ * @param {Object} imap - ImapFlow client
+ * @param {String} folder - Destination folder
+ * @param {String} raw - Raw RFC822 message source
+ * @param {Array} flags - IMAP flags to set on append (e.g. ['\\Seen']); omit to leave the message unread
+ * @returns {Promise<void>}
+ */
+export async function appendMessage(imap, folder, raw, flags = []) {
+  try {
+    await imap.append(folder, raw, flags);
+    logger.debug({ folder, flags }, 'Appended message');
+  } catch (err) {
+    logger.error({ folder, error: err.message }, 'Failed to append message');
+    throw err;
+  }
+}
+
+/**
  * Update labels (flags) on messages
  * @param {Object} imap - ImapFlow client
  * @param {Array} messages - Array of message objects with UIDs

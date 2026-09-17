@@ -12,6 +12,7 @@ const {mockConfig} = vi.hoisted(() => ({
     AI_ENABLED: false,
     AI_ESCALATE_TO_LOW_THRESHOLD: 50,
     AI_ESCALATE_TO_HIGH_THRESHOLD: 80,
+    IMAP_USER: 'owner@example.com',
   },
 }));
 
@@ -24,6 +25,7 @@ vi.mock('../src/lib/utils/logger.js', () => ({
     forComponent: () => ({
       debug: vi.fn(),
       info: vi.fn(),
+      warn: vi.fn(),
       error: vi.fn(),
     }),
   },
@@ -39,10 +41,15 @@ vi.mock('../src/lib/clients/imap-client.js', () => ({
   search: vi.fn(),
   fetchMessagesByUIDs: vi.fn(),
   moveMessages: vi.fn(),
+  appendMessage: vi.fn(),
 }));
 
 vi.mock('../src/lib/services/message-service.js', () => ({
   processWithRspamd: vi.fn(),
+}));
+
+vi.mock('../src/lib/clients/rspamd-client.js', () => ({
+  learnHam: vi.fn(),
 }));
 
 vi.mock('../src/lib/utils/spam-classifier.js', () => ({
@@ -52,6 +59,10 @@ vi.mock('../src/lib/utils/spam-classifier.js', () => ({
 
 vi.mock('../src/lib/services/ai-classification-service.js', () => ({
   classifyWithAi: vi.fn(),
+}));
+
+vi.mock('../src/lib/services/ai-failure-tracker.js', () => ({
+  markNotified: vi.fn(),
 }));
 
 vi.mock('../src/lib/processors/base-processor.js', () => ({
@@ -64,10 +75,12 @@ vi.mock('../src/lib/utils/email.js', () => ({
 
 import { runScan } from '../src/lib/workflows/scan-workflow.js';
 import { readScannerState } from '../src/lib/state-manager.js';
-import { search, fetchMessagesByUIDs, moveMessages } from '../src/lib/clients/imap-client.js';
+import { search, fetchMessagesByUIDs, moveMessages, appendMessage } from '../src/lib/clients/imap-client.js';
 import { processWithRspamd } from '../src/lib/services/message-service.js';
+import { learnHam } from '../src/lib/clients/rspamd-client.js';
 import { categorizeMessages, applyAiEscalation } from '../src/lib/utils/spam-classifier.js';
 import { classifyWithAi } from '../src/lib/services/ai-classification-service.js';
+import { markNotified } from '../src/lib/services/ai-failure-tracker.js';
 import { createProcessor } from '../src/lib/processors/base-processor.js';
 
 const mockImap = {};
@@ -262,5 +275,118 @@ describe('scan-workflow AI escalation wiring', () => {
       highSpamMessages: escalated.highSpamMessages,
     });
     expect(moveMessages).toHaveBeenCalledWith(mockImap, escalated.spamMessages, 'INBOX.spam');
+  });
+});
+
+describe('scan-workflow AI failure alert wiring', () => {
+  let mockProcessor;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockConfig.AI_ENABLED = true;
+
+    readScannerState.mockResolvedValue({ last_uid: 100, last_seen_date: new Date().toISOString(), last_checked: new Date().toISOString() });
+    search.mockResolvedValue([101]);
+    fetchMessagesByUIDs.mockResolvedValue([{ uid: 101, envelope: { date: new Date() }, body: '' }]);
+    processWithRspamd.mockResolvedValue([{ uid: 101 }]);
+    mockProcessor = { process: vi.fn() };
+    createProcessor.mockResolvedValue(mockProcessor);
+
+    categorizeMessages.mockReturnValue({
+      whitelistedMessages: [],
+      nonSpamMessages: [{ uid: 101 }],
+      lowSpamMessages: [],
+      highSpamMessages: [],
+      spamMessages: [],
+    });
+    applyAiEscalation.mockReturnValue({
+      nonSpamMessages: [{ uid: 101 }],
+      lowSpamMessages: [],
+      highSpamMessages: [],
+      spamMessages: [],
+    });
+  });
+
+  test('aiFailureAlert present: appends an alert message to FOLDER_INBOX and marks the tracker notified', async () => {
+    const alert = {
+      reason: 'RateLimitError',
+      count: 3,
+      lastError: 'Too many requests',
+      lastAt: '2026-09-17T00:00:00.000Z',
+    };
+    classifyWithAi.mockResolvedValue({
+      nonSpamMessages: [],
+      lowSpamMessages: [],
+      aiFailureAlert: alert,
+    });
+
+    await runScan(mockImap);
+
+    expect(appendMessage).toHaveBeenCalledTimes(1);
+    const [imapArg, folderArg, rawArg] = appendMessage.mock.calls[0];
+    expect(imapArg).toBe(mockImap);
+    expect(folderArg).toBe('INBOX');
+    expect(rawArg).toContain('RateLimitError');
+    expect(rawArg).toContain('Too many requests');
+    expect(rawArg).toContain('Consecutive failures: 3');
+    expect(rawArg).toMatch(/^Message-ID: <.+@spam-scanner\.internal>$/m);
+    expect(markNotified).toHaveBeenCalledWith('RateLimitError');
+    // Trains rspamd's Bayes classifier on the exact posted content, so it scores as ham.
+    expect(learnHam).toHaveBeenCalledWith(rawArg);
+  });
+
+  test('learnHam failure does not affect the already-posted alert or the tracker', async () => {
+    const alert = {
+      reason: 'RateLimitError',
+      count: 3,
+      lastError: 'Too many requests',
+      lastAt: '2026-09-17T00:00:00.000Z',
+    };
+    classifyWithAi.mockResolvedValue({
+      nonSpamMessages: [],
+      lowSpamMessages: [],
+      aiFailureAlert: alert,
+    });
+    learnHam.mockRejectedValue(new Error('rspamd learnham failed'));
+
+    const result = await runScan(mockImap);
+
+    expect(result).toEqual({ processed: 1 });
+    expect(markNotified).toHaveBeenCalledWith('RateLimitError');
+    expect(mockProcessor.process).toHaveBeenCalled();
+  });
+
+  test('aiFailureAlert null: no alert is appended and the tracker is not marked notified', async () => {
+    classifyWithAi.mockResolvedValue({
+      nonSpamMessages: [],
+      lowSpamMessages: [],
+      aiFailureAlert: null,
+    });
+
+    await runScan(mockImap);
+
+    expect(appendMessage).not.toHaveBeenCalled();
+    expect(markNotified).not.toHaveBeenCalled();
+  });
+
+  test('appendMessage failure does not abort the batch and does not mark the tracker notified', async () => {
+    const alert = {
+      reason: 'RateLimitError',
+      count: 3,
+      lastError: 'Too many requests',
+      lastAt: '2026-09-17T00:00:00.000Z',
+    };
+    classifyWithAi.mockResolvedValue({
+      nonSpamMessages: [],
+      lowSpamMessages: [],
+      aiFailureAlert: alert,
+    });
+    appendMessage.mockRejectedValue(new Error('IMAP append failed'));
+
+    const result = await runScan(mockImap);
+
+    expect(result).toEqual({ processed: 1 });
+    expect(markNotified).not.toHaveBeenCalled();
+    expect(mockProcessor.process).toHaveBeenCalled();
   });
 });

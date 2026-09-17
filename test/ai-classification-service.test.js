@@ -7,6 +7,7 @@ const { messageLoggerMock } = vi.hoisted(() => ({
 vi.mock('../src/lib/utils/config.js', () => ({
   config: {
     AI_CONCURRENCY: 2,
+    AI_FAILURE_ALERT_THRESHOLD: 3,
   },
 }));
 
@@ -36,6 +37,7 @@ vi.mock('../src/lib/clients/ai-client.js', () => ({
 import { classifyWithAi } from '../src/lib/services/ai-classification-service.js';
 import { extractAiContent } from '../src/lib/utils/ai-content.js';
 import { classifyEmail } from '../src/lib/clients/ai-client.js';
+import { recordSuccess } from '../src/lib/services/ai-failure-tracker.js';
 
 function makeMessage(uid, envelope = {}) {
   return { uid, envelope, raw: `raw-${uid}` };
@@ -44,6 +46,7 @@ function makeMessage(uid, envelope = {}) {
 describe('classifyWithAi', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    recordSuccess(); // reset the shared ai-failure-tracker streak between tests
     extractAiContent.mockImplementation(async message => ({
       from: 'a@example.com',
       to: 'b@example.com',
@@ -59,7 +62,11 @@ describe('classifyWithAi', () => {
       lowSpamMessages: [],
     });
 
-    expect(result).toEqual({ nonSpamMessages: [], lowSpamMessages: [] });
+    expect(result).toEqual({
+      nonSpamMessages: [],
+      lowSpamMessages: [],
+      aiFailureAlert: null,
+    });
     expect(extractAiContent).not.toHaveBeenCalled();
     expect(classifyEmail).not.toHaveBeenCalled();
   });
@@ -187,6 +194,44 @@ describe('classifyWithAi', () => {
       }),
       'AI classification completed'
     );
+  });
+
+  test('aiFailureAlert is null when nothing fails', async () => {
+    classifyEmail.mockResolvedValue({ score: 5, reasoning: 'ok' });
+
+    const result = await classifyWithAi({
+      nonSpamMessages: [makeMessage(1), makeMessage(2)],
+      lowSpamMessages: [],
+    });
+
+    expect(result.aiFailureAlert).toBeNull();
+  });
+
+  test('aiFailureAlert is null when failures stay below AI_FAILURE_ALERT_THRESHOLD', async () => {
+    classifyEmail.mockRejectedValue(new Error('provider timeout'));
+
+    const result = await classifyWithAi({
+      nonSpamMessages: [makeMessage(1), makeMessage(2)], // threshold is mocked to 3
+      lowSpamMessages: [],
+    });
+
+    expect(result.aiFailureAlert).toBeNull();
+  });
+
+  test('aiFailureAlert surfaces reason/count/lastError once failures cross AI_FAILURE_ALERT_THRESHOLD', async () => {
+    classifyEmail.mockRejectedValue(new Error('provider timeout'));
+
+    const result = await classifyWithAi({
+      nonSpamMessages: [makeMessage(1), makeMessage(2), makeMessage(3)],
+      lowSpamMessages: [],
+    });
+
+    expect(result.aiFailureAlert).toMatchObject({
+      reason: 'unknown',
+      count: 3,
+      lastError: 'provider timeout',
+    });
+    expect(result.aiFailureAlert.lastAt).toEqual(expect.any(String));
   });
 
   test('failure log line includes subject and from even when content extraction itself throws', async () => {

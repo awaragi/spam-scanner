@@ -55,7 +55,8 @@ export const config = (() => {
     AI_MAX_OUTPUT_TOKENS: parseInt(process.env.AI_MAX_OUTPUT_TOKENS || '2000', 10),
     AI_ESCALATE_TO_LOW_THRESHOLD: parseInt(process.env.AI_ESCALATE_TO_LOW_THRESHOLD || '50', 10),
     AI_ESCALATE_TO_HIGH_THRESHOLD: parseInt(process.env.AI_ESCALATE_TO_HIGH_THRESHOLD || '80', 10),
-    AI_USER_PROFILE: process.env.AI_USER_PROFILE || ''
+    AI_USER_PROFILE: process.env.AI_USER_PROFILE || '',
+    AI_FAILURE_ALERT_THRESHOLD: parseInt(process.env.AI_FAILURE_ALERT_THRESHOLD || '3', 10)
   };
 
   logger.debug(c,'Loading configuration');
