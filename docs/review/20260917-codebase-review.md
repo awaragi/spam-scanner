@@ -4,6 +4,24 @@
 - **Commit reviewed:** `061a40b` (master, clean tree)
 - **Scope:** entire repository — `src/`, `test/`, `rspamd/config/`, `bin/`, `.bin/`, Docker files, `README.md`, `.env.example`, `docs/`, `openspec/`, `.github/`, `package.json`
 - **Type:** analysis only — no code was changed
+- **Last progress update:** 2026-09-17 — see [Progress since this review](#progress-since-this-review)
+
+---
+
+## Progress since this review
+
+6 of the findings below are resolved, via the `harden-scan-reliability-and-docs` OpenSpec change (archived as `openspec/changes/archive/2026-09-17-harden-scan-reliability-and-docs/`). Each resolved finding is marked **✅ Resolved** inline with commit references. Nothing else in this document has been re-verified against the current code — treat every other finding as still open.
+
+| Finding | Item | Commit(s) |
+| ------- | ---- | --------- |
+| 3.1 | Append-then-delete state writes; safe `UIDNEXT - 1` default when no state exists; new `SCAN_INITIAL_STATE` setting (user-requested addition, not in the original finding) | `24993dc` |
+| 4.2 | Folder paths resolved once at startup against the server's real delimiter (`src/lib/utils/folder-resolver.js`), used everywhere via `config.FOLDER_*` | `24993dc` |
+| 4.4 | `Promise.allSettled` + transient/permanent error classification for both scan and training batches; a permanently-failing training message now moves to its destination folder unlearned instead of being stuck; training failures (including transient ones) never abort the orchestrator cycle or count toward `MAX_RETRIES`/`process.exit` — only scan retains that escalation, by explicit user decision | `24993dc`, follow-up same-day fixes (uncommitted at time of writing) |
+| 4.8 | The three stale/red tests fixed to match current intended behavior | `24993dc` |
+| 4.11 | README rewritten to match current code (folders, defaults, script paths, IDLE mode, `AI_*`/`SPAM_PROCESSING_MODE` settings, etc.) | `24993dc` |
+| 4.12 | `.env.example` and README defaults aligned to `config.js`; `config.js`'s own defaults for `SPAM_PROCESSING_MODE` (now `folder`) and `AI_MODEL` (now no default, fail-fast when `AI_ENABLED=true`) were also changed, by user decision during implementation | `24993dc` |
+
+Everything else — including the rest of section 3–6 (3.2, 4.1, 4.3, 4.5–4.10, 4.13–4.15, all of 5 and 6) and the deep dives in section 7 — is still open as originally written.
 
 ---
 
@@ -127,18 +145,18 @@ The main risks are concentrated in four places:
 
 **Top 10 actions by value/effort**
 
-| #  | Action                                                                              | Findings           | Complexity |
-| -- | ----------------------------------------------------------------------------------- | ------------------ | ---------- |
-| 1  | Append new state before deleting old; read highest-UID state message                 | 3.1, 5.5           | S          |
-| 2  | Bind rspamd ports to `127.0.0.1` (or unpublish), generate password per install      | 3.2, 4.13          | S          |
-| 3  | Fix failing tests, add GitHub Actions CI (test + prettier)                           | 4.8, 5.17          | S          |
-| 4  | Redact secrets in config log; `npm audit fix` / bump imapflow; Node 24 base image     | 4.7, 4.9           | S          |
-| 5  | Timeouts on rspamd calls + per-message failure isolation                             | 4.4, 4.6           | M          |
-| 6  | Resolve folder paths via server delimiter / special-use; create spam folder          | 4.2, 4.3           | M          |
-| 7  | Require DKIM/DMARC pass for whitelist hits; lower whitelist weight                   | 4.1, 7.1           | S          |
-| 8  | `doctor` command + config schema validation                                          | 5.10, 7.3          | M          |
-| 9  | Rewrite README + split docs (install / configure / train / operate)                  | 4.11, 4.12, 7.4    | M          |
-| 10 | Publish multi-arch image to GHCR + `install.sh` wizard                               | 4.15, 7.3          | L          |
+| #  | Action                                                                              | Findings           | Complexity | Status |
+| -- | ----------------------------------------------------------------------------------- | ------------------ | ---------- | ------ |
+| 1  | Append new state before deleting old; read highest-UID state message                 | 3.1, 5.5           | S          | 3.1 ✅ done, 5.5 open |
+| 2  | Bind rspamd ports to `127.0.0.1` (or unpublish), generate password per install      | 3.2, 4.13          | S          | open |
+| 3  | Fix failing tests, add GitHub Actions CI (test + prettier)                           | 4.8, 5.17          | S          | 4.8 ✅ done, 5.17 open |
+| 4  | Redact secrets in config log; `npm audit fix` / bump imapflow; Node 24 base image     | 4.7, 4.9           | S          | open |
+| 5  | Timeouts on rspamd calls + per-message failure isolation                             | 4.4, 4.6           | M          | 4.4 ✅ done, 4.6 open |
+| 6  | Resolve folder paths via server delimiter / special-use; create spam folder          | 4.2, 4.3           | M          | 4.2 ✅ done, 4.3 open |
+| 7  | Require DKIM/DMARC pass for whitelist hits; lower whitelist weight                   | 4.1, 7.1           | S          | open |
+| 8  | `doctor` command + config schema validation                                          | 5.10, 7.3          | M          | open |
+| 9  | Rewrite README + split docs (install / configure / train / operate)                  | 4.11, 4.12, 7.4    | M          | 4.11 ✅ done, 4.12 ✅ done, 7.4 (split) open |
+| 10 | Publish multi-arch image to GHCR + `install.sh` wizard                               | 4.15, 7.3          | L          | open |
 
 ---
 
@@ -166,6 +184,7 @@ The main risks are concentrated in four places:
 
 - **Area:** REL · **Complexity:** S
 - **Where:** `src/lib/state-manager.js:72-102` (`writeScannerState`), `:104-128` (`writeMapState`); `src/lib/workflows/scan-workflow.js:206-213`
+- **Status:** ✅ **Resolved** (commit `24993dc`). `writeScannerState`/`writeMapState` now append the new state message first, then delete the old one(s) by the UID(s) captured before the append. No-state initialization now peeks `UIDNEXT - 1` when the target mailbox is non-empty (logged at `warn`) instead of assuming `0`; a new `SCAN_INITIAL_STATE` setting (`new`/`all`, user-requested) controls this for the very first run.
 
 **Problem.** `writeScannerState` deletes the existing state message (`messageDelete`) and *then* appends the new one. If the append fails (connection drop, quota exceeded, server timeout, container stopped at that instant), the state folder is left empty. On the next cycle `runScan` calls `readScannerState(imap, defaultState)` which silently returns `last_uid: 0`, and the drain loop in `orchestrator.js:91-93` rescans **the entire inbox** batch after batch. Consequences: every historic message is re-labelled or — in `folder` mode — possibly moved to spam folders; with `AI_ENABLED=true`, every historic non-spam message is sent to the AI provider (cost + privacy). Nothing is logged at warn level when the default state is used.
 
@@ -213,6 +232,7 @@ The main risks are concentrated in four places:
 
 - **Area:** CFG, UX, REL · **Complexity:** M
 - **Where:** `src/lib/utils/config.js:20-31`; `src/lib/utils/mailboxes-utils.js:7-24`; `src/lib/clients/imap-client.js:48-71`
+- **Status:** ✅ **Resolved** (commit `24993dc`). New `src/lib/utils/folder-resolver.js` resolves every `config.FOLDER_*` string once during `runInit`, in place, against the server's real delimiter (via the shared `splitFolderParts` helper extracted from `mailboxes-utils.js`). Every call site keeps reading `config.FOLDER_*` as before — no new accessor layer. `NAMESPACE` handling is explicitly still out of scope (tracked as a follow-up, not a new finding).
 
 **Problem.** Defaults such as `INBOX.scanner.train.spam` assume a Courier/Dovecot-style `.` delimiter. `createAppFolders` splits on `.`, `/` or `\` and re-joins with the *server's* delimiter — so on a `/`-delimited server (Gmail, Outlook/Exchange, many Dovecot setups, Fastmail) it creates `INBOX/scanner/train/spam`. Every other operation (`open`, `messageMove`, `append`) uses the raw configured string `INBOX.scanner.train.spam`, which does not exist on that server → training, scanning and state all fail. (verify on a `/` server.) Splitting also breaks legitimate folder names containing a dot.
 
@@ -235,6 +255,7 @@ The main risks are concentrated in four places:
 
 - **Area:** REL · **Complexity:** M
 - **Where:** `src/lib/services/message-service.js:21-70`; `src/lib/workflows/scan-workflow.js:112-198`; `src/orchestrator.js:115-127`; `src/lib/services/training-service.js:39-42`
+- **Status:** ✅ **Resolved** (commit `24993dc`, refined same-day). `processWithRspamd`/`trainSpam`/`trainHam` now use `Promise.allSettled` with `src/lib/utils/error-classifier.js`'s permanent-vs-transient split: a permanent per-message failure is skipped and logged at `warn` without failing the batch; `last_uid` still advances past a permanently-skipped scan message. Two refinements made after the initial commit (not yet committed at time of writing): a training message that permanently fails to learn is now moved to its destination folder unlearned instead of being left stuck in the training folder forever; and `runTraining` no longer rethrows on *any* failure (transient batch failures included) — training is best-effort and never aborts the orchestrator cycle or counts toward `MAX_RETRIES`/`process.exit`. Scanning deliberately keeps escalating on a transient failure (retry-with-backoff, then exit) as the one remaining systemic-health signal — a user decision, not an oversight. The training-folder-move recommendation (`scanner.train.failed`) was decided against in favor of moving messages on as-is.
 
 **Problem.** `processWithRspamd` uses `Promise.all` and rethrows the first error. If one message is rejected by rspamd (e.g. exceeds `max_message` size, malformed MIME, HTTP 4xx) the whole batch fails, state is not advanced, and the next cycle retries the same batch. After `MAX_RETRIES` (5) the orchestrator calls `process.exit(1)`; Docker restarts it (`restart: unless-stopped`) and it fails again — indefinitely. All new mail stops being scanned and nobody is notified. Training has the same shape: one bad message in a training folder blocks all training.
 
@@ -281,6 +302,7 @@ The main risks are concentrated in four places:
 
 - **Area:** TST · **Complexity:** XS–S
 - **Where:** `test/email-parser.test.js` (`parseRspamdOutput > should parse Rspamd response with spam action`), `test/rspamd-maps.test.js` (`should create a new map file with normalized emails`, `should preserve sort order`)
+- **Status:** ✅ **Resolved** (commit `24993dc`). All three tests updated to assert current intended behavior. The suite is green (270 tests passing as of this update); CI (5.17) is still not set up, so nothing catches a future regression automatically.
 
 **Problem.** Tests encode old behaviour: `add header` used to mean `isSpam` (now only `reject` does, and `isWhitelisted` was added), and maps used to be sorted (now insertion order is preserved). A red suite hides real regressions and there is no CI to catch it (5.17).
 
@@ -311,6 +333,7 @@ The main risks are concentrated in four places:
 
 - **Area:** DOC · **Complexity:** M (rewrite, see 7.4)
 - **Where:** `README.md`
+- **Status:** ✅ **Resolved** (commit `24993dc`). README rewritten; all items 4.11.a–4.11.q below addressed. Not re-verified line-by-line against the *current* code in this update — if the code has drifted since `24993dc`, re-check before trusting this row.
 
 **Specific inaccuracies (each is a trap for a new user):**
 
@@ -338,6 +361,7 @@ The main risks are concentrated in four places:
 
 - **Area:** CFG, DOC · **Complexity:** S
 - **Where:** `src/lib/utils/config.js`, `.env.example`, `README.md`, `src/orchestrator.js:48`
+- **Status:** ✅ **Resolved** (commit `24993dc`). `.env.example` and README aligned to `config.js`. Note the fix direction wasn't purely "match docs to code" for two settings — by user decision, `config.js`'s own defaults changed instead: `SPAM_PROCESSING_MODE` is now `folder` (was `label`), and `AI_MODEL` now has no default and fails fast at load time when `AI_ENABLED=true` and it's unset (was `gpt-4o-mini`). The underlying recommendation (a generated config schema, finding 5.10) is still open — this was a hand-alignment, not a generator.
 
 | Setting                | `config.js`                | `.env.example`          | README                        |
 | ---------------------- | -------------------------- | ----------------------- | ----------------------------- |
@@ -938,47 +962,47 @@ Complexity totals are rough, for a single developer.
 
 ### Phase 0 — Stop the bleeding (≈ 1–2 days)
 
-| Finding | Item                                                         | Cx  |
-| ------- | ------------------------------------------------------------ | --- |
-| 3.1     | Append-then-delete state; safe default when state missing    | S   |
-| 5.5     | Read highest-UID state; restore mailbox                      | XS  |
-| 3.2     | Loopback-bind/unpublish rspamd ports; rotate password        | S   |
-| 4.7     | Redact secrets in logs                                       | XS  |
-| 4.8     | Fix 3 failing tests                                          | XS  |
-| 4.6     | Rspamd fetch timeouts                                        | XS  |
-| 4.14    | `${SPAM_SCANNER_DATA:?}` guard                               | XS  |
-| 4.3     | Create/resolve spam folder in init                           | XS  |
-| 5.1     | Move map-training messages even when no sender extracted     | XS  |
-| 4.9     | `npm audit fix`; Docker `node:24-alpine`; `--omit=dev`       | S   |
-| 5.18    | `IMAP_TLS` default true                                      | XS  |
+| Finding | Item                                                         | Cx  | Status |
+| ------- | ------------------------------------------------------------ | --- | ------ |
+| 3.1     | Append-then-delete state; safe default when state missing    | S   | ✅ done (`24993dc`) |
+| 5.5     | Read highest-UID state; restore mailbox                      | XS  | open |
+| 3.2     | Loopback-bind/unpublish rspamd ports; rotate password        | S   | open |
+| 4.7     | Redact secrets in logs                                       | XS  | open |
+| 4.8     | Fix 3 failing tests                                          | XS  | ✅ done (`24993dc`) |
+| 4.6     | Rspamd fetch timeouts                                        | XS  | open |
+| 4.14    | `${SPAM_SCANNER_DATA:?}` guard                               | XS  | open |
+| 4.3     | Create/resolve spam folder in init                           | XS  | open |
+| 5.1     | Move map-training messages even when no sender extracted     | XS  | open |
+| 4.9     | `npm audit fix`; Docker `node:24-alpine`; `--omit=dev`       | S   | open |
+| 5.18    | `IMAP_TLS` default true                                      | XS  | open |
 
 ### Phase 1 — Hardening & hygiene (≈ 1–1.5 weeks)
 
-| Finding          | Item                                                     | Cx |
-| ---------------- | -------------------------------------------------------- | -- |
-| 5.17             | Prettier commit, ESLint, GitHub Actions CI, Renovate     | S  |
-| 4.4              | Per-message failure isolation (scan + training)          | M  |
-| 4.5              | IDLE close/watchdog, pre-IDLE catch-up, training polling | M  |
-| 5.12             | Graceful shutdown                                        | S  |
-| 5.10, 4.12       | Config schema + validation; align all defaults           | M  |
-| 4.2              | Delimiter/namespace/special-use folder resolution        | M  |
-| 5.4, 6.17        | UIDVALIDITY in versioned state                           | S  |
-| 5.7, 5.8, 5.9    | Pin images, healthchecks, non-root, pretty-log fallback  | S  |
-| 4.1, 5.6         | Authenticated whitelist; wire unbound                    | S  |
-| 6.1–6.4, 6.12–6.15 | Dead code & script clean-up                            | S  |
-| 5.25             | Archive/sync openspec change; move `docs/features`        | S  |
+| Finding          | Item                                                     | Cx | Status |
+| ---------------- | -------------------------------------------------------- | -- | ------ |
+| 5.17             | Prettier commit, ESLint, GitHub Actions CI, Renovate     | S  | open |
+| 4.4              | Per-message failure isolation (scan + training)          | M  | ✅ done (`24993dc`, refined same-day) |
+| 4.5              | IDLE close/watchdog, pre-IDLE catch-up, training polling | M  | open |
+| 5.12             | Graceful shutdown                                        | S  | open |
+| 5.10, 4.12       | Config schema + validation; align all defaults           | M  | 4.12 ✅ done (`24993dc`, hand-aligned, not schema-generated), 5.10 open |
+| 4.2              | Delimiter/namespace/special-use folder resolution        | M  | delimiter ✅ done (`24993dc`), namespace/special-use still open |
+| 5.4, 6.17        | UIDVALIDITY in versioned state                           | S  | open |
+| 5.7, 5.8, 5.9    | Pin images, healthchecks, non-root, pretty-log fallback  | S  | open |
+| 4.1, 5.6         | Authenticated whitelist; wire unbound                    | S  | open |
+| 6.1–6.4, 6.12–6.15 | Dead code & script clean-up                            | S  | open |
+| 5.25             | Archive/sync openspec change; move `docs/features`        | S  | open |
 
 ### Phase 2 — Install experience & docs (≈ 2 weeks)
 
-| Finding       | Item                                                  | Cx |
-| ------------- | ----------------------------------------------------- | -- |
-| 5.14          | Unified CLI                                            | M  |
-| 7.3.4         | `doctor` + `status` commands                           | M  |
-| 4.13, 7.2     | Generated rspamd password; commented rspamd config     | S  |
-| 7.3.1–7.3.2   | GHCR multi-arch images, release bundle                 | M  |
-| 7.3.3, 7.3.5  | `install.sh` wizard + update/backup/restore scripts    | L  |
-| 4.11, 7.4     | Documentation rewrite & split; provider matrix         | M  |
-| 5.19, 5.20, 5.21, 5.22 | Privacy, Bayes, backup, provider docs         | S  |
+| Finding       | Item                                                  | Cx | Status |
+| ------------- | ----------------------------------------------------- | -- | ------ |
+| 5.14          | Unified CLI                                            | M  | open |
+| 7.3.4         | `doctor` + `status` commands                           | M  | open |
+| 4.13, 7.2     | Generated rspamd password; commented rspamd config     | S  | open |
+| 7.3.1–7.3.2   | GHCR multi-arch images, release bundle                 | M  | open |
+| 7.3.3, 7.3.5  | `install.sh` wizard + update/backup/restore scripts    | L  | open |
+| 4.11, 7.4     | Documentation rewrite & split; provider matrix         | M  | 4.11 ✅ done (`24993dc`), split (7.4) still open |
+| 5.19, 5.20, 5.21, 5.22 | Privacy, Bayes, backup, provider docs         | S  | open |
 
 ### Phase 3 — Structure & features (ongoing)
 

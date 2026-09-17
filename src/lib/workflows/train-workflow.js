@@ -13,13 +13,21 @@ const logger = rootLogger.forComponent('train-workflow');
 const PROCESS_BATCH_SIZE = config.PROCESS_BATCH_SIZE;
 
 /**
- * Generic training workflow handler
+ * Generic training workflow handler.
+ * Training is best-effort and never fails the orchestrator cycle: unlike
+ * scanning (the core function, where a systemic rspamd/IMAP outage should
+ * eventually crash-loop and alert via MAX_RETRIES/process.exit), a training
+ * folder is secondary - any error (a transient rspamd/IMAP failure for a
+ * batch, or a failure opening/reading the folder itself) is logged at
+ * `error` and swallowed here rather than rethrown. Batches already
+ * processed before the error stay moved; anything not yet reached is simply
+ * left in the training folder to be picked up on the next cycle.
  * @param {Object} imap - ImapFlow client
  * @param {string} folder - Training folder path
  * @param {string} destFolder - Destination folder after training
  * @param {Function} trainFn - Training function (trainSpam or trainHam)
  * @param {string} type - Training type ('spam' or 'ham')
- * @returns {Promise<void>}
+ * @returns {Promise<void>} - Never rejects
  */
 async function runTraining(imap, folder, destFolder, trainFn, type) {
   try {
@@ -45,11 +53,17 @@ async function runTraining(imap, folder, destFolder, trainFn, type) {
         'Learn batch'
       );
       const batchMessages = messages.slice(i, i + PROCESS_BATCH_SIZE);
-      const { learned } = await trainFn(batchMessages);
-      // Only move messages that were actually learned - a permanently
-      // un-learnable message stays in the training folder rather than being
-      // moved as if it had been trained.
-      await moveMessages(imap, learned, destFolder);
+      const { learned, skipped } = await trainFn(batchMessages);
+      if (skipped.length > 0) {
+        logger.warn(
+          { folder, type, count: skipped.length },
+          'Some messages permanently failed to learn - moving them to the destination folder unlearned rather than leaving them stuck in the training folder'
+        );
+      }
+      // Move every message this batch finished with (learned or permanently
+      // un-learnable) - only a transient failure (thrown above) should leave
+      // messages behind in the training folder for retry.
+      await moveMessages(imap, [...learned, ...skipped], destFolder);
     }
 
     logger.info(
@@ -59,15 +73,15 @@ async function runTraining(imap, folder, destFolder, trainFn, type) {
   } catch (error) {
     logger.error(
       { folder, type, error: error.message },
-      `Error in ${type} training workflow`
+      `Error in ${type} training workflow - skipping this training step for this cycle, will retry next cycle`
     );
-    throw error;
   }
 }
 
 /**
  * Run spam training workflow
- * Orchestrates learning spam from training folder
+ * Orchestrates learning spam from training folder. Never rejects - see
+ * `runTraining`.
  * @param {Object} imap - ImapFlow client
  * @returns {Promise<void>}
  */
@@ -83,7 +97,8 @@ export async function runSpam(imap) {
 
 /**
  * Run ham training workflow
- * Orchestrates learning ham from training folder
+ * Orchestrates learning ham from training folder. Never rejects - see
+ * `runTraining`.
  * @param {Object} imap - ImapFlow client
  * @returns {Promise<void>}
  */
