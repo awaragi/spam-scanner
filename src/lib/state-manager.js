@@ -1,6 +1,7 @@
 import { config } from './utils/config.js';
 import { fetchMessagesByUIDs, open, search } from './clients/imap-client.js';
 import {
+  formatAppStateEmail,
   formatStateAsEmail,
   parseStateFromEmail,
   validateState,
@@ -21,17 +22,6 @@ function buildStateCriteria(stateKey) {
       'X-App-State': stateKey,
     },
   };
-}
-
-function formatMapAsEmail(mapContent, stateKey) {
-  return `From: Map State <scanner@localhost>
-To: Map State <scanner@localhost>
-Subject: AppState: ${stateKey}
-X-App-State: ${stateKey}
-Content-Type: text/plain; charset=utf-8
-MIME-Version: 1.0
-
-${mapContent}`;
 }
 
 export async function readScannerState(imap, defaultState, mailboxPath) {
@@ -86,12 +76,12 @@ export async function readScannerState(imap, defaultState, mailboxPath) {
 
   const json = parseStateFromEmail(messages[0].body);
 
-  // Validate json after reading
-  validateState(json);
-
   if (!json) {
     throw new Error('Failed to parse state from email');
   }
+
+  // Validate json after reading
+  validateState(json);
 
   // Restore original mailbox if it existed
   if (originalPath) {
@@ -141,7 +131,7 @@ export async function writeMapState(imap, mapStateKey, mapContent) {
   }
 
   const originalPath = imap.mailbox?.path;
-  const raw = formatMapAsEmail(mapContent, mapStateKey);
+  const raw = formatAppStateEmail(mapStateKey, mapContent, 'Map State');
   const mapCriteria = buildStateCriteria(mapStateKey);
 
   await imap.mailboxOpen(config.FOLDER_STATE, { readOnly: false });

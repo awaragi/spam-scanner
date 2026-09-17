@@ -46,6 +46,19 @@ describe('rspamd-client', () => {
       expect(result).toEqual(mockResponse);
     });
 
+    test('should pass an abort signal so a stalled request times out', async () => {
+      const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ action: 'no action', score: 0 }),
+      });
+
+      await checkEmail(emailContent);
+
+      const options = global.fetch.mock.calls[0][1];
+      expect(options.signal).toBeInstanceOf(AbortSignal);
+    });
+
     test('should include password header when configured', async () => {
       const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
       const mockResponse = { action: 'no action', score: 0 };

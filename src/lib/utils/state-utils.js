@@ -41,6 +41,30 @@ export function validateState(state) {
 }
 
 /**
+ * Formats an app-state body (JSON state or raw map content) as an email
+ * message, using the shared X-App-State envelope both scanner state and
+ * map-state backups rely on to be found again by `search`.
+ * @param {string} stateKey - Key to identify the state
+ * @param {string} body - Raw text to place in the message body
+ * @param {string} [displayName] - From/To display name
+ * @returns {string} - Formatted email message
+ */
+export function formatAppStateEmail(
+  stateKey,
+  body,
+  displayName = 'App State'
+) {
+  return `From: ${displayName} <scanner@localhost>
+To: ${displayName} <scanner@localhost>
+Subject: AppState: ${stateKey}
+X-App-State: ${stateKey}
+Content-Type: text/plain; charset=utf-8
+MIME-Version: 1.0
+
+${body}`;
+}
+
+/**
  * Formats a state object as an email message
  * @param {Object} state - State object to format
  * @param {string} stateKey - Key to identify the state
@@ -48,19 +72,10 @@ export function validateState(state) {
  */
 export function formatStateAsEmail(state, stateKey) {
   validateState(state);
-  
+
   const stateJson = JSON.stringify(state, null, 2);
 
-  // Ensure the email format is plain text with proper headers
-  // and JSON content is directly in the body
-  return `From: Scanner State <scanner@localhost>
-To: Scanner State <scanner@localhost>
-Subject: AppState: ${stateKey}
-X-App-State: ${stateKey}
-Content-Type: text/plain; charset=utf-8
-MIME-Version: 1.0
-
-${stateJson}`;
+  return formatAppStateEmail(stateKey, stateJson, 'Scanner State');
 }
 
 /**

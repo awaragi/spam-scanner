@@ -57,6 +57,7 @@ export async function checkEmail(emailContent) {
       method: 'POST',
       headers: buildHeaders(),
       body: emailContent,
+      signal: AbortSignal.timeout(config.RSPAMD_TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -96,6 +97,7 @@ export async function learnHam(emailContent) {
       method: 'POST',
       headers: buildHeaders(),
       body: emailContent,
+      signal: AbortSignal.timeout(config.RSPAMD_TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -161,6 +163,7 @@ export async function learnSpam(emailContent) {
       method: 'POST',
       headers: buildHeaders(),
       body: emailContent,
+      signal: AbortSignal.timeout(config.RSPAMD_TIMEOUT_MS),
     });
 
     if (!response.ok) {

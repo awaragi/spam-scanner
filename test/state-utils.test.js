@@ -1,4 +1,4 @@
-import { validateState, formatStateAsEmail, parseStateFromEmail } from '../src/lib/utils/state-utils.js';
+import { validateState, formatStateAsEmail, formatAppStateEmail, parseStateFromEmail } from '../src/lib/utils/state-utils.js';
 import {parseEmail} from "../src/lib/utils/email-parser.js";
 
 describe('validateState', () => {
@@ -79,6 +79,25 @@ describe('formatStateAsEmail', () => {
     expect(() => formatStateAsEmail(null, 'scanner')).toThrow('Invalid state: must be a non-null object');
   });
 });
+describe('formatAppStateEmail', () => {
+  test('defaults the display name to "App State"', () => {
+    const result = formatAppStateEmail('rspamd-whitelist-map', 'a@b.com');
+
+    expect(result).toContain('From: App State <scanner@localhost>');
+    expect(result).toContain('To: App State <scanner@localhost>');
+    expect(result).toContain('Subject: AppState: rspamd-whitelist-map');
+    expect(result).toContain('X-App-State: rspamd-whitelist-map');
+    expect(result).toContain('a@b.com');
+  });
+
+  test('accepts a custom display name', () => {
+    const result = formatAppStateEmail('rspamd-whitelist-map', 'a@b.com', 'Map State');
+
+    expect(result).toContain('From: Map State <scanner@localhost>');
+    expect(result).toContain('To: Map State <scanner@localhost>');
+  });
+});
+
 describe('parseStateFromEmail', () => {
   test('should parse state from email content', () => {
     const state = {

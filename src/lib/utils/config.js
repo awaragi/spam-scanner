@@ -48,6 +48,7 @@ export const config = (() => {
 
     RSPAMD_URL: process.env.RSPAMD_URL || 'http://localhost:11334',
     RSPAMD_PASSWORD: process.env.RSPAMD_PASSWORD || '',
+    RSPAMD_TIMEOUT_MS: parseInt(process.env.RSPAMD_TIMEOUT_MS || '30000', 10),
     RSPAMD_WHITELIST_MAP_PATH:
       process.env.RSPAMD_WHITELIST_MAP_PATH ||
       path.join(dataDir, 'rspamd/maps/whitelist.map'),

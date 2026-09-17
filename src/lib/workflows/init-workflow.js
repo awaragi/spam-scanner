@@ -21,6 +21,7 @@ export async function runInit(imap) {
     config.FOLDER_TRAIN_WHITELIST,
     config.FOLDER_TRAIN_BLACKLIST,
     config.FOLDER_STATE,
+    config.FOLDER_SPAM,
   ];
 
   if (config.SPAM_PROCESSING_MODE === 'folder') {

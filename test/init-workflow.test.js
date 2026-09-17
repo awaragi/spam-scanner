@@ -7,6 +7,7 @@ const { mockConfig } = vi.hoisted(() => ({
     FOLDER_TRAIN_WHITELIST: 'INBOX.scanner.train.whitelist',
     FOLDER_TRAIN_BLACKLIST: 'INBOX.scanner.train.blacklist',
     FOLDER_STATE: 'scanner.state',
+    FOLDER_SPAM: 'INBOX.spam',
     FOLDER_SPAM_LOW: 'INBOX.spam.low',
     FOLDER_SPAM_HIGH: 'INBOX.spam.high',
     SPAM_PROCESSING_MODE: 'label',
@@ -51,6 +52,7 @@ describe('runInit', () => {
     mockConfig.FOLDER_TRAIN_WHITELIST = 'INBOX.scanner.train.whitelist';
     mockConfig.FOLDER_TRAIN_BLACKLIST = 'INBOX.scanner.train.blacklist';
     mockConfig.FOLDER_STATE = 'scanner.state';
+    mockConfig.FOLDER_SPAM = 'INBOX.spam';
     mockConfig.FOLDER_SPAM_LOW = 'INBOX.spam.low';
     mockConfig.FOLDER_SPAM_HIGH = 'INBOX.spam.high';
   });
@@ -78,6 +80,7 @@ describe('runInit', () => {
       mockConfig.FOLDER_TRAIN_WHITELIST = 'INBOX/scanner/train/whitelist';
       mockConfig.FOLDER_TRAIN_BLACKLIST = 'INBOX/scanner/train/blacklist';
       mockConfig.FOLDER_STATE = 'scanner.state';
+      mockConfig.FOLDER_SPAM = 'INBOX/spam';
     });
 
     await runInit(mockImap);
@@ -88,6 +91,7 @@ describe('runInit', () => {
       'INBOX/scanner/train/whitelist',
       'INBOX/scanner/train/blacklist',
       'scanner.state',
+      'INBOX/spam',
     ]);
   });
 
@@ -99,5 +103,19 @@ describe('runInit', () => {
     const folders = createAppFolders.mock.calls[0][1];
     expect(folders).toContain('INBOX.spam.low');
     expect(folders).toContain('INBOX.spam.high');
+  });
+
+  test('FOLDER_SPAM is always created, regardless of SPAM_PROCESSING_MODE', async () => {
+    resolveFolders.mockImplementation(async () => {});
+
+    mockConfig.SPAM_PROCESSING_MODE = 'label';
+    await runInit(mockImap);
+    expect(createAppFolders.mock.calls[0][1]).toContain(mockConfig.FOLDER_SPAM);
+
+    vi.clearAllMocks();
+    resolveFolders.mockImplementation(async () => {});
+    mockConfig.SPAM_PROCESSING_MODE = 'folder';
+    await runInit(mockImap);
+    expect(createAppFolders.mock.calls[0][1]).toContain(mockConfig.FOLDER_SPAM);
   });
 });

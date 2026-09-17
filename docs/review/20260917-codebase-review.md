@@ -10,7 +10,7 @@
 
 ## Progress since this review
 
-6 of the findings below are resolved, via the `harden-scan-reliability-and-docs` OpenSpec change (archived as `openspec/changes/archive/2026-09-17-harden-scan-reliability-and-docs/`). Each resolved finding is marked **✅ Resolved** inline with commit references. Nothing else in this document has been re-verified against the current code — treat every other finding as still open.
+9 of the findings below are resolved — 6 via the `harden-scan-reliability-and-docs` OpenSpec change (archived as `openspec/changes/archive/2026-09-17-harden-scan-reliability-and-docs/`), 3 more (4.3, 4.6, 5.5) as a direct follow-up fix, not tracked through an OpenSpec change. Each resolved finding is marked **✅ Resolved** inline with commit references. Two specific sub-items — the `\Junk` special-use default in 4.3, and the `HEADER` substring-match nuance in 5.5 — were deliberately decided **will not fix** rather than left open; see their inline notes. Nothing else in this document has been re-verified against the current code — treat every other finding as still open.
 
 | Finding | Item | Commit(s) |
 | ------- | ---- | --------- |
@@ -20,8 +20,11 @@
 | 4.8 | The three stale/red tests fixed to match current intended behavior | `24993dc` |
 | 4.11 | README rewritten to match current code (folders, defaults, script paths, IDLE mode, `AI_*`/`SPAM_PROCESSING_MODE` settings, etc.) | `24993dc` |
 | 4.12 | `.env.example` and README defaults aligned to `config.js`; `config.js`'s own defaults for `SPAM_PROCESSING_MODE` (now `folder`) and `AI_MODEL` (now no default, fail-fast when `AI_ENABLED=true`) were also changed, by user decision during implementation | `24993dc` |
+| 4.3 | `FOLDER_SPAM` added to the folders `runInit` creates — it's used unconditionally by `scanBatch` (any `reject`-verdict message is moved there) regardless of `SPAM_PROCESSING_MODE`, so it must always exist, not just in `folder` mode. The `\Junk` special-use auto-detection part of the original recommendation is **will not fix** | uncommitted at time of writing |
+| 4.6 | New `RSPAMD_TIMEOUT_MS` setting (default 30000); `AbortSignal.timeout(...)` added to all three rspamd `fetch()` calls (`/checkv2`, `/learnham`, `/learnspam`); a timeout carries no `.status`/`.permanent`, so `isPermanentError` (4.4) already classifies it as transient with no further changes needed | uncommitted at time of writing |
+| 5.5 | Dead-code ordering fixed in `readScannerState` (null-check now runs before `validateState`, so a parse failure reports "Failed to parse..." instead of being masked); `formatMapAsEmail`/`formatStateAsEmail` unified into one `formatAppStateEmail(stateKey, body, displayName)` in `state-utils.js`. The "reads highest-UID state message" and "restores mailbox" parts of this finding were already fixed as a side effect of 3.1's append-before-delete change. The `HEADER` substring-match nuance ("`X-App-State: scanner` would also match a future key containing 'scanner'") is **will not fix now** — no live keys collide today | uncommitted at time of writing |
 
-Everything else — including the rest of section 3–6 (3.2, 4.1, 4.3, 4.5–4.10, 4.13–4.15, all of 5 and 6) and the deep dives in section 7 — is still open as originally written.
+Everything else — including the rest of section 3–6 (3.2, 4.1, 4.5, 4.7–4.10, 4.13–4.15, all of 5 except 5.5, and 6) and the deep dives in section 7 — is still open as originally written.
 
 ---
 
@@ -147,12 +150,12 @@ The main risks are concentrated in four places:
 
 | #  | Action                                                                              | Findings           | Complexity | Status |
 | -- | ----------------------------------------------------------------------------------- | ------------------ | ---------- | ------ |
-| 1  | Append new state before deleting old; read highest-UID state message                 | 3.1, 5.5           | S          | 3.1 ✅ done, 5.5 open |
+| 1  | Append new state before deleting old; read highest-UID state message                 | 3.1, 5.5           | S          | 3.1 ✅ done, 5.5 ✅ done (substring-match nuance: will not fix now) |
 | 2  | Bind rspamd ports to `127.0.0.1` (or unpublish), generate password per install      | 3.2, 4.13          | S          | open |
 | 3  | Fix failing tests, add GitHub Actions CI (test + prettier)                           | 4.8, 5.17          | S          | 4.8 ✅ done, 5.17 open |
 | 4  | Redact secrets in config log; `npm audit fix` / bump imapflow; Node 24 base image     | 4.7, 4.9           | S          | open |
-| 5  | Timeouts on rspamd calls + per-message failure isolation                             | 4.4, 4.6           | M          | 4.4 ✅ done, 4.6 open |
-| 6  | Resolve folder paths via server delimiter / special-use; create spam folder          | 4.2, 4.3           | M          | 4.2 ✅ done, 4.3 open |
+| 5  | Timeouts on rspamd calls + per-message failure isolation                             | 4.4, 4.6           | M          | 4.4 ✅ done, 4.6 ✅ done |
+| 6  | Resolve folder paths via server delimiter / special-use; create spam folder          | 4.2, 4.3           | M          | 4.2 ✅ done, 4.3 ✅ done (server `\Junk` special-use default: will not fix) |
 | 7  | Require DKIM/DMARC pass for whitelist hits; lower whitelist weight                   | 4.1, 7.1           | S          | open |
 | 8  | `doctor` command + config schema validation                                          | 5.10, 7.3          | M          | open |
 | 9  | Rewrite README + split docs (install / configure / train / operate)                  | 4.11, 4.12, 7.4    | M          | 4.11 ✅ done, 4.12 ✅ done, 7.4 (split) open |
@@ -246,6 +249,7 @@ The main risks are concentrated in four places:
 
 - **Area:** DEP, UX · **Complexity:** XS–S
 - **Where:** `src/lib/workflows/init-workflow.js:14-25`; used by `scan-workflow.js:155`, `train-workflow.js:58`, `map-workflow.js:103`
+- **Status:** ✅ **Resolved** (uncommitted at time of writing). `config.FOLDER_SPAM` added to the folder list `runInit` creates, unconditionally (not gated on `SPAM_PROCESSING_MODE === 'folder'`), since `scanBatch` moves `reject`-verdict messages there regardless of processing mode. The "default to the server's `\Junk` special-use folder" part of the recommendation is **will not fix** — user decision: the always-create-the-configured-folder fix already closes the crash-loop risk, and special-use auto-detection is a separate UX nicety, not worth the added complexity right now.
 
 **Problem.** `runInit` creates training and state folders (and low/high folders in `folder` mode) but not `FOLDER_SPAM` (default `INBOX.spam`). On a mailbox where it doesn't exist, the first `reject` verdict or spam-training run fails, the cycle fails, and after `MAX_RETRIES` the process exits. Most servers already have a Junk folder with a different name (`Junk`, `INBOX.Junk`, `[Gmail]/Spam`).
 
@@ -284,6 +288,7 @@ The main risks are concentrated in four places:
 
 - **Area:** REL · **Complexity:** XS
 - **Where:** `src/lib/clients/rspamd-client.js:55, 87, 138`
+- **Status:** ✅ **Resolved** (uncommitted at time of writing). New `RSPAMD_TIMEOUT_MS` setting (default 30000); all three `fetch()` calls (`/checkv2`, `/learnham`, `/learnspam`) now pass `signal: AbortSignal.timeout(config.RSPAMD_TIMEOUT_MS)`. A timeout error carries neither `.status` nor `.permanent`, so `isPermanentError` (4.4) already classifies it as transient — no changes needed there.
 
 **Problem.** Native `fetch` has no default timeout. If rspamd accepts the connection but stalls (Redis down, DNS lookups hanging — see 5.6), the scan cycle hangs indefinitely; in IDLE/poll modes the process never recovers.
 
@@ -453,6 +458,7 @@ A user who deletes a line from `.env` gets a *different* behaviour than the docu
 
 - **Area:** REL, REF · **Complexity:** XS
 - **Where:** `src/lib/state-manager.js:30-70`
+- **Status:** ✅ **Mostly resolved** (uncommitted at time of writing). The "reads the lowest UID" and "skips restoring `originalPath`" points were already fixed as a side effect of 3.1's append-before-delete change (it now takes `Math.max(...results)` and restores the mailbox on every path). This update fixes the remaining two: the `if (!json)` check is no longer dead code (it now runs *before* `validateState(json)`, not after), and `formatMapAsEmail`/`formatStateAsEmail` are unified into one `formatAppStateEmail(stateKey, body, displayName)` in `state-utils.js`. The `HEADER` substring-match nuance is **will not fix now** — user decision: no live `STATE_KEY_*` value is a substring of another today, so it's a latent edge case, not an active bug, and fixing it properly needs an exact-match pass (fetch + compare header values) that's more invasive than the rest of this finding.
 
 **Problem.**
 - Uses `results[0]` — the **lowest** UID. If there are ever two state messages (e.g. after implementing 3.1, or manual restore), it reads the oldest.

@@ -32,6 +32,7 @@ vi.mock('../src/lib/clients/imap-client.js', () => ({
 
 vi.mock('../src/lib/utils/state-utils.js', () => ({
   formatStateAsEmail: vi.fn(state => `raw-state:${JSON.stringify(state)}`),
+  formatAppStateEmail: vi.fn((stateKey, body) => `raw-map:${stateKey}:${body}`),
   parseStateFromEmail: vi.fn(),
   validateState: vi.fn(),
 }));
@@ -46,7 +47,10 @@ import {
   search,
   fetchMessagesByUIDs,
 } from '../src/lib/clients/imap-client.js';
-import { parseStateFromEmail } from '../src/lib/utils/state-utils.js';
+import {
+  parseStateFromEmail,
+  validateState,
+} from '../src/lib/utils/state-utils.js';
 
 function makeImap(overrides = {}) {
   return {
@@ -182,6 +186,18 @@ describe('readScannerState', () => {
     await readScannerState(imap, undefined);
 
     expect(fetchMessagesByUIDs).toHaveBeenCalledWith(imap, [7]);
+  });
+
+  test('unparseable state message: throws "Failed to parse", not masked by validateState', async () => {
+    const imap = makeImap();
+    search.mockResolvedValue([7]);
+    fetchMessagesByUIDs.mockResolvedValue([{ body: 'not json' }]);
+    parseStateFromEmail.mockReturnValue(null);
+
+    await expect(readScannerState(imap, undefined)).rejects.toThrow(
+      'Failed to parse state from email'
+    );
+    expect(validateState).not.toHaveBeenCalled();
   });
 
   test('no state, no default: throws', async () => {
