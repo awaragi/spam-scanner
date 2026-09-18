@@ -2,9 +2,38 @@
 set -euo pipefail
 
 # Run a simple Rspamd checkv2 request against a local instance.
+#
+# Reads RSPAMD_URL / RSPAMD_PASSWORD from the environment if already set,
+# otherwise falls back to the project's .env file, then to defaults. Never
+# hardcodes a real password - every install has its own.
 
-readonly RSPAMD_URL="http://localhost:11334/checkv2"
-readonly RSPAMD_PASSWORD="mypassword"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
+load_env_var() {
+  local name="$1"
+  local default_value="$2"
+
+  if [[ -n "${!name:-}" ]]; then
+    echo "${!name}"
+    return
+  fi
+
+  if [[ -f "${PROJECT_ROOT}/.env" ]]; then
+    local value
+    value="$(grep -E "^${name}=" "${PROJECT_ROOT}/.env" | tail -n1 | cut -d= -f2-)"
+    if [[ -n "${value}" ]]; then
+      echo "${value}"
+      return
+    fi
+  fi
+
+  echo "${default_value}"
+}
+
+readonly RSPAMD_BASE_URL="$(load_env_var RSPAMD_URL "http://localhost:11334")"
+readonly RSPAMD_URL="${RSPAMD_BASE_URL%/}/checkv2"
+readonly RSPAMD_PASSWORD="$(load_env_var RSPAMD_PASSWORD "")"
 
 usage() {
   cat <<'EOF'
@@ -73,18 +102,18 @@ main() {
   require_command curl
   require_command jq
 
+  local -a curl_args=(-sS -X POST "$RSPAMD_URL" -H "Content-Type: text/plain")
+  if [[ -n "$RSPAMD_PASSWORD" ]]; then
+    curl_args+=(-H "Password: $RSPAMD_PASSWORD")
+  fi
+  curl_args+=(--data-binary "@$eml_path")
+
   if [[ "$verbose" == "true" ]]; then
-    curl -sS -X POST "$RSPAMD_URL" \
-      -H "Content-Type: text/plain" \
-      -H "Password: $RSPAMD_PASSWORD" \
-      --data-binary "@$eml_path" | jq
+    curl "${curl_args[@]}" | jq
     return
   fi
 
-  curl -sS -X POST "$RSPAMD_URL" \
-    -H "Content-Type: text/plain" \
-    -H "Password: $RSPAMD_PASSWORD" \
-    --data-binary "@$eml_path" | jq '{is_skipped, score, required_score, action}'
+  curl "${curl_args[@]}" | jq '{is_skipped, score, required_score, action}'
 }
 
 main "$@"

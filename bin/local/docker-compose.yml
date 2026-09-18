@@ -15,8 +15,10 @@ services:
     image: rspamd/rspamd:latest
     container_name: rspamd
     ports:
-      - "11332:11332"  # Proxy worker
-      - "11334:11334"  # Web interface
+      # Loopback-only: the controller/web UI holds Bayes training and map
+      # data, so it must never be reachable from the LAN or internet.
+      # The proxy worker (11332) is not used by this project and isn't published.
+      - "127.0.0.1:11334:11334"
     volumes:
       - ./rspamd/config:/etc/rspamd/local.d
       - ${SPAM_SCANNER_DATA}/rspamd/data:/var/lib/rspamd

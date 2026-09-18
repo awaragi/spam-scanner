@@ -190,10 +190,11 @@ nano .env
 #### 4. Start Rspamd (standalone, for local development)
 
 ```bash
+bin/local/hash-rspamd-password.sh  # generates rspamd/config/worker-controller.inc from RSPAMD_PASSWORD in .env
 bin/local/rspamd.sh up
 ```
 
-Rspamd will be available at `http://localhost:11334`. To stop it:
+Rspamd will be available at `http://localhost:11334` (bound to loopback only). To stop it:
 
 ```bash
 bin/local/rspamd.sh down
@@ -234,20 +235,28 @@ For production deployment, all services (spam-scanner, Rspamd, Redis, Unbound) a
 
    **Important**: In Docker deployment, `RSPAMD_URL` is automatically set to `http://rspamd:11334` (internal service communication) regardless of what's in `.env`. `SPAM_SCANNER_DATA` must be an absolute path - Docker Compose does not expand `~`, and an unset value silently produces broken bind mounts.
 
-3. **Start all services**:
+3. **Generate the Rspamd controller password**:
+
+   ```bash
+   bin/local/hash-rspamd-password.sh
+   ```
+
+   This reads `RSPAMD_PASSWORD` from `.env` and writes `rspamd/config/worker-controller.inc` (gitignored - every install generates its own, there is no shared committed hash). Re-run it whenever `RSPAMD_PASSWORD` changes, then `docker compose restart rspamd`.
+
+4. **Start all services**:
 
    ```bash
    docker compose up -d
    ```
 
-4. **View logs**:
+5. **View logs**:
 
    ```bash
    docker compose logs -f spam-scanner
    docker compose logs -f
    ```
 
-5. **Stop services**:
+6. **Stop services**:
    ```bash
    docker compose down
    ```
@@ -275,7 +284,7 @@ Additionally, `./rspamd/config` (from the repo) is bind-mounted read-only into t
 ### Environment Variables for Docker
 
 - **RSPAMD_URL**: Automatically set to `http://rspamd:11334` (do not override)
-- **RSPAMD_PASSWORD**: Required in `.env`; must also match the hash baked into `rspamd/config/worker-controller.inc` (they are not automatically linked - see the codebase review for details)
+- **RSPAMD_PASSWORD**: Required in `.env`; run `bin/local/hash-rspamd-password.sh` after setting it (or changing it) to regenerate `rspamd/config/worker-controller.inc`, then `docker compose restart rspamd`
 - **SPAM_SCANNER_DATA**: Required, absolute path
 - **IMAP\_\***: All IMAP configuration must be set in `.env`
 - **SCAN_INTERVAL**: Controls sleep time between scan cycles. Defaults to `-1` (single-run mode). Set to `0` for IDLE mode or a positive integer for poll mode
@@ -283,13 +292,15 @@ Additionally, `./rspamd/config` (from the repo) is bind-mounted read-only into t
 
 ### Accessing Rspamd Web Interface
 
-The Rspamd web interface is exposed on port `11334`:
+Port `11334` is bound to the host's loopback interface only (`127.0.0.1:11334:11334`) - it is never reachable from the LAN or internet, only from the machine running Docker:
 
 ```
 http://localhost:11334
 ```
 
-Login with the password specified in your `.env` file (`RSPAMD_PASSWORD`) - see the caveat above about it needing to match `worker-controller.inc`.
+On a remote server, use an SSH tunnel instead of publishing the port further: `ssh -L 11334:localhost:11334 user@server`, then browse to `http://localhost:11334` on your own machine.
+
+Login with the password specified in your `.env` file (`RSPAMD_PASSWORD`).
 
 ### Rebuilding After Code Changes
 

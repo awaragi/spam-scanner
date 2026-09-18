@@ -10,7 +10,7 @@
 
 ## Progress since this review
 
-9 of the findings below are resolved — 6 via the `harden-scan-reliability-and-docs` OpenSpec change (archived as `openspec/changes/archive/2026-09-17-harden-scan-reliability-and-docs/`), 3 more (4.3, 4.6, 5.5) as a direct follow-up fix, not tracked through an OpenSpec change. Each resolved finding is marked **✅ Resolved** inline with commit references. Two specific sub-items — the `\Junk` special-use default in 4.3, and the `HEADER` substring-match nuance in 5.5 — were deliberately decided **will not fix** rather than left open; see their inline notes. Nothing else in this document has been re-verified against the current code — treat every other finding as still open.
+12 of the findings below are resolved — 6 via the `harden-scan-reliability-and-docs` OpenSpec change (archived as `openspec/changes/archive/2026-09-17-harden-scan-reliability-and-docs/`), 6 more (4.3, 4.6, 5.5, 3.2, 4.13, 4.7) as direct follow-up fixes, not tracked through an OpenSpec change. Each resolved finding is marked **✅ Resolved** inline with commit references. Two specific sub-items — the `\Junk` special-use default in 4.3, and the `HEADER` substring-match nuance in 5.5 — were deliberately decided **will not fix** rather than left open; see their inline notes. Nothing else in this document has been re-verified against the current code — treat every other finding as still open.
 
 | Finding | Item | Commit(s) |
 | ------- | ---- | --------- |
@@ -23,8 +23,11 @@
 | 4.3 | `FOLDER_SPAM` added to the folders `runInit` creates — it's used unconditionally by `scanBatch` (any `reject`-verdict message is moved there) regardless of `SPAM_PROCESSING_MODE`, so it must always exist, not just in `folder` mode. The `\Junk` special-use auto-detection part of the original recommendation is **will not fix** | uncommitted at time of writing |
 | 4.6 | New `RSPAMD_TIMEOUT_MS` setting (default 30000); `AbortSignal.timeout(...)` added to all three rspamd `fetch()` calls (`/checkv2`, `/learnham`, `/learnspam`); a timeout carries no `.status`/`.permanent`, so `isPermanentError` (4.4) already classifies it as transient with no further changes needed | uncommitted at time of writing |
 | 5.5 | Dead-code ordering fixed in `readScannerState` (null-check now runs before `validateState`, so a parse failure reports "Failed to parse..." instead of being masked); `formatMapAsEmail`/`formatStateAsEmail` unified into one `formatAppStateEmail(stateKey, body, displayName)` in `state-utils.js`. The "reads highest-UID state message" and "restores mailbox" parts of this finding were already fixed as a side effect of 3.1's append-before-delete change. The `HEADER` substring-match nuance ("`X-App-State: scanner` would also match a future key containing 'scanner'") is **will not fix now** — no live keys collide today | uncommitted at time of writing |
+| 3.2 | Both compose files now publish rspamd's controller only on `127.0.0.1:11334`; the unused proxy port `11332` dropped entirely. `worker-controller.inc` untracked from git and replaced by a tracked `.example` placeholder; `check-eml.sh` no longer hardcodes `mypassword`/`localhost:11334` | uncommitted at time of writing |
+| 4.13 | New `bin/local/hash-rspamd-password.sh` links `RSPAMD_PASSWORD` (`.env`) to `worker-controller.inc` in one command, using the rspamd Docker image's own `rspamadm pw` — no installer or local rspamd install needed. `bin/local/rspamd.sh up` warns if the file is missing | uncommitted at time of writing |
+| 4.7 | `src/lib/utils/logger.js` now sets pino's `redact` option for `IMAP_PASSWORD`/`RSPAMD_PASSWORD`/`AI_API_KEY` (plus nested `Password` header variants) at the root logger, so it applies to every log call, not just the config one; new unit test asserts secrets never appear in raw pino output | uncommitted at time of writing |
 
-Everything else — including the rest of section 3–6 (3.2, 4.1, 4.5, 4.7–4.10, 4.13–4.15, all of 5 except 5.5, and 6) and the deep dives in section 7 — is still open as originally written.
+Everything else — including the rest of section 3–6 (4.1, 4.5, 4.8–4.10, 4.14–4.15, all of 5 except 5.5, and 6) and the deep dives in section 7 — is still open as originally written.
 
 ---
 
@@ -121,6 +124,10 @@ Findings are **grouped by severity** (sections 3–6). Each finding carries:
    - 5.23 No operational visibility (health, heartbeat, summary)
    - 5.24 `build-deploy-linux.local.sh` calls `build.sh` with unsupported flags
    - 5.25 Two parallel process/documentation systems (`docs/features` vs `openspec`)
+   - 5.26 Docker container names and network aren't project-scoped — blocks running multiple instances side by side
+   - 5.27 No script to bootstrap `.env` for a new install
+   - 5.28 No support for multiple mailboxes / accounts from one deployment
+   - 5.29 No automated end-to-end validation of a fresh install
 6. [Low findings](#6-low-findings)
    - 6.1 – 6.22 (clean-up, polish, metadata)
 7. [Deep dives](#7-deep-dives)
@@ -151,9 +158,9 @@ The main risks are concentrated in four places:
 | #  | Action                                                                              | Findings           | Complexity | Status |
 | -- | ----------------------------------------------------------------------------------- | ------------------ | ---------- | ------ |
 | 1  | Append new state before deleting old; read highest-UID state message                 | 3.1, 5.5           | S          | 3.1 ✅ done, 5.5 ✅ done (substring-match nuance: will not fix now) |
-| 2  | Bind rspamd ports to `127.0.0.1` (or unpublish), generate password per install      | 3.2, 4.13          | S          | open |
+| 2  | Bind rspamd ports to `127.0.0.1` (or unpublish), generate password per install      | 3.2, 4.13          | S          | ✅ done |
 | 3  | Fix failing tests, add GitHub Actions CI (test + prettier)                           | 4.8, 5.17          | S          | 4.8 ✅ done, 5.17 open |
-| 4  | Redact secrets in config log; `npm audit fix` / bump imapflow; Node 24 base image     | 4.7, 4.9           | S          | open |
+| 4  | Redact secrets in config log; `npm audit fix` / bump imapflow; Node 24 base image     | 4.7, 4.9           | S          | 4.7 ✅ done, 4.9 open |
 | 5  | Timeouts on rspamd calls + per-message failure isolation                             | 4.4, 4.6           | M          | 4.4 ✅ done, 4.6 ✅ done |
 | 6  | Resolve folder paths via server delimiter / special-use; create spam folder          | 4.2, 4.3           | M          | 4.2 ✅ done, 4.3 ✅ done (server `\Junk` special-use default: will not fix) |
 | 7  | Require DKIM/DMARC pass for whitelist hits; lower whitelist weight                   | 4.1, 7.1           | S          | open |
@@ -201,6 +208,7 @@ The main risks are concentrated in four places:
 
 - **Area:** SEC, RSP · **Complexity:** S
 - **Where:** `docker-compose.yml:25-28`, `bin/local/docker-compose.yml:15-17`, `rspamd/config/worker-controller.inc:1`, `bin/local/check-eml.sh:7`, `.env.example:54`
+- **Status:** ✅ **Resolved** (uncommitted at time of writing), together with 4.13. Both compose files now publish only `"127.0.0.1:11334:11334"` (`11332` dropped entirely, per the recommendation — it isn't used). `worker-controller.inc` is untracked (`git rm --cached`, added to `.gitignore`) and replaced by a tracked `worker-controller.inc.example` placeholder; a new `bin/local/hash-rspamd-password.sh` reads `RSPAMD_PASSWORD` from `.env` and generates `worker-controller.inc` via the rspamd Docker image's own `rspamadm pw` (no local rspamd install, no installer needed). `check-eml.sh` no longer hardcodes `mypassword`/`localhost:11334` — it reads `RSPAMD_URL`/`RSPAMD_PASSWORD` from the environment, falling back to `.env`, falling back to the old defaults. `bin/local/rspamd.sh up` now warns (doesn't block) if `worker-controller.inc` is missing. README and `.env.example` updated to document the new step and the loopback-only access (SSH tunnel for remote hosts). Not done: rotating the previously-committed hash — it was already a known-shared example value (`mypassword`), never a real per-install secret, so there's nothing sensitive to rotate; anyone who deployed it as-is should still generate their own via the new script.
 
 **Problem.**
 - Ports `11334` (controller + web UI) and `11332` (proxy) are published as `"11334:11334"`, i.e. on `0.0.0.0` of the Docker host — reachable from the LAN, and from the internet if the host has a public IP or port forwarding.
@@ -298,6 +306,7 @@ The main risks are concentrated in four places:
 
 - **Area:** SEC · **Complexity:** XS
 - **Where:** `src/lib/utils/config.js:62`; also `src/lib/clients/rspamd-client.js:67` (full rspamd result incl. message metadata)
+- **Status:** ✅ **Resolved** (uncommitted at time of writing). `src/lib/utils/logger.js` now sets pino's `redact` option (`IMAP_PASSWORD`, `RSPAMD_PASSWORD`, `AI_API_KEY`, plus nested `*.headers.Password`/`*.Password` variants) with `censor: '[REDACTED]'`, applied at the root logger so it covers every log call, not just the config one. Added a unit test (`test/logger.test.js`) that logs a merging object containing all three secret keys and asserts the raw pino output never contains the secret values. The `rspamd-client.js:67` full-result logging (message metadata, a privacy concern rather than a credential leak) was left as-is — out of scope for this pass, closer to 5.19 (AI privacy docs) than a secrets leak.
 
 **Problem.** `logger.debug(c, 'Loading configuration')` logs the full config object including `IMAP_PASSWORD`, `RSPAMD_PASSWORD` and `AI_API_KEY`. Users are told to use `debug` when troubleshooting — exactly when logs get pasted into issues or chats.
 
@@ -386,6 +395,7 @@ A user who deletes a line from `.env` gets a *different* behaviour than the docu
 
 - **Area:** DEP, RSP, CFG · **Complexity:** S
 - **Where:** `.env.example:54`, `rspamd/config/worker-controller.inc`, `docker-compose.yml:15-16`
+- **Status:** ✅ **Resolved** (uncommitted at time of writing), together with 3.2. `bin/local/hash-rspamd-password.sh` links the two: it reads `RSPAMD_PASSWORD` from `.env` and writes a matching `worker-controller.inc` using `rspamadm pw` run via the rspamd Docker image, so there's a single command instead of a manual hash-and-edit step. README and `.env.example` now call this out at the point where `RSPAMD_PASSWORD` is set. Chose a one-command manual script over the recommendation's "render at container start" option — rewriting a bind-mounted repo file from inside the container on every start felt more fragile than a step the user runs once and re-runs on password change. The `doctor`-command / authenticated-no-op check is not implemented — that's the larger 5.10/7.3 config-validation-and-doctor effort, out of scope here.
 
 **Problem.** The README tells users to "set `RSPAMD_PASSWORD`". Doing so without also regenerating the hash (`rspamadm pw`) and editing `worker-controller.inc` makes every learn call fail with 403 — training silently stops working (errors only in logs). Nothing documents the link.
 
@@ -688,6 +698,62 @@ Critical logic (3.1, 4.4, 4.5, 5.1, 5.4) lives in the untested modules.
 
 **Recommendation.** Archive/sync `ai-spam-escalation`; move `docs/features/*` to `docs/history/` (or convert the still-relevant decisions into openspec specs); fill `openspec/config.yaml` `context:`; state in `CONTRIBUTING.md` that openspec is the process.
 
+### 5.26 Docker container names and network aren't project-scoped — blocks running multiple instances side by side
+
+- **Area:** DEP, OPS, CFG · **Complexity:** S
+- **Where:** `docker-compose.yml:5,25,46,55,60-62`; `bin/local/docker-compose.yml:16,34,41`
+
+**Problem.** Every service uses a fixed `container_name` (`spam-scanner`, `rspamd`, `rspamd-redis`, `rspamd-unbound`), and the **same** names are hard-coded in both `docker-compose.yml` (production) and `bin/local/docker-compose.yml` (dev). Two consequences:
+- The dev stack (`bin/local/rspamd.sh up`) and the production stack cannot both be "up" on the same host — the second `docker compose up` fails with "container name already in use."
+- Running a second, independent instance of the whole stack (e.g. one per mailbox, see 5.28) requires hand-editing every `container_name` and the network, since Compose's own project-name isolation (`-p <name>` / `COMPOSE_PROJECT_NAME`, which normally lets multiple copies of the same compose file coexist) is defeated by the fixed names.
+
+The root `docker-compose.yml` at least declares `networks.spam-network` (implicitly namespaced by the Compose project name), but `bin/local/docker-compose.yml` declares no network at all, so its services fall onto whatever default network Compose derives from `--project-directory` — the two files aren't even consistent with each other about isolation today, independent of the naming problem.
+
+**Recommendation.** Drop the `container_name:` overrides and let Compose derive names from the project name (`<project>-rspamd-1`, etc.) so `-p`/`COMPOSE_PROJECT_NAME` naturally isolates parallel stacks. If fixed names are wanted for operator convenience, template them from a `COMPOSE_PROJECT_NAME`/`INSTANCE_NAME` env var instead of hard-coding. Give the network an explicit `name:` and define it identically in both compose files. Document that today a dev run and a prod run — or two mailboxes' worth of stacks — cannot coexist without manual edits.
+
+### 5.27 No script to bootstrap `.env` for a new install
+
+- **Area:** DEP, UX · **Complexity:** S
+- **Where:** `.env.example` (148 lines); `README.md`; `bin/local/hash-rspamd-password.sh`
+
+**Problem.** Getting started requires manually `cp .env.example .env`, then hand-editing IMAP credentials, `SPAM_SCANNER_DATA` (an absolute path — 4.14), and `RSPAMD_PASSWORD`, and separately remembering to run `bin/local/hash-rspamd-password.sh` afterwards (4.13) so the password and its hash don't drift apart. None of the existing scripts (`build.sh`, `rspamd.sh`, `hash-rspamd-password.sh`, `check-eml.sh`, `sort-maps.sh`) create or populate `.env` itself — they all assume it already exists and is correct.
+
+**Recommendation.** Add a small `bin/setup-env.sh`:
+1. Copy `.env.example` to `.env` if missing (refuse to overwrite an existing `.env` without `--force`).
+2. Prompt for `IMAP_HOST`/`IMAP_PORT`/`IMAP_USER`/`IMAP_PASSWORD` (hidden input) and `SPAM_SCANNER_DATA` (default `~/.spam-scanner`), writing them into `.env` in place.
+3. Generate a random `RSPAMD_PASSWORD`, write it into `.env`, then call `bin/local/hash-rspamd-password.sh` automatically so `RSPAMD_PASSWORD` and `worker-controller.inc` are generated together and never drift (closes the loop opened by 4.13).
+4. Support a non-interactive mode (flags or env vars) for CI/scripted installs.
+
+This is a much smaller, independently shippable slice of the full `install.sh` wizard in **7.3.3** — it needs no published images or `doctor` command to already be useful, and 7.3.3 can later call it as a step.
+
+### 5.28 No support for multiple mailboxes / accounts from one deployment
+
+- **Area:** CFG, UX, REF · **Complexity:** M (multi-instance doc) / L (multi-account-in-one-process)
+- **Where:** `src/lib/utils/config.js` (single `IMAP_*`/`FOLDER_*`/`STATE_KEY_SCANNER` block, read once at import — see 5.10); `src/orchestrator.js`; `docker-compose.yml` (single `spam-scanner` service)
+
+**Problem.** The whole app models exactly one mailbox: one `IMAP_HOST`/`USER`/`PASSWORD`, one set of `FOLDER_*`, one `STATE_KEY_SCANNER`, one `SPAM_SCANNER_DATA`, loaded once as a module-level singleton. Anyone wanting to protect a second mailbox (a spouse's inbox, a second domain, a shared support address) has no supported path today short of a second full checkout with its own `.env`, and would immediately hit the container/network name collisions in 5.26.
+
+**Recommendation.** Two complementary options, not mutually exclusive:
+1. **Multi-instance (near-term, no app code changes).** One container stack per mailbox, each with its own `.env`/data dir. This only needs the naming fix in 5.26 (so stacks can coexist via `-p`/`COMPOSE_PROJECT_NAME`) and the bootstrap script in 5.27 (`bin/setup-env.sh --output .env.family`, `bin/setup-env.sh --output .env.work`, then `docker compose -p spam-scanner-family --env-file .env.family up -d`). Document this pattern now — it's cheap and unblocks the common case immediately.
+2. **Multi-account-in-one-process (longer-term).** Extend the config schema to accept an array of mailbox definitions (e.g. a `mailboxes.yaml` or `MAILBOXES=family,work` with per-prefix env vars) and have the orchestrator fan out a cycle per mailbox, each with its own IMAP connection and state key, optionally sharing rspamd/Bayes/maps. This is the more ergonomic answer for someone managing several mailboxes from one host, but it depends on the config-schema and singleton-removal work in 5.10/5.15 landing first — track it as a Phase 3 feature, not a quick win.
+
+### 5.29 No automated end-to-end validation of a fresh install
+
+- **Area:** TST, DEP, OPS · **Complexity:** M
+- **Where:** none exists today; related: 5.16 (unit/e2e test gaps), 7.3.4 (`doctor` command), section 10 (only unit-test evidence gathered for this review)
+
+**Problem.** Every check behind this review (10.1–10.4) is an `npm`-level unit-test/lint/audit run; nothing exercises the actual install path end-to-end — cloning the repo (or pulling a published image, once 7.3.1 lands), producing a working `.env` (5.27), bringing up rspamd/redis/unbound, confirming the app can log into IMAP, create its folders (4.2, 4.3), complete a scan cycle, and successfully train at least one spam/ham message. A regression anywhere in that chain (a bad Compose edit, a config-default drift like 4.12, a missing folder like 4.3) is currently caught only by a real user's first run failing. 5.16 already proposes a Dovecot/GreenMail-based e2e test, but that's scoped to application/workflow logic exercised directly — not the install/deploy path (compose files, `.env` bootstrapping, container start order, first-run folder creation) itself.
+
+**Recommendation.** Add a scripted "fresh install" acceptance test, runnable locally and in CI:
+1. Start from a clean checkout/temp dir with no pre-existing `.env` or `SPAM_SCANNER_DATA`; assert the failure mode is the intended one (clear error, not a crash) when `.env` is missing.
+2. Run the `.env` bootstrap script (5.27) against a disposable IMAP test server (Dovecot/GreenMail, per 5.16) and a disposable data dir.
+3. `docker compose up -d` (or `bin/local/rspamd.sh up`) and wait on healthchecks (5.7) instead of a fixed sleep.
+4. Run the app once in single-run mode; assert exit code 0, the expected folders now exist on the IMAP server (4.3), a success/heartbeat log line is present (5.23), and rspamd is reachable with an empty Bayes corpus (fresh install).
+5. Drop one spam and one ham fixture into the training folders, run again, assert they moved and Bayes learned counts increased (5.20).
+6. Tear the stack down and assert the data dir/volumes can be removed cleanly, with no root-owned leftovers (5.8).
+
+Wire this as a nightly/on-demand GitHub Actions job once 5.17's CI exists, rather than on every push (a Compose-based e2e run is slow). It also doubles as living documentation of "what a working install looks like," and is exactly what a maintainer should run before tagging a release.
+
 ---
 
 ## 6. Low findings
@@ -944,20 +1010,20 @@ Guiding rules: pure logic in `domain/` (no imports of config/logger singletons);
 
 | Area | Findings |
 | ---- | -------- |
-| **REF** Refactoring & modularity | 5.5, 5.10, 5.14, 5.15, 6.11, 6.17, 7.5 |
+| **REF** Refactoring & modularity | 5.5, 5.10, 5.14, 5.15, 5.28, 6.11, 6.17, 7.5 |
 | **CLN** Clean-up / dead code | 5.14, 6.1, 6.2, 6.3, 6.6, 6.7, 6.13, 6.15 |
 | **DOC** Documentation | 4.11, 4.12, 5.19, 5.20, 5.21, 5.22, 5.25, 7.4 |
-| **DEP** Build / deploy / install | 4.3, 4.13, 4.14, 4.15, 5.7, 5.8, 5.9, 5.22, 5.24, 6.14, 7.3 |
+| **DEP** Build / deploy / install | 4.3, 4.13, 4.14, 4.15, 5.7, 5.8, 5.9, 5.22, 5.24, 5.26, 5.27, 5.29, 6.14, 7.3 |
 | **MAP** Whitelist / blacklist | 4.1, 5.1, 5.2, 6.11, 6.13, 7.1 |
 | **RSP** Rspamd setup | 3.2, 4.1, 4.10, 4.13, 5.6, 5.11, 5.20, 7.2 |
 | **SEC** Security & privacy | 3.2, 4.1, 4.7, 4.9, 5.8, 5.18, 5.19 |
 | **REL** Reliability | 3.1, 4.2, 4.4, 4.5, 4.6, 5.1, 5.3, 5.4, 5.5, 5.7, 5.12, 5.13, 6.5, 6.8, 6.9 |
-| **CFG** Configuration | 4.2, 4.12, 4.13, 5.10, 5.11, 5.18, 6.3, 6.14, 6.16 |
-| **TST** Testing | 4.8, 5.16 |
+| **CFG** Configuration | 4.2, 4.12, 4.13, 5.10, 5.11, 5.18, 5.26, 5.28, 6.3, 6.14, 6.16 |
+| **TST** Testing | 4.8, 5.16, 5.29 |
 | **TLG** Dependencies & tooling | 4.9, 5.17, 6.4 |
-| **OPS** Operability | 5.2, 5.7, 5.9, 5.12, 5.21, 5.23, 6.21 |
+| **OPS** Operability | 5.2, 5.7, 5.9, 5.12, 5.21, 5.23, 5.26, 5.29, 6.21 |
 | **HYG** Repo hygiene | 5.17, 5.25, 6.12, 6.18, 6.19 |
-| **UX** End-user workflow | 4.2, 4.3, 4.5, 5.1, 5.2, 5.3, 5.14, 5.20, 5.22, 6.6, 6.10, 7.1.9 |
+| **UX** End-user workflow | 4.2, 4.3, 4.5, 5.1, 5.2, 5.3, 5.14, 5.20, 5.22, 5.27, 5.28, 6.6, 6.10, 7.1.9 |
 | **LIC** Licensing & metadata | 6.20, 6.21, 6.22 |
 
 ---
@@ -997,6 +1063,7 @@ Complexity totals are rough, for a single developer.
 | 4.1, 5.6         | Authenticated whitelist; wire unbound                    | S  | open |
 | 6.1–6.4, 6.12–6.15 | Dead code & script clean-up                            | S  | open |
 | 5.25             | Archive/sync openspec change; move `docs/features`        | S  | open |
+| 5.26             | Project-scoped container names/network (dev vs prod coexist) | S  | open |
 
 ### Phase 2 — Install experience & docs (≈ 2 weeks)
 
@@ -1009,6 +1076,8 @@ Complexity totals are rough, for a single developer.
 | 7.3.3, 7.3.5  | `install.sh` wizard + update/backup/restore scripts    | L  | open |
 | 4.11, 7.4     | Documentation rewrite & split; provider matrix         | M  | 4.11 ✅ done (`24993dc`), split (7.4) still open |
 | 5.19, 5.20, 5.21, 5.22 | Privacy, Bayes, backup, provider docs         | S  | open |
+| 5.27          | `bin/setup-env.sh` `.env` bootstrap script              | S  | open |
+| 5.29          | Automated fresh-install end-to-end validation          | M  | open |
 
 ### Phase 3 — Structure & features (ongoing)
 
@@ -1024,6 +1093,7 @@ Complexity totals are rough, for a single developer.
 | 5.23        | Heartbeat, generalized notifier, digest                      | M  |
 | 6.21        | Release automation & changelog                               | S  |
 | 5.22        | OAuth2 (Gmail / Microsoft)                                   | XL |
+| 5.28        | Multi-mailbox support (multi-instance now, multi-account later) | M/L |
 
 ---
 

@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { rootLogger } from '../src/lib/utils/logger.js';
+import { Writable } from 'stream';
+import pino from 'pino';
+import { rootLogger, pinoOptions } from '../src/lib/utils/logger.js';
 
 describe('Logger Factory', () => {
   let originalEnv;
@@ -146,6 +148,40 @@ describe('Logger Factory', () => {
     expect(typeof messageLogger.warn).toBe('function');
     expect(typeof messageLogger.error).toBe('function');
     expect(typeof messageLogger.fatal).toBe('function');
+  });
+});
+
+describe('Logger secret redaction', () => {
+  it('redacts known secret fields so they never reach logs, even at debug', () => {
+    const chunks = [];
+    const captureStream = new Writable({
+      write(chunk, _encoding, callback) {
+        chunks.push(chunk.toString());
+        callback();
+      },
+    });
+
+    // Same redact config as the real root logger, but writing to a stream we
+    // can inspect - pino writes to its destination fd directly, bypassing
+    // process.stdout.write, so the real rootLogger's output can't be captured.
+    const testLogger = pino(pinoOptions, captureStream);
+
+    testLogger.info(
+      {
+        IMAP_PASSWORD: 'super-secret-imap',
+        RSPAMD_PASSWORD: 'super-secret-rspamd',
+        AI_API_KEY: 'super-secret-ai',
+        SAFE_FIELD: 'not-a-secret',
+      },
+      'test log with secrets'
+    );
+
+    const output = chunks.join('');
+    expect(output).not.toContain('super-secret-imap');
+    expect(output).not.toContain('super-secret-rspamd');
+    expect(output).not.toContain('super-secret-ai');
+    expect(output).toContain('SAFE_FIELD');
+    expect(output).toContain('[REDACTED]');
   });
 });
 

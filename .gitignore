@@ -1,3 +1,6 @@
+# dot files
+.DS_Store
+
 # Logs
 logs
 *.log
@@ -145,4 +148,8 @@ data/
 
 # Rspamd map files (dynamically managed at runtime)
 rspamd/maps/
-.DS_Store
+
+# Rspamd controller password hash - generated per install (see
+# bin/local/hash-rspamd-password.sh), must never be a shared committed secret
+rspamd/config/worker-controller.inc
+

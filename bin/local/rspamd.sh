@@ -85,6 +85,13 @@ case "${ACTION}" in
             echo "Data directory not found — running init first..."
             cmd_init
         fi
+        # worker-controller.inc is gitignored (no shared committed password
+        # hash) - a fresh clone has none, which means an unauthenticated
+        # controller until one is generated.
+        if [ ! -f "${PROJECT_ROOT}/rspamd/config/worker-controller.inc" ]; then
+            echo "Warning: rspamd/config/worker-controller.inc not found - the rspamd controller will start with no password."
+            echo "Run bin/local/hash-rspamd-password.sh to generate one from RSPAMD_PASSWORD in .env."
+        fi
         compose up -d
         ;;
     down)

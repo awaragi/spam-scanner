@@ -64,7 +64,25 @@ const options = {
   formatters: {
     level: (label) => ({ level: label })
   },
-  timestamp: pino.stdTimeFunctions.isoTime
+  timestamp: pino.stdTimeFunctions.isoTime,
+  // Secrets must never reach logs, even at LOG_LEVEL=debug (which is exactly
+  // the level users are told to use when troubleshooting and pasting logs
+  // into issues/chats). Paths are relative to each log call's merging
+  // object, so this covers both `logger.debug(config, ...)` (secrets at the
+  // top level) and any nested `{ headers: { Password } }`-shaped object.
+  redact: {
+    paths: [
+      'IMAP_PASSWORD',
+      'RSPAMD_PASSWORD',
+      'AI_API_KEY',
+      '*.IMAP_PASSWORD',
+      '*.RSPAMD_PASSWORD',
+      '*.AI_API_KEY',
+      '*.headers.Password',
+      '*.Password',
+    ],
+    censor: '[REDACTED]',
+  },
 };
 
 // Add pino-pretty transport if pretty format requested
@@ -144,4 +162,7 @@ function attachForComponent(logger) {
 // Attach forComponent method to root logger
 const rootLogger = attachForComponent(pinoLogger);
 
-export { rootLogger };
+// Exported so tests can build a logger against a captured stream, since pino
+// writes to its destination fd directly (bypassing process.stdout.write) and
+// so can't otherwise observe redaction behavior.
+export { rootLogger, options as pinoOptions };

@@ -1,0 +1,14 @@
+# Rspamd controller worker password hash.
+#
+# This file is NOT committed (see .gitignore) - every install must generate
+# its own. Copy this to worker-controller.inc and replace the placeholder,
+# or just run:
+#
+#   bin/local/hash-rspamd-password.sh
+#
+# which reads RSPAMD_PASSWORD from .env and writes worker-controller.inc for
+# you, using the rspamd Docker image's own `rspamadm pw` (no local rspamd
+# install needed). Re-run it whenever RSPAMD_PASSWORD changes, then restart
+# rspamd: docker compose restart rspamd
+
+password = "REPLACE_ME_WITH_rspamadm_pw_OUTPUT";
