@@ -74,4 +74,22 @@ describe('config', () => {
       /SCAN_INITIAL_STATE/
     );
   });
+
+  test('IMAP_TLS defaults to true when unset', async () => {
+    delete process.env.IMAP_TLS;
+    process.env.AI_ENABLED = 'false';
+
+    const { config } = await import('../src/lib/utils/config.js');
+
+    expect(config.IMAP_TLS).toBe(true);
+  });
+
+  test('IMAP_TLS is false only when explicitly set to "false"', async () => {
+    process.env.IMAP_TLS = 'false';
+    process.env.AI_ENABLED = 'false';
+
+    const { config } = await import('../src/lib/utils/config.js');
+
+    expect(config.IMAP_TLS).toBe(false);
+  });
 });

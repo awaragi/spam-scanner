@@ -52,35 +52,34 @@ async function runMapTraining(
     const senders = extractSenderAddresses(messages);
 
     if (senders.length === 0) {
-      logger.debug(
-        { folder, type },
-        'No extractable senders found in training folder'
+      logger.info(
+        { folder, type, total: messages.length },
+        `No extractable senders found among ${type} training messages; moving them on unlearned`
       );
-      return;
-    }
+    } else {
+      // Update map file with senders
+      const result = await updateMapFile(resolvedMapPath, senders);
+      logger.info({ folder, type, ...result }, `${type} map updated`);
 
-    // Update map file with senders
-    const result = await updateMapFile(resolvedMapPath, senders);
-    logger.info({ folder, type, ...result }, `${type} map updated`);
-
-    // Backup map state
-    let mapContent = null;
-    try {
-      mapContent = await fs.readFile(resolvedMapPath, 'utf-8');
-    } catch (err) {
-      if (err.code === 'ENOENT') {
-        logger.debug(
-          { mapPath: resolvedMapPath, type },
-          'Map file not found for state backup'
-        );
-      } else {
-        throw err;
+      // Backup map state
+      let mapContent = null;
+      try {
+        mapContent = await fs.readFile(resolvedMapPath, 'utf-8');
+      } catch (err) {
+        if (err.code === 'ENOENT') {
+          logger.debug(
+            { mapPath: resolvedMapPath, type },
+            'Map file not found for state backup'
+          );
+        } else {
+          throw err;
+        }
       }
-    }
 
-    if (mapContent !== null) {
-      await writeMapState(imap, mapStateKey, mapContent);
-      logger.debug({ folder, type, mapStateKey }, 'Map state backup updated');
+      if (mapContent !== null) {
+        await writeMapState(imap, mapStateKey, mapContent);
+        logger.debug({ folder, type, mapStateKey }, 'Map state backup updated');
+      }
     }
 
     // Move processed messages to destination folder

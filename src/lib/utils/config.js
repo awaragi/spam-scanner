@@ -16,7 +16,7 @@ export const config = (() => {
     IMAP_PORT: parseInt(process.env.IMAP_PORT || '993', 10),
     IMAP_USER: process.env.IMAP_USER,
     IMAP_PASSWORD: process.env.IMAP_PASSWORD,
-    IMAP_TLS: process.env.IMAP_TLS === 'true',
+    IMAP_TLS: process.env.IMAP_TLS !== 'false',
 
     FOLDER_INBOX: process.env.FOLDER_INBOX || 'INBOX',
     FOLDER_SPAM: process.env.FOLDER_SPAM || 'INBOX.spam',

@@ -2,6 +2,9 @@
   "name": "spam-scanner",
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "format": "prettier --write .",
     "format:check": "prettier --check .",

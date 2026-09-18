@@ -1,6 +1,6 @@
 # Multi-stage Dockerfile for spam-scanner
 # Stage 1: Builder - Install production dependencies
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 
@@ -11,7 +11,7 @@ COPY package*.json ./
 RUN npm ci --only=production
 
 # Stage 2: Runtime - Final image with minimal footprint
-FROM node:20-alpine
+FROM node:24-alpine
 
 WORKDIR /app
 

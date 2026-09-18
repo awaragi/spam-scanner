@@ -49,7 +49,7 @@ Training messages by moving them to the `INBOX.scanner.train.whitelist` or `INBO
 | Manual ham correction               | `INBOX.scanner.train.ham`       |
 | Whitelist training                  | `INBOX.scanner.train.whitelist` |
 | Blacklist training                  | `INBOX.scanner.train.blacklist` |
-| Scanner state storage               | `INBOX.scanner.state`                 |
+| Scanner state storage               | `INBOX.scanner.state`           |
 
 Folder names are configured as dot-separated paths and are automatically translated to your IMAP server's actual hierarchy delimiter (`.` or `/`) at startup - you don't need to know or match your server's delimiter when setting these.
 
@@ -75,7 +75,7 @@ IMAP_PASSWORD=yourpassword
 IMAP_TLS=true
 ```
 
-**Important**: `IMAP_TLS` defaults to `false` if unset. Always set it explicitly.
+`IMAP_TLS` defaults to `true`; set it to `false` explicitly only for a server that doesn't support TLS.
 
 ### Optional (with defaults)
 
@@ -166,7 +166,7 @@ For local development with a standalone Rspamd instance:
 
 Ensure you have the following installed:
 
-- Node.js (v20 or higher; the Docker image and CI target the current LTS)
+- Node.js v24 or higher (see `.nvmrc`; the Docker image targets `node:24-alpine`)
 - Docker and Docker Compose v2 (`docker compose`, not the old `docker-compose` v1 CLI)
 
 #### 2. Install the Application

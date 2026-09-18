@@ -8,7 +8,7 @@ services:
       - rspamd
     restart: unless-stopped
     volumes:
-      - ${SPAM_SCANNER_DATA}/rspamd/maps:/data/rspamd/maps
+      - ${SPAM_SCANNER_DATA:?Set SPAM_SCANNER_DATA in .env to an absolute path}/rspamd/maps:/data/rspamd/maps
     environment:
       # Hardcode internal Rspamd URL for service-to-service communication
       - RSPAMD_URL=http://rspamd:11334
@@ -31,9 +31,9 @@ services:
       - "127.0.0.1:11334:11334"
     volumes:
       - ./rspamd/config:/etc/rspamd/local.d
-      - ${SPAM_SCANNER_DATA}/rspamd/data:/var/lib/rspamd
-      - ${SPAM_SCANNER_DATA}/rspamd/logs:/var/log/rspamd
-      - ${SPAM_SCANNER_DATA}/rspamd/maps:/etc/rspamd/maps
+      - ${SPAM_SCANNER_DATA:?Set SPAM_SCANNER_DATA in .env to an absolute path}/rspamd/data:/var/lib/rspamd
+      - ${SPAM_SCANNER_DATA:?Set SPAM_SCANNER_DATA in .env to an absolute path}/rspamd/logs:/var/log/rspamd
+      - ${SPAM_SCANNER_DATA:?Set SPAM_SCANNER_DATA in .env to an absolute path}/rspamd/maps:/etc/rspamd/maps
     depends_on:
       - redis
       - unbound
@@ -45,7 +45,7 @@ services:
     image: redis:alpine
     container_name: rspamd-redis
     volumes:
-      - ${SPAM_SCANNER_DATA}/redis:/data
+      - ${SPAM_SCANNER_DATA:?Set SPAM_SCANNER_DATA in .env to an absolute path}/redis:/data
     restart: unless-stopped
     networks:
       - spam-network
