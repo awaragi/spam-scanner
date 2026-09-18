@@ -9,7 +9,7 @@
 
 ## Progress since this review
 
-16 of the findings below are resolved — 6 via the `harden-scan-reliability-and-docs` OpenSpec change (archived as `openspec/changes/archive/2026-09-17-harden-scan-reliability-and-docs/`), 10 more (4.3, 4.6, 5.5, 3.2, 4.13, 4.7, 4.14, 5.1, 5.18, 4.9) as direct follow-up fixes, not tracked through an OpenSpec change. Each resolved finding is marked **✅ Resolved** inline. Two specific sub-items — the `\Junk` special-use default in 4.3, and the `HEADER` substring-match nuance in 5.5 — were deliberately decided **will not fix** rather than left open; see their inline notes. This update closes out the rest of **Phase 0** (see [§9](#9-suggested-roadmap)). Nothing else in this document has been re-verified against the current code — treat every other finding as still open.
+20 of the findings below are resolved — 6 via the `harden-scan-reliability-and-docs` OpenSpec change (archived as `openspec/changes/archive/2026-09-17-harden-scan-reliability-and-docs/`), 14 more (4.3, 4.6, 5.5, 3.2, 4.13, 4.7, 4.14, 5.1, 5.18, 4.9, 4.5, 5.12, 5.4, 6.17) as direct follow-up fixes, not tracked through an OpenSpec change. Each resolved finding is marked **✅ Resolved** inline. Two specific sub-items — the `\Junk` special-use default in 4.3, and the `HEADER` substring-match nuance in 5.5 — were deliberately decided **will not fix** rather than left open; see their inline notes. The first batch closed out the rest of **Phase 0**; the second batch (4.5, 5.12, 5.4, 6.17) is the first slice of **Phase 1** — IDLE reliability, graceful shutdown, and UIDVALIDITY tracking (see [§9](#9-suggested-roadmap)). Nothing else in this document has been re-verified against the current code — treat every other finding as still open.
 
 | Finding | Item |
 | ------- | ---- |
@@ -29,8 +29,12 @@
 | 5.1 | `runMapTraining` (`map-workflow.js`) now always moves processed messages to the destination folder, even when no sender could be extracted from any of them — logged at `info` instead of silently leaving them stuck in the training folder forever |
 | 5.18 | `config.js`'s `IMAP_TLS` now defaults to `true` (`process.env.IMAP_TLS !== 'false'`) instead of `false`; README updated to match; new unit tests cover both the default and the explicit opt-out |
 | 4.9 | Docker base image bumped `node:20-alpine` → `node:24-alpine` (both build stages); `package.json` `engines.node` and a new `.nvmrc` pin `>=24`; `npm audit fix` bumped `imapflow` 1.2.9 → 1.7.8 (patched `nodemailer` transitively) — `npm audit --omit=dev` now reports 0 vulnerabilities. The `vitest`/`@vitest/mocker` moderate advisory (dev-only, needs `vitest` 5.x, a breaking change) was deliberately left for a separate major-bump pass, as the original recommendation intended |
+| 4.5 | `runIdle` now also listens for `close` (not just `error`) so a silent disconnect rejects instead of hanging forever; a new `IDLE_WATCHDOG_MS` setting (default 20 min) recycles IDLE even with zero activity, which — as a side effect of the orchestrator's existing loop structure — also re-polls the training folders on every recycle, so no separate training-folder poller was needed; a pre-IDLE catch-up check compares the freshly-selected mailbox's `UIDNEXT` against the scanner's last processed UID and skips the wait entirely if mail already arrived in the gap between the scan connection and the IDLE connection |
+| 5.12 | The orchestrator now handles `SIGTERM`/`SIGINT`: a shared `stopping` flag is checked between every step so `docker stop` finishes the in-flight batch and exits 0 instead of being killed after the grace period; poll-mode waits and retry backoff are interruptible via `timers/promises`; the same abort signal is threaded into `runIdle` so a shutdown during IDLE resolves immediately rather than waiting out the watchdog |
+| 5.4 | `runScan` now compares the mailbox's `UIDVALIDITY` against the one stored in scanner state each cycle; on mismatch (server index rebuild, account migration) it resets to "new mail only" (`UIDNEXT - 1`, not `0`) and persists that immediately, mirroring 3.1's existing safe-default philosophy instead of trusting a UID that may now refer to a different message or rescanning everything |
+| 6.17 | `validateState` now allows an additive optional-fields list (currently just `uid_validity`) instead of rejecting any property outside the original three required ones, so this kind of state-schema evolution no longer needs a breaking change |
 
-Everything else — including the rest of section 3–6 (4.1, 4.5, 4.10, 4.15, all of 5 except 5.1/5.5/5.18, and 6) and the deep dives in section 7 — is still open as originally written.
+Everything else — including the rest of section 3–6 (4.1, 4.10, 4.15, all of 5 except 5.1/5.4/5.5/5.12/5.18, and 6 except 6.17) and the deep dives in section 7 — is still open as originally written.
 
 ---
 
@@ -283,6 +287,7 @@ The main risks are concentrated in four places:
 
 - **Area:** REL, UX · **Complexity:** M
 - **Where:** `src/lib/workflows/idle-workflow.js:17-58`; `src/orchestrator.js:100-104`
+- **Status:** ✅ **Resolved**. All three sub-problems addressed. `runIdle` now listens for `close` in addition to `error`/`exists`. A new `IDLE_WATCHDOG_MS` setting (default 1,200,000ms / 20 min, configurable, `0` disables it) races the EXISTS wait against a cancellable `timers/promises` delay, so IDLE always recycles even with zero server activity. A pre-IDLE catch-up check compares the freshly-selected mailbox's `UIDNEXT` against a `lastUid` the orchestrator now threads through from the last scan result; if mail already arrived in the gap between the scan connection and this new IDLE connection, `runIdle` returns immediately instead of waiting for a fresh EXISTS that might not come for hours. The training-folder-polling recommendation was implemented differently than proposed: rather than a separate `STATUS` poll or periodic check, the watchdog recycle alone is sufficient, since every IDLE wakeup (for any reason) already sends the orchestrator back through `runSpam`/`runHam`/`runWhitelist`/`runBlacklist` before it scans again.
 
 **Problem.**
 1. **Silent disconnect → hang.** `runIdle` resolves on `exists` and rejects on `error`, but not on `close`. If the connection is dropped without an error event (NAT timeout, server restart, laptop sleep), the promise never settles and the scanner stops permanently while the container looks healthy.
@@ -465,6 +470,7 @@ A user who deletes a line from `.env` gets a *different* behaviour than the docu
 
 - **Area:** REL · **Complexity:** S
 - **Where:** `src/lib/utils/state-utils.js:11-41`; `src/lib/workflows/scan-workflow.js:206-238`
+- **Status:** ✅ **Resolved**, together with 6.17. `runScan` stores `mailbox.uidValidity` (stringified — it's a BigInt in imapflow, which `JSON.stringify` can't serialize directly) in scanner state each cycle. On mismatch it logs a `warn` and resets `last_uid` to `UIDNEXT - 1` (not `0`), matching 3.1's existing safe-default approach; the reset is persisted immediately even when there happens to be no new mail that cycle, so the next cycle doesn't re-detect the same "mismatch" and re-warn indefinitely. `validateState` was relaxed per 6.17 to allow this additive optional field.
 
 **Problem.** IMAP UIDs are only meaningful together with the mailbox `UIDVALIDITY`. If the server rebuilds the index or the mailbox is migrated, UIDs restart; a stored `last_uid` of 50,000 would then skip all new mail until UIDs catch up — silently.
 
@@ -550,6 +556,7 @@ A user who deletes a line from `.env` gets a *different* behaviour than the docu
 
 - **Area:** REL, OPS · **Complexity:** S
 - **Where:** `src/orchestrator.js`
+- **Status:** ✅ **Resolved**. `SIGTERM`/`SIGINT` handlers set a `stopping` flag and abort a shared `AbortController`; the flag is checked between every step (training steps, each scan-drain iteration, before/after IDLE, before/after poll waits) so a batch already in flight finishes before the process exits 0, rather than being killed mid-write. Poll-mode waits and retry backoff now use an interruptible sleep built on `timers/promises`; the same abort signal is threaded into `runIdle` (see 4.5) so a shutdown during IDLE resolves immediately instead of waiting out the watchdog. Docker's `stop_grace_period`/default 10s grace was not changed — out of scope for this pass, tracked with 5.7's other Compose hardening.
 
 **Problem.** `docker stop` sends SIGTERM; with no handler Node exits immediately (PID 1 via `exec`). A batch interrupted after messages were moved but before state was written causes re-processing; an interrupted training batch may be learned but not moved (re-learned next time — harmless due to "already learned"); an interrupted map write may truncate the map file (5.2).
 
@@ -831,6 +838,7 @@ Wire this as a nightly/on-demand GitHub Actions job once 5.17's CI exists, rathe
 
 ### 6.17 `validateState` rejects any additional properties
 - **Area:** REF · **Complexity:** XS
+- **Status:** ✅ **Resolved**, together with 5.4. `validateState` now checks property names against required-plus-optional lists instead of just the required list, so an additive field like `uid_validity` no longer breaks validation. Only `uid_validity` is defined as optional today; a future field (e.g. a `version` field) would extend the same list.
 - Makes schema evolution (5.4 `uid_validity`, a `version` field) a breaking change for existing mailboxes. Allow known optional fields.
 
 ### 6.18 `.gitignore` is a generic Node template (~150 lines)
@@ -1063,11 +1071,11 @@ Complexity totals are rough, for a single developer.
 | ---------------- | -------------------------------------------------------- | -- | ------ |
 | 5.17             | Prettier commit, ESLint, GitHub Actions CI, Renovate     | S  | open |
 | 4.4              | Per-message failure isolation (scan + training)          | M  | ✅ done, refined the same round |
-| 4.5              | IDLE close/watchdog, pre-IDLE catch-up, training polling | M  | open |
-| 5.12             | Graceful shutdown                                        | S  | open |
+| 4.5              | IDLE close/watchdog, pre-IDLE catch-up, training polling | M  | ✅ done (training polling via watchdog recycle, not a separate poller) |
+| 5.12             | Graceful shutdown                                        | S  | ✅ done |
 | 5.10, 4.12       | Config schema + validation; align all defaults           | M  | 4.12 ✅ done (hand-aligned, not schema-generated), 5.10 open |
 | 4.2              | Delimiter/namespace/special-use folder resolution        | M  | delimiter ✅ done, namespace/special-use still open |
-| 5.4, 6.17        | UIDVALIDITY in versioned state                           | S  | open |
+| 5.4, 6.17        | UIDVALIDITY in versioned state                           | S  | ✅ done |
 | 5.7, 5.8, 5.9    | Pin images, healthchecks, non-root, pretty-log fallback  | S  | open |
 | 4.1, 5.6         | Authenticated whitelist; wire unbound                    | S  | open |
 | 6.1–6.4, 6.12–6.15 | Dead code & script clean-up                            | S  | open |
