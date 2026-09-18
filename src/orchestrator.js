@@ -1,3 +1,4 @@
+import { setTimeout as delay } from 'timers/promises';
 import { runInit } from './lib/workflows/init-workflow.js';
 import { runSpam, runHam } from './lib/workflows/train-workflow.js';
 import { runWhitelist, runBlacklist } from './lib/workflows/map-workflow.js';
@@ -9,6 +10,40 @@ import { rootLogger } from './lib/utils/logger.js';
 
 const logger = rootLogger.forComponent('orchestrator');
 
+// Set by the SIGTERM/SIGINT handlers below; checked between steps so a
+// `docker stop` finishes the in-flight batch and exits cleanly instead of
+// being killed mid-write after the grace period.
+let stopping = false;
+const shutdownController = new AbortController();
+
+function requestShutdown(signal) {
+  if (stopping) return;
+  stopping = true;
+  logger.info(
+    { signal },
+    'Shutdown requested, finishing current step and exiting'
+  );
+  shutdownController.abort();
+}
+
+process.on('SIGTERM', () => requestShutdown('SIGTERM'));
+process.on('SIGINT', () => requestShutdown('SIGINT'));
+
+/**
+ * A setTimeout-style sleep that resolves early (rather than rejecting) if
+ * shutdown is requested while waiting, so callers can just check `stopping`
+ * afterwards instead of handling an abort-flavoured rejection.
+ * @param {number} ms
+ * @returns {Promise<void>}
+ */
+async function interruptibleSleep(ms) {
+  try {
+    await delay(ms, undefined, { signal: shutdownController.signal });
+  } catch (err) {
+    if (err.name !== 'AbortError') throw err;
+  }
+}
+
 if (!config.IMAP_HOST) {
   logger.error('IMAP_HOST environment variable is not set');
   process.exit(1);
@@ -19,14 +54,14 @@ if (!config.IMAP_USER) {
   process.exit(1);
 }
 
-async function runStep(workflowFn) {
+async function runStep(workflowFn, ...args) {
   const start = Date.now();
   const imap = newClient();
   let result;
   let stepError;
   try {
     await imap.connect();
-    result = await workflowFn(imap);
+    result = await workflowFn(imap, ...args);
   } catch (err) {
     stepError = err;
     const duration = Date.now() - start;
@@ -78,19 +113,28 @@ logger.info(
 await runStep(runInit);
 
 let failures = 0;
-do {
+let lastUid;
+while (!stopping) {
   try {
     // Run training steps
     await runStep(runSpam);
+    if (stopping) break;
     await runStep(runHam);
+    if (stopping) break;
     await runStep(runWhitelist);
+    if (stopping) break;
     await runStep(runBlacklist);
+    if (stopping) break;
 
     // Scan drain loop: repeat until no new messages remain
     let scanResult;
     do {
       scanResult = await runStep(runScan);
-    } while (scanResult && scanResult.processed > 0);
+      if (scanResult && typeof scanResult.last_uid === 'number') {
+        lastUid = scanResult.last_uid;
+      }
+    } while (!stopping && scanResult && scanResult.processed > 0);
+    if (stopping) break;
 
     // Wait condition depends on mode
     if (scanInterval < 0) {
@@ -100,7 +144,8 @@ do {
     } else if (scanInterval === 0) {
       // IDLE mode: wait for IMAP EXISTS notification
       logger.info('Waiting for new messages (IDLE)');
-      await runStep(runIdle);
+      await runStep(runIdle, { signal: shutdownController.signal, lastUid });
+      if (stopping) break;
       logger.info('IDLE wakeup received, restarting scan cycle');
     } else {
       // Poll mode: wait for next interval
@@ -108,11 +153,13 @@ do {
         { intervalSeconds: scanInterval },
         'Cycle complete, waiting for next poll'
       );
-      await new Promise(resolve => setTimeout(resolve, scanInterval * 1000));
+      await interruptibleSleep(scanInterval * 1000);
+      if (stopping) break;
     }
 
     failures = 0;
   } catch (err) {
+    if (stopping) break;
     failures++;
     if (failures >= config.MAX_RETRIES) {
       logger.error({ failures }, 'MAX_RETRIES reached, exiting');
@@ -123,6 +170,10 @@ do {
       { failures, backoffMs: backoff, error: err.message },
       'Cycle failed, retrying with backoff'
     );
-    await new Promise(resolve => setTimeout(resolve, backoff));
+    await interruptibleSleep(backoff);
   }
-} while (true);
+}
+
+if (stopping) {
+  logger.info('Shutdown complete');
+}

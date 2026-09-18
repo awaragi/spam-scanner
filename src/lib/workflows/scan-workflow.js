@@ -169,6 +169,9 @@ async function scanBatch(imap, uids, state, processor) {
     last_uid,
     last_seen_date,
     last_checked,
+    ...(state.uid_validity !== undefined && {
+      uid_validity: state.uid_validity,
+    }),
   });
 
   state.last_uid = last_uid;
@@ -201,7 +204,7 @@ async function scanBatch(imap, uids, state, processor) {
  * Run inbox scanning workflow
  * Orchestrates the complete scanning process: read state, search, batch process, update state
  * @param {Object} imap - ImapFlow client
- * @returns {Promise<{processed: number}>} - Count of messages fetched and processed
+ * @returns {Promise<{processed: number, last_uid: number}>} - Count of messages fetched and processed, and the resulting last_uid
  */
 export async function runScan(imap) {
   const now = new Date().toISOString();
@@ -214,7 +217,38 @@ export async function runScan(imap) {
 
   try {
     // Step 1: Open the inbox folder
-    await open(imap, config.FOLDER_INBOX);
+    const mailbox = await open(imap, config.FOLDER_INBOX);
+
+    // UIDVALIDITY identifies a specific numbering "epoch" for this mailbox's
+    // UIDs; it changes if the server ever rebuilds its index or the account
+    // is migrated. A last_uid stored under a stale UIDVALIDITY is meaningless
+    // under the new one (it could even skip all new mail), so a mismatch is
+    // treated the same as "no state" - reset to new-mail-only rather than
+    // either trusting the stale UID or rescanning the whole inbox.
+    const currentUidValidity = mailbox.uidValidity?.toString();
+    let uidValidityChanged = false;
+    if (
+      state.uid_validity !== undefined &&
+      currentUidValidity !== undefined &&
+      state.uid_validity !== currentUidValidity
+    ) {
+      const resetUid = mailbox.uidNext > 1 ? mailbox.uidNext - 1 : 0;
+      logger.warn(
+        {
+          folder: config.FOLDER_INBOX,
+          previousUidValidity: state.uid_validity,
+          currentUidValidity,
+          previousLastUid: state.last_uid,
+          resetLastUid: resetUid,
+        },
+        'UIDVALIDITY changed - resetting to new-mail-only instead of trusting stale UIDs'
+      );
+      state.last_uid = resetUid;
+      uidValidityChanged = true;
+    }
+    if (currentUidValidity !== undefined) {
+      state.uid_validity = currentUidValidity;
+    }
 
     // Step 2: Search for new messages
     let query = { uid: `${state.last_uid + 1}:*` };
@@ -228,11 +262,21 @@ export async function runScan(imap) {
       uid => uid > state.last_uid
     );
     if (newUIDs.length === 0) {
+      // Persist a UIDVALIDITY reset even with nothing new to process, so the
+      // next cycle doesn't re-detect the same "mismatch" and re-warn forever.
+      if (uidValidityChanged) {
+        await writeScannerState(imap, {
+          last_uid: state.last_uid,
+          last_seen_date: state.last_seen_date,
+          last_checked: new Date().toISOString(),
+          uid_validity: state.uid_validity,
+        });
+      }
       logger.debug(
         { folder: config.FOLDER_INBOX },
         'No new messages to process'
       );
-      return { processed: 0 };
+      return { processed: 0, last_uid: state.last_uid };
     }
 
     const uids = newUIDs.slice(0, config.SCAN_BATCH_SIZE);
@@ -279,7 +323,7 @@ export async function runScan(imap) {
       'All scan operations completed'
     );
 
-    return { processed: uids.length };
+    return { processed: uids.length, last_uid: state.last_uid };
   } catch (error) {
     logger.error(
       { folder: config.FOLDER_INBOX, error: error.message },

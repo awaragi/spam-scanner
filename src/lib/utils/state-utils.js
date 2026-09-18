@@ -8,22 +8,36 @@
  * @throws {Error} - If state is invalid
  * @returns {boolean} - True if state is valid
  */
+const REQUIRED_STATE_PROPERTIES = ['last_uid', 'last_seen_date', 'last_checked'];
+// Additive, optional fields - schema evolution should extend this list rather
+// than break existing stored state (see finding 6.17). uid_validity is a
+// string because IMAP UIDVALIDITY is a BigInt in imapflow and JSON.stringify
+// can't serialize BigInt directly.
+const OPTIONAL_STATE_PROPERTIES = ['uid_validity'];
+
 export function validateState(state) {
   if (!state || typeof state !== 'object') {
     throw new Error('Invalid state: must be a non-null object');
   }
 
-  const requiredProperties = ['last_uid', 'last_seen_date', 'last_checked'];
   const stateKeys = Object.keys(state);
 
   // Check for missing required properties
-  const missingProperties = requiredProperties.filter(prop => !(prop in state));
+  const missingProperties = REQUIRED_STATE_PROPERTIES.filter(
+    prop => !(prop in state)
+  );
   if (missingProperties.length > 0) {
     throw new Error('Invalid state: missing required properties');
   }
 
-  // Check for invalid property names (extra properties not in required list)
-  const invalidProperties = stateKeys.filter(key => !requiredProperties.includes(key));
+  // Check for invalid property names (extra properties not in the known list)
+  const allowedProperties = [
+    ...REQUIRED_STATE_PROPERTIES,
+    ...OPTIONAL_STATE_PROPERTIES,
+  ];
+  const invalidProperties = stateKeys.filter(
+    key => !allowedProperties.includes(key)
+  );
   if (invalidProperties.length > 0) {
     throw new Error('Invalid state: invalid property names');
   }
@@ -34,6 +48,10 @@ export function validateState(state) {
   }
 
   if (typeof state.last_seen_date !== 'string' || typeof state.last_checked !== 'string') {
+    throw new Error('Invalid state: invalid property types');
+  }
+
+  if (state.uid_validity !== undefined && typeof state.uid_validity !== 'string') {
     throw new Error('Invalid state: invalid property types');
   }
 

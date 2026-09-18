@@ -45,6 +45,28 @@ describe('validateState', () => {
     expect(() => validateState(null)).toThrow('Invalid state: must be a non-null object');
   });
 
+  test('should accept an optional uid_validity string', () => {
+    const state = {
+      last_uid: 100,
+      last_seen_date: '2023-05-15T10:30:00.000Z',
+      last_checked: '2023-05-15T10:30:00.000Z',
+      uid_validity: '1234567890',
+    };
+
+    expect(validateState(state)).toBe(true);
+  });
+
+  test('should throw error for non-string uid_validity', () => {
+    const state = {
+      last_uid: 100,
+      last_seen_date: '2023-05-15T10:30:00.000Z',
+      last_checked: '2023-05-15T10:30:00.000Z',
+      uid_validity: 1234567890,
+    };
+
+    expect(() => validateState(state)).toThrow('Invalid state: invalid property types');
+  });
+
   test('should throw error for non-object state', () => {
     expect(() => validateState('string')).toThrow('Invalid state: must be a non-null object');
     expect(() => validateState(123)).toThrow('Invalid state: must be a non-null object');

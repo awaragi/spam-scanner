@@ -1,7 +1,7 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 
 // Mock all external dependencies so we can isolate the UID filter logic
-const { mockConfig } = vi.hoisted(() => ({
+const { mockConfig, warn } = vi.hoisted(() => ({
   mockConfig: {
     FOLDER_INBOX: 'INBOX',
     FOLDER_SPAM: 'INBOX.spam',
@@ -14,6 +14,7 @@ const { mockConfig } = vi.hoisted(() => ({
     AI_ESCALATE_TO_HIGH_THRESHOLD: 80,
     IMAP_USER: 'owner@example.com',
   },
+  warn: vi.fn(),
 }));
 
 vi.mock('../src/lib/utils/config.js', () => ({
@@ -25,7 +26,7 @@ vi.mock('../src/lib/utils/logger.js', () => ({
     forComponent: () => ({
       debug: vi.fn(),
       info: vi.fn(),
-      warn: vi.fn(),
+      warn,
       error: vi.fn(),
     }),
   },
@@ -79,6 +80,7 @@ import {
   writeScannerState,
 } from '../src/lib/state-manager.js';
 import {
+  open,
   search,
   fetchMessagesByUIDs,
   moveMessages,
@@ -102,6 +104,7 @@ describe('scan-workflow UID filter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockConfig.AI_ENABLED = false;
+    open.mockResolvedValue({ uidValidity: 123n, uidNext: 9999 });
 
     // Default: no messages to process
     categorizeMessages.mockReturnValue({
@@ -129,7 +132,7 @@ describe('scan-workflow UID filter', () => {
     const result = await runScan(mockImap);
 
     expect(fetchMessagesByUIDs).not.toHaveBeenCalled();
-    expect(result).toEqual({ processed: 0 });
+    expect(result).toEqual({ processed: 0, last_uid: lastUID });
     expect(readScannerState).toHaveBeenCalledWith(
       mockImap,
       expect.any(Object),
@@ -157,7 +160,10 @@ describe('scan-workflow UID filter', () => {
     const result = await runScan(mockImap);
 
     expect(fetchMessagesByUIDs).toHaveBeenCalledWith(mockImap, newUIDs);
-    expect(result).toEqual({ processed: newUIDs.length });
+    expect(result).toEqual({
+      processed: newUIDs.length,
+      last_uid: Math.max(...newUIDs),
+    });
   });
 
   test('Mixed case: search returns stale and new UIDs, only new ones are enqueued', async () => {
@@ -190,6 +196,7 @@ describe('scan-workflow state advancement past permanently-skipped messages (4.4
   beforeEach(() => {
     vi.clearAllMocks();
     mockConfig.AI_ENABLED = false;
+    open.mockResolvedValue({ uidValidity: 123n, uidNext: 9999 });
     categorizeMessages.mockReturnValue({
       whitelistedMessages: [],
       lowSpamMessages: [],
@@ -244,6 +251,7 @@ describe('scan-workflow AI escalation wiring', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockConfig.AI_ENABLED = false;
+    open.mockResolvedValue({ uidValidity: 123n, uidNext: 9999 });
 
     readScannerState.mockResolvedValue({
       last_uid: 100,
@@ -388,6 +396,7 @@ describe('scan-workflow AI failure alert wiring', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockConfig.AI_ENABLED = true;
+    open.mockResolvedValue({ uidValidity: 123n, uidNext: 9999 });
 
     readScannerState.mockResolvedValue({
       last_uid: 100,
@@ -461,7 +470,7 @@ describe('scan-workflow AI failure alert wiring', () => {
 
     const result = await runScan(mockImap);
 
-    expect(result).toEqual({ processed: 1 });
+    expect(result).toEqual({ processed: 1, last_uid: 101 });
     expect(markNotified).toHaveBeenCalledWith('RateLimitError');
     expect(mockProcessor.process).toHaveBeenCalled();
   });
@@ -495,8 +504,123 @@ describe('scan-workflow AI failure alert wiring', () => {
 
     const result = await runScan(mockImap);
 
-    expect(result).toEqual({ processed: 1 });
+    expect(result).toEqual({ processed: 1, last_uid: 101 });
     expect(markNotified).not.toHaveBeenCalled();
     expect(mockProcessor.process).toHaveBeenCalled();
+  });
+});
+
+describe('scan-workflow UIDVALIDITY tracking (5.4)', () => {
+  let mockProcessor;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockConfig.AI_ENABLED = false;
+    categorizeMessages.mockReturnValue({
+      whitelistedMessages: [],
+      lowSpamMessages: [],
+      highSpamMessages: [],
+      nonSpamMessages: [{ uid: 101 }],
+      spamMessages: [],
+    });
+    processWithRspamd.mockResolvedValue([{ uid: 101 }]);
+    mockProcessor = { process: vi.fn() };
+    createProcessor.mockResolvedValue(mockProcessor);
+  });
+
+  test('no stored uid_validity (legacy state): stores the current one without resetting last_uid', async () => {
+    const lastUID = 100;
+    readScannerState.mockResolvedValue({
+      last_uid: lastUID,
+      last_seen_date: new Date().toISOString(),
+      last_checked: new Date().toISOString(),
+    });
+    open.mockResolvedValue({ uidValidity: 111n, uidNext: 9999 });
+    search.mockResolvedValue([101]);
+    fetchMessagesByUIDs.mockResolvedValue([
+      { uid: 101, envelope: { date: new Date() }, body: '' },
+    ]);
+
+    await runScan(mockImap);
+
+    expect(warn).not.toHaveBeenCalled();
+    expect(search).toHaveBeenCalledWith(mockImap, { uid: '101:*' });
+    expect(writeScannerState).toHaveBeenCalledWith(
+      mockImap,
+      expect.objectContaining({ uid_validity: '111' })
+    );
+  });
+
+  test('matching uid_validity: no reset, scan proceeds from the stored last_uid', async () => {
+    const lastUID = 100;
+    readScannerState.mockResolvedValue({
+      last_uid: lastUID,
+      last_seen_date: new Date().toISOString(),
+      last_checked: new Date().toISOString(),
+      uid_validity: '111',
+    });
+    open.mockResolvedValue({ uidValidity: 111n, uidNext: 9999 });
+    search.mockResolvedValue([101]);
+    fetchMessagesByUIDs.mockResolvedValue([
+      { uid: 101, envelope: { date: new Date() }, body: '' },
+    ]);
+
+    await runScan(mockImap);
+
+    expect(warn).not.toHaveBeenCalled();
+    expect(search).toHaveBeenCalledWith(mockImap, { uid: '101:*' });
+  });
+
+  test('mismatched uid_validity: warns and resets to UIDNEXT - 1 instead of the stale last_uid', async () => {
+    readScannerState.mockResolvedValue({
+      last_uid: 9000,
+      last_seen_date: new Date().toISOString(),
+      last_checked: new Date().toISOString(),
+      uid_validity: '111',
+    });
+    // New epoch: server only has 5 messages now (UIDNEXT 6), nothing new yet.
+    open.mockResolvedValue({ uidValidity: 222n, uidNext: 6 });
+    search.mockResolvedValue([]);
+
+    const result = await runScan(mockImap);
+
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        previousUidValidity: '111',
+        currentUidValidity: '222',
+        resetLastUid: 5,
+      }),
+      expect.stringContaining('UIDVALIDITY changed')
+    );
+    expect(fetchMessagesByUIDs).not.toHaveBeenCalled();
+    expect(result).toEqual({ processed: 0, last_uid: 5 });
+    // Persisted immediately even though nothing new was found, so the next
+    // cycle doesn't re-detect the same mismatch and warn again.
+    expect(writeScannerState).toHaveBeenCalledWith(
+      mockImap,
+      expect.objectContaining({ last_uid: 5, uid_validity: '222' })
+    );
+  });
+
+  test('mismatched uid_validity, and mail arrives between open() and search() in the same cycle: still picked up', async () => {
+    readScannerState.mockResolvedValue({
+      last_uid: 9000,
+      last_seen_date: new Date().toISOString(),
+      last_checked: new Date().toISOString(),
+      uid_validity: '111',
+    });
+    // At open() time UIDNEXT is 6 (reset baseline 5), but a message (uid 7)
+    // arrives before search() runs later in the same cycle.
+    open.mockResolvedValue({ uidValidity: 222n, uidNext: 6 });
+    search.mockResolvedValue([5, 7]);
+    fetchMessagesByUIDs.mockResolvedValue([
+      { uid: 7, envelope: { date: new Date() }, body: '' },
+    ]);
+
+    await runScan(mockImap);
+
+    expect(warn).toHaveBeenCalled();
+    expect(search).toHaveBeenCalledWith(mockImap, { uid: '6:*' });
+    expect(fetchMessagesByUIDs).toHaveBeenCalledWith(mockImap, [7]);
   });
 });

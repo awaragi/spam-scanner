@@ -105,6 +105,13 @@ PROCESS_BATCH_SIZE=10
 #   all = scan the entire existing inbox from the beginning
 SCAN_INITIAL_STATE=new
 MAX_RETRIES=5
+
+# IDLE_WATCHDOG_MS: IDLE mode only (SCAN_INTERVAL=0). Re-cycles at least this
+# often even without an EXISTS notification - guards against a silent
+# connection drop and also polls the training folders, which IDLE itself
+# doesn't watch. 0 disables it and waits indefinitely.
+IDLE_WATCHDOG_MS=1200000
+
 STATE_KEY_SCANNER=scanner
 
 # SPAM_PROCESSING_MODE: label, folder (default), or color (not yet implemented)
@@ -367,6 +374,8 @@ SCAN_INTERVAL=0 node src/orchestrator.js
 
 Single-run mode is useful for scheduled execution via cron or an external scheduler. Poll and IDLE mode keep the process running.
 
+In poll/IDLE mode, the orchestrator handles `SIGTERM`/`SIGINT` gracefully: it finishes the step currently in flight, then exits instead of being killed mid-cycle (`docker stop` sends `SIGTERM`, so a normal container stop/restart is safe).
+
 Or use the provided start script, which loads environment variables from a `.env` file (the env-file argument is required):
 
 ```bash
@@ -412,12 +421,14 @@ There is no dedicated backup/restore tooling yet. The state that matters:
 {
   "last_uid": 12394,
   "last_seen_date": "2025-06-26T11:02:44Z",
-  "last_checked": "2025-06-26T11:07:12Z"
+  "last_checked": "2025-06-26T11:07:12Z",
+  "uid_validity": "1690000000"
 }
 ```
 
 - `last_uid` is used for progress tracking
 - Date fields are for reference only
+- `uid_validity` (optional, added automatically) tracks the mailbox's IMAP `UIDVALIDITY`. If the server ever reports a different value (index rebuild, account migration), `last_uid` is reset to "new mail only" instead of trusting a UID that may now refer to a different message - state written before this field existed is still valid and gets it added on the next write
 
 ---
 

@@ -41,6 +41,7 @@ export const config = (() => {
     SCAN_READ: process.env.SCAN_READ === 'true',
     PROCESS_BATCH_SIZE: parseInt(process.env.PROCESS_BATCH_SIZE || '10'),
     SCAN_INITIAL_STATE: (process.env.SCAN_INITIAL_STATE || 'new').toLowerCase(),
+    IDLE_WATCHDOG_MS: parseInt(process.env.IDLE_WATCHDOG_MS || '1200000', 10),
 
     LABEL_SPAM_LOW: process.env.LABEL_SPAM_LOW || 'Spam:Low',
     LABEL_SPAM_HIGH: process.env.LABEL_SPAM_HIGH || 'Spam:High',
