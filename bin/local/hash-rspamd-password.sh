@@ -21,6 +21,8 @@ if [[ ! -f "$ENV_FILE" ]]; then
 fi
 
 RSPAMD_PASSWORD="$(grep -E '^RSPAMD_PASSWORD=' "$ENV_FILE" | tail -n1 | cut -d= -f2-)"
+# Undo the "$$" escaping .env needs for a literal "$" (see .env.example)
+RSPAMD_PASSWORD="${RSPAMD_PASSWORD//\$\$/\$}"
 if [[ -z "$RSPAMD_PASSWORD" ]]; then
   echo "Error: RSPAMD_PASSWORD is not set in $ENV_FILE" >&2
   exit 1

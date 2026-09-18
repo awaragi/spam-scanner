@@ -291,7 +291,7 @@ Additionally, `./rspamd/config` (from the repo) is bind-mounted read-only into t
 ### Environment Variables for Docker
 
 - **RSPAMD_URL**: Automatically set to `http://rspamd:11334` (do not override)
-- **RSPAMD_PASSWORD**: Required in `.env`; run `bin/local/hash-rspamd-password.sh` after setting it (or changing it) to regenerate `rspamd/config/worker-controller.inc`, then `docker compose restart rspamd`
+- **RSPAMD_PASSWORD**: Required in `.env`; run `bin/local/hash-rspamd-password.sh` after setting it (or changing it) to regenerate `rspamd/config/worker-controller.inc`, then `docker compose restart rspamd`. **If the password contains a literal `$`, escape it as `$$`** - Compose interpolates `.env` values wherever they're consumed (including via `env_file`), so an unescaped `$` starts what looks like a variable reference and gets silently dropped, truncating the password inside the container (the app will then get `401 Unauthorized` from `/checkv2`). `hash-rspamd-password.sh` un-escapes `$$` back to `$` before hashing, so the escaped form in `.env` and the hash stay in sync.
 - **SPAM_SCANNER_DATA**: Required, absolute path
 - **IMAP\_\***: All IMAP configuration must be set in `.env`
 - **SCAN_INTERVAL**: Controls sleep time between scan cycles. Defaults to `-1` (single-run mode). Set to `0` for IDLE mode or a positive integer for poll mode
