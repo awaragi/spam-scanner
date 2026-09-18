@@ -2,7 +2,6 @@ services:
   spam-scanner:
     image: spam-scanner:latest
     build: .
-    container_name: spam-scanner
     env_file: .env
     depends_on:
       - rspamd
@@ -21,7 +20,6 @@ services:
 
   rspamd:
     image: rspamd/rspamd:latest
-    container_name: rspamd
     ports:
       # Loopback-only: the controller/web UI holds Bayes training and map
       # data, so it must never be reachable from the LAN or internet. Access
@@ -42,7 +40,6 @@ services:
 
   redis:
     image: redis:alpine
-    container_name: rspamd-redis
     volumes:
       - ${SPAM_SCANNER_DATA:?Set SPAM_SCANNER_DATA in .env to an absolute path}/redis:/data
     restart: unless-stopped
@@ -51,7 +48,6 @@ services:
 
   unbound:
     image: klutchell/unbound:latest
-    container_name: rspamd-unbound
     restart: unless-stopped
     networks:
       - spam-network

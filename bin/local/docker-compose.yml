@@ -13,7 +13,6 @@
 services:
   rspamd:
     image: rspamd/rspamd:latest
-    container_name: rspamd
     ports:
       # Loopback-only: the controller/web UI holds Bayes training and map
       # data, so it must never be reachable from the LAN or internet.
@@ -28,15 +27,23 @@ services:
       - redis
       - unbound
     restart: unless-stopped
+    networks:
+      - spam-network
 
   redis:
     image: redis:alpine
-    container_name: rspamd-redis
     volumes:
       - ${SPAM_SCANNER_DATA:?Set SPAM_SCANNER_DATA in .env to an absolute path}/redis:/data
     restart: unless-stopped
+    networks:
+      - spam-network
 
   unbound:
     image: klutchell/unbound:latest
-    container_name: rspamd-unbound
     restart: unless-stopped
+    networks:
+      - spam-network
+
+networks:
+  spam-network:
+    driver: bridge

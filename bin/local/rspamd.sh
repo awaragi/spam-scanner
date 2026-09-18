@@ -10,6 +10,11 @@
 #
 # Uses --project-directory so Docker Compose resolves .env and relative volume
 # paths from the project root regardless of current working directory.
+#
+# To run this dev stack alongside another stack (e.g. the production
+# docker-compose.yml, or a second dev instance) on the same host, give it a
+# distinct Compose project name so container/network names don't collide:
+#   COMPOSE_PROJECT_NAME=spam-scanner-dev bin/local/rspamd.sh up
 
 set -euo pipefail
 

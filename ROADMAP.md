@@ -9,7 +9,7 @@
 
 ## Progress since this review
 
-20 of the findings below are resolved — 6 via the `harden-scan-reliability-and-docs` OpenSpec change (archived as `openspec/changes/archive/2026-09-17-harden-scan-reliability-and-docs/`), 14 more (4.3, 4.6, 5.5, 3.2, 4.13, 4.7, 4.14, 5.1, 5.18, 4.9, 4.5, 5.12, 5.4, 6.17) as direct follow-up fixes, not tracked through an OpenSpec change. Each resolved finding is marked **✅ Resolved** inline. Two specific sub-items — the `\Junk` special-use default in 4.3, and the `HEADER` substring-match nuance in 5.5 — were deliberately decided **will not fix** rather than left open; see their inline notes. The first batch closed out the rest of **Phase 0**; the second batch (4.5, 5.12, 5.4, 6.17) is the first slice of **Phase 1** — IDLE reliability, graceful shutdown, and UIDVALIDITY tracking (see [§9](#9-suggested-roadmap)). Nothing else in this document has been re-verified against the current code — treat every other finding as still open.
+21 of the findings below are resolved — 6 via the `harden-scan-reliability-and-docs` OpenSpec change (archived as `openspec/changes/archive/2026-09-17-harden-scan-reliability-and-docs/`), 1 via the `project-scoped-compose` OpenSpec change (`openspec/changes/project-scoped-compose/`), and 14 more (4.3, 4.6, 5.5, 3.2, 4.13, 4.7, 4.14, 5.1, 5.18, 4.9, 4.5, 5.12, 5.4, 6.17) as direct follow-up fixes, not tracked through an OpenSpec change. Each resolved finding is marked **✅ Resolved** inline. Two specific sub-items — the `\Junk` special-use default in 4.3, and the `HEADER` substring-match nuance in 5.5 — were deliberately decided **will not fix** rather than left open; see their inline notes. The first batch closed out the rest of **Phase 0**; the second batch (4.5, 5.12, 5.4, 6.17) is the first slice of **Phase 1** — IDLE reliability, graceful shutdown, and UIDVALIDITY tracking (see [§9](#9-suggested-roadmap)); 5.26 (project-scoped Compose naming/networking) is a standalone Phase 1 item unblocking multi-instance deployments (5.28). Nothing else in this document has been re-verified against the current code — treat every other finding as still open.
 
 | Finding | Item |
 | ------- | ---- |
@@ -33,8 +33,9 @@
 | 5.12 | The orchestrator now handles `SIGTERM`/`SIGINT`: a shared `stopping` flag is checked between every step so `docker stop` finishes the in-flight batch and exits 0 instead of being killed after the grace period; poll-mode waits and retry backoff are interruptible via `timers/promises`; the same abort signal is threaded into `runIdle` so a shutdown during IDLE resolves immediately rather than waiting out the watchdog |
 | 5.4 | `runScan` now compares the mailbox's `UIDVALIDITY` against the one stored in scanner state each cycle; on mismatch (server index rebuild, account migration) it resets to "new mail only" (`UIDNEXT - 1`, not `0`) and persists that immediately, mirroring 3.1's existing safe-default philosophy instead of trusting a UID that may now refer to a different message or rescanning everything |
 | 6.17 | `validateState` now allows an additive optional-fields list (currently just `uid_validity`) instead of rejecting any property outside the original three required ones, so this kind of state-schema evolution no longer needs a breaking change |
+| 5.26 | Both compose files drop `container_name:` overrides so names derive from the Compose project name; `bin/local/docker-compose.yml` gains the same project-scoped `spam-network` block as the root file. README/`rspamd.sh` document running parallel stacks via `-p`/`COMPOSE_PROJECT_NAME`. **BREAKING**: fixed container names (`rspamd`, `spam-scanner`, `rspamd-redis`, `rspamd-unbound`) no longer exist |
 
-Everything else — including the rest of section 3–6 (4.1, 4.10, 4.15, all of 5 except 5.1/5.4/5.5/5.12/5.18, and 6 except 6.17) and the deep dives in section 7 — is still open as originally written.
+Everything else — including the rest of section 3–6 (4.1, 4.10, 4.15, all of 5 except 5.1/5.4/5.5/5.12/5.18/5.26, and 6 except 6.17) and the deep dives in section 7 — is still open as originally written.
 
 ---
 
@@ -716,6 +717,7 @@ Critical logic (3.1, 4.4, 4.5, 5.1, 5.4) lives in the untested modules.
 
 - **Area:** DEP, OPS, CFG · **Complexity:** S
 - **Where:** `docker-compose.yml:5,25,46,55,60-62`; `bin/local/docker-compose.yml:16,34,41`
+- **Status:** ✅ **Resolved** (`openspec/changes/project-scoped-compose`). Removed `container_name:` from every service in both compose files, so names now derive from the Compose project name (`<project>-<service>-1`). Added the same `spam-network` block (no hard-coded `name:`) to `bin/local/docker-compose.yml`, matching the root file, so both are namespaced as `<project>_spam-network` and never share a network across projects. Deliberately did **not** add an explicit literal `name:` to the network as the original recommendation suggested — a literal name is shared across every Compose project regardless of `-p`, which is the opposite of the isolation goal here (see `design.md` in the change for the full rationale). `README.md` and `bin/local/rspamd.sh` now document running parallel stacks via `-p`/`COMPOSE_PROJECT_NAME`. **BREAKING**: fixed container names (`rspamd`, `spam-scanner`, `rspamd-redis`, `rspamd-unbound`) no longer exist; use `docker compose exec/logs <service>` instead of `docker exec/logs <old-name>`.
 
 **Problem.** Every service uses a fixed `container_name` (`spam-scanner`, `rspamd`, `rspamd-redis`, `rspamd-unbound`), and the **same** names are hard-coded in both `docker-compose.yml` (production) and `bin/local/docker-compose.yml` (dev). Two consequences:
 - The dev stack (`bin/local/rspamd.sh up`) and the production stack cannot both be "up" on the same host — the second `docker compose up` fails with "container name already in use."
@@ -1080,7 +1082,7 @@ Complexity totals are rough, for a single developer.
 | 4.1, 5.6         | Authenticated whitelist; wire unbound                    | S  | open |
 | 6.1–6.4, 6.12–6.15 | Dead code & script clean-up                            | S  | open |
 | 5.25             | Archive/sync openspec change; move `docs/features`        | S  | open |
-| 5.26             | Project-scoped container names/network (dev vs prod coexist) | S  | open |
+| 5.26             | Project-scoped container names/network (dev vs prod coexist) | S  | ✅ done |
 
 ### Phase 2 — Install experience & docs (≈ 2 weeks)
 

@@ -343,6 +343,33 @@ docker compose up --build -d
 | RSPAMD_URL  | `http://localhost:11334`                       | `http://rspamd:11334` (auto-set)                                       |
 | Run mode    | Controlled by `SCAN_INTERVAL` in your env file | Single-run by default; set `SCAN_INTERVAL` for continuous loop or IDLE |
 
+### Running Multiple Isolated Stacks
+
+Neither compose file pins `container_name:`, and both declare their own project-scoped `spam-network` — so container and network names are derived from the Compose **project name**, not fixed strings. This means:
+
+- **Note (BREAKING for anyone with existing muscle memory)**: fixed container names like `rspamd`, `spam-scanner`, `rspamd-redis` no longer exist. Use `docker compose exec <service> ...` / `docker compose logs <service>` (or `docker compose -p <name> exec ...` for a non-default project) instead of `docker exec rspamd ...` / `docker logs rspamd`.
+- A dev stack and a production stack can both be "up" on the same host at once, as long as they use different Compose project names.
+- You can run one full stack per mailbox (see multi-mailbox pattern below) without hand-editing container names.
+
+To run two stacks side by side, give each a distinct project name with `-p` or `COMPOSE_PROJECT_NAME`:
+
+```bash
+# Production stack (default project name, derived from the directory name)
+docker compose up -d
+
+# A second, independent dev stack alongside it
+COMPOSE_PROJECT_NAME=spam-scanner-dev bin/local/rspamd.sh up
+```
+
+Or for two independent mailboxes, each with its own `.env`:
+
+```bash
+docker compose -p spam-scanner-family --env-file .env.family up -d
+docker compose -p spam-scanner-work --env-file .env.work up -d
+```
+
+Each project name gets its own containers (`<project>-<service>-1`) and its own network (`<project>_spam-network`), so the stacks never collide or see each other's traffic.
+
 ---
 
 ## Usage
