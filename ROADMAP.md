@@ -935,6 +935,7 @@ This is a smaller, independent slice of the full **7.1** redesign: it doesn't ad
 
 - **Area:** DOC, HYG · **Complexity:** S · **Where:** `.github/instructions/nodejs.instructions.md` (221 lines)
 - Found while resolving 5.25. Describes `src/lib/spamassassin.js` and a SpamAssassin-era module layout that no longer exists — the whole file predates the Rspamd migration (docs/features' `20260213-replace-spamassassin-with-rspamd-*` docs, now deleted) and was never updated afterward. `.github/instructions/scripts.instructions.md` and `documentation.instructions.md` weren't checked in the same pass and should be reviewed too. Rewrite against the current `src/lib/` layout, or delete if `.github/copilot-instructions.md` already covers what's still needed.
+- **Status:** ✅ **Resolved**. Project switched from GitHub Copilot to Claude Code; the whole `.github/` directory (`copilot-instructions.md`, `instructions/*.instructions.md`, the Copilot-side `prompts/`/`skills/` openspec duplicates already covered by `.claude/commands/opsx/` and `.claude/skills/`) was deleted rather than rewritten. Its current, accurate content (project structure, architecture-layer invariants, testing conventions) was consolidated into a new root `CLAUDE.md`; the generic, non-project-specific best-practice boilerplate (DRY, meaningful names, generic error-handling/security/performance listicles) was dropped rather than ported, since it's not actionable guidance for an agent and only inflates every conversation's context.
 
 ---
 

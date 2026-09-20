@@ -82,7 +82,7 @@ Folder names are configured as dot-separated paths and are automatically transla
 Use the initialization step to auto-create the application folders:
 
 ```bash
-node src/init-folders.js
+node src/cli/init-folders.js
 ```
 
 Training folders, the state folder, and (when `SPAM_PROCESSING_MODE=folder`) the low/high spam folders are created automatically. `FOLDER_SPAM` itself (the destination for rspamd's own confident "reject" verdict) is **not** auto-created as of this writing - create it manually, or point `FOLDER_SPAM` at your server's existing Junk folder.
@@ -162,7 +162,7 @@ RSPAMD_URL=http://localhost:11334
 RSPAMD_PASSWORD=
 
 LOG_LEVEL=info
-LOG_FORMAT=json
+LOG_FORMAT=jsonl
 # LOG_FILTER_INCLUDES / LOG_FILTER_EXCLUDES: comma-delimited component name filters, both empty by default
 ```
 
@@ -242,7 +242,7 @@ bin/local/rspamd.sh down
 #### 5. Initialize Folders (one-time)
 
 ```bash
-node src/init-folders.js
+node src/cli/init-folders.js
 ```
 
 ---
@@ -410,26 +410,26 @@ Each project name gets its own containers (`<project>-<service>-1`) and its own 
 ### One-shot Mode (Manual Run, Individual Scripts)
 
 ```bash
-node src/train-spam.js
-node src/train-ham.js
-node src/train-whitelist.js
-node src/train-blacklist.js
-node src/scan-inbox.js
+node src/cli/train-spam.js
+node src/cli/train-ham.js
+node src/cli/train-whitelist.js
+node src/cli/train-blacklist.js
+node src/cli/scan-inbox.js
 ```
 
 ### Orchestrator (Recommended)
 
-`src/orchestrator.js` runs the full cycle - init (once), then training (spam/ham/whitelist/blacklist), then scan - according to `SCAN_INTERVAL`:
+`src/cli/orchestrator.js` runs the full cycle - init (once), then training (spam/ham/whitelist/blacklist), then scan - according to `SCAN_INTERVAL`:
 
 ```bash
 # Single-run mode (default, SCAN_INTERVAL=-1): one full cycle then exit
-node src/orchestrator.js
+node src/cli/orchestrator.js
 
 # Poll mode: repeat every N seconds
-SCAN_INTERVAL=300 node src/orchestrator.js
+SCAN_INTERVAL=300 node src/cli/orchestrator.js
 
 # IDLE mode: event-driven, waits for IMAP EXISTS notifications instead of polling
-SCAN_INTERVAL=0 node src/orchestrator.js
+SCAN_INTERVAL=0 node src/cli/orchestrator.js
 ```
 
 Single-run mode is useful for scheduled execution via cron or an external scheduler. Poll and IDLE mode keep the process running.
@@ -515,10 +515,10 @@ Admin/maintenance scripts live under `src/admin/`:
 
 Top-level operational scripts live in `src/`:
 
-- `src/init-folders.js` - creates the application's IMAP folders
-- `src/train-spam.js`, `src/train-ham.js`, `src/train-whitelist.js`, `src/train-blacklist.js` - run one training step
-- `src/scan-inbox.js` - run one scan step
-- `src/orchestrator.js` - run the full cycle (see [Usage](#usage))
+- `src/cli/init-folders.js` - creates the application's IMAP folders
+- `src/cli/train-spam.js`, `src/cli/train-ham.js`, `src/cli/train-whitelist.js`, `src/cli/train-blacklist.js` - run one training step
+- `src/cli/scan-inbox.js` - run one scan step
+- `src/cli/orchestrator.js` - run the full cycle (see [Usage](#usage))
 
 ---
 
@@ -543,10 +543,10 @@ The application uses centralized structured logging via Pino with configurable o
 
 ```bash
 # Development (human-readable logs)
-LOG_LEVEL=debug LOG_FORMAT=pretty node src/orchestrator.js
+LOG_LEVEL=debug LOG_FORMAT=pretty node src/cli/orchestrator.js
 
 # Production (structured JSON logs)
-LOG_LEVEL=info LOG_FORMAT=json node src/orchestrator.js
+LOG_LEVEL=info LOG_FORMAT=jsonl node src/cli/orchestrator.js
 ```
 
 ### Log Structure
