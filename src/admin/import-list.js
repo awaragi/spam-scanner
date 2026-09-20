@@ -2,8 +2,8 @@ import fs from 'fs/promises';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { newClient, safeLogout } from '../lib/clients/imap.client.js';
-import { config } from '../lib/config/config.js';
-import { rootLogger } from '../lib/utils/logger.js';
+import { config } from '../lib/core/config.js';
+import { rootLogger } from '../lib/core/logger.js';
 import { updateListState } from '../lib/controllers/steps/list-update.step.js';
 import { parseAddressList } from '../lib/services/sender-lists.service.js';
 

@@ -6,8 +6,8 @@ This document contains general development guidelines that apply across all modu
 
 This is a Node.js-based IMAP spam scanner application:
 - **src/**: Top-level entry scripts (`orchestrator.js`, `scan-inbox.js`, `train-*.js`, `init-folders.js`) and `admin/` maintenance scripts
-- **src/lib/config/**: Platform/bootstrap concern, not one of the four layers - `config.js` (reads `process.env`) and `context.js` (`createDefaultContext()`, builds the `ctx` object threaded through controllers)
-- **src/lib/utils/**: Pure, generic, no domain knowledge - `*.util.js`, 100% unit tested, zero mocks, never sees `ctx`. Plus `logger.js`, an unsuffixed platform exception imported ambiently everywhere
+- **src/lib/core/**: Platform/bootstrap concern, not one of the four layers - `config.js` (reads `process.env`), `context.js` (`createDefaultContext()`, builds the `ctx` object threaded through controllers), and `logger.js`, imported ambiently everywhere
+- **src/lib/utils/**: Pure, generic, no domain knowledge - `*.util.js`, 100% unit tested, zero mocks, never sees `ctx`
 - **src/lib/services/**: Pure, spam-scanner domain rules - `*.service.js`, 100% unit tested, zero mocks, never takes `ctx` as a parameter
 - **src/lib/clients/**: The impure I/O boundary - `*.client.js` (IMAP/rspamd/AI/state), reads `config.js` directly rather than `ctx`, mocked freely in controller tests
 - **src/lib/controllers/workflows/**: Top-level orchestrator-invoked entry points (scan, train, init, idle, etc.) - `*.controller.js`, take `ctx` as a trailing parameter defaulted to `createDefaultContext()`

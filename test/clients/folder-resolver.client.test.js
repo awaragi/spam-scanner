@@ -4,7 +4,7 @@ const { mockConfig } = vi.hoisted(() => ({
   mockConfig: {},
 }));
 
-vi.mock('../../src/lib/config/config.js', () => ({
+vi.mock('../../src/lib/core/config.js', () => ({
   config: mockConfig,
 }));
 

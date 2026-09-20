@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Writable } from 'stream';
 import pino from 'pino';
-import { rootLogger, pinoOptions } from '../src/lib/utils/logger.js';
+import { rootLogger, pinoOptions } from '../../src/lib/core/logger.js';
 
 describe('Logger Factory', () => {
   let originalEnv;

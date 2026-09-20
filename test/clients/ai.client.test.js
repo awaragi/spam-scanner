@@ -11,7 +11,7 @@ vi.mock('openai', () => ({
 }));
 
 import OpenAI from 'openai';
-import { config } from '../../src/lib/config/config.js';
+import { config } from '../../src/lib/core/config.js';
 import {
   classifyEmail,
   buildSystemPrompt,

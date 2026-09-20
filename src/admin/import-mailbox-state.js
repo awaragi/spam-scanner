@@ -2,10 +2,10 @@ import fs from 'fs/promises';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { newClient, safeLogout } from '../lib/clients/imap.client.js';
-import { rootLogger } from '../lib/utils/logger.js';
+import { rootLogger } from '../lib/core/logger.js';
 import { writeScannerState } from '../lib/clients/state-manager.client.js';
 import { updateListState } from '../lib/controllers/steps/list-update.step.js';
-import { config } from '../lib/config/config.js';
+import { config } from '../lib/core/config.js';
 
 // Full mailbox state restore/migration tool (see the `sender-lists`
 // capability): the reverse of `export-mailbox-state.js` - restores scanner

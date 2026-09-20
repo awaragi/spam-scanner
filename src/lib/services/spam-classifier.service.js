@@ -1,6 +1,7 @@
 /**
  * Domain rules for classifying spam messages. Pure, never sees `ctx`.
  */
+import { senderAddressOf } from './sender-lists.service.js';
 
 /**
  * Categorizes messages into four score-percentage-driven tiers - clean, low,
@@ -144,6 +145,34 @@ export function applyAiEscalation(categorized, aiResults, thresholds = {}) {
  */
 export function applyWhitelistAdjustment(rawScore, isWhitelisted) {
   return isWhitelisted ? rawScore - 20 : rawScore;
+}
+
+/**
+ * Batch counterpart to `applyWhitelistAdjustment`: stamps `isWhitelisted`
+ * and the adjusted score onto each already-rspamd-checked message's
+ * `spamInfo`, and counts how many were whitelisted. This is where
+ * `rspamd-check.step.js` used to do per-message whitelist lookup/adjustment
+ * before attaching `spamInfo` - now split out since rspamd itself has no
+ * list awareness (see `sender-lists` capability).
+ * @param {Array} messages - already-checked messages (spamInfo.score/required set)
+ * @param {Set<string>} whitelistSet - normalized whitelist addresses
+ * @returns {{messages: Array, whitelistedTotal: number}}
+ */
+export function applyWhitelistAdjustments(messages, whitelistSet) {
+  let whitelistedTotal = 0;
+  const adjusted = messages.map(message => {
+    const isWhitelisted = whitelistSet.has(senderAddressOf(message));
+    if (isWhitelisted) whitelistedTotal++;
+    return {
+      ...message,
+      spamInfo: {
+        ...message.spamInfo,
+        isWhitelisted,
+        score: applyWhitelistAdjustment(message.spamInfo.score, isWhitelisted),
+      },
+    };
+  });
+  return { messages: adjusted, whitelistedTotal };
 }
 
 /**

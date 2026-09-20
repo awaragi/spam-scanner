@@ -1,5 +1,5 @@
-import { rootLogger } from '../utils/logger.js';
-import { config } from '../config/config.js';
+import { rootLogger } from '../core/logger.js';
+import { config } from '../core/config.js';
 
 const logger = rootLogger.forComponent('rspamd');
 

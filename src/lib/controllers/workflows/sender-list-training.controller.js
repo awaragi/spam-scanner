@@ -1,4 +1,4 @@
-import { rootLogger } from '../../utils/logger.js';
+import { rootLogger } from '../../core/logger.js';
 import {
   open,
   count,
@@ -7,7 +7,7 @@ import {
 } from '../../clients/imap.client.js';
 import { extractSenderAddresses } from '../../services/sender-lists.service.js';
 import { updateListState } from '../steps/list-update.step.js';
-import { createDefaultContext } from '../../config/context.js';
+import { createDefaultContext } from '../../core/context.js';
 
 const logger = rootLogger.forComponent('sender-list-training-controller');
 

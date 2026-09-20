@@ -16,7 +16,7 @@ describe('config', () => {
     delete process.env.SPAM_PROCESSING_MODE;
     process.env.AI_ENABLED = 'false';
 
-    const { config } = await import('../../src/lib/config/config.js');
+    const { config } = await import('../../src/lib/core/config.js');
 
     expect(config.SPAM_PROCESSING_MODE).toBe('folder');
   });
@@ -25,7 +25,7 @@ describe('config', () => {
     delete process.env.AI_MODEL;
     process.env.AI_ENABLED = 'false';
 
-    const { config } = await import('../../src/lib/config/config.js');
+    const { config } = await import('../../src/lib/core/config.js');
 
     expect(config.AI_MODEL).toBe('');
   });
@@ -34,7 +34,7 @@ describe('config', () => {
     delete process.env.AI_MODEL;
     process.env.AI_ENABLED = 'true';
 
-    await expect(import('../../src/lib/config/config.js')).rejects.toThrow(
+    await expect(import('../../src/lib/core/config.js')).rejects.toThrow(
       /AI_MODEL/
     );
   });
@@ -43,7 +43,7 @@ describe('config', () => {
     process.env.AI_MODEL = 'gpt-4o-mini';
     process.env.AI_ENABLED = 'true';
 
-    const { config } = await import('../../src/lib/config/config.js');
+    const { config } = await import('../../src/lib/core/config.js');
 
     expect(config.AI_MODEL).toBe('gpt-4o-mini');
   });
@@ -52,7 +52,7 @@ describe('config', () => {
     delete process.env.SCAN_INITIAL_STATE;
     process.env.AI_ENABLED = 'false';
 
-    const { config } = await import('../../src/lib/config/config.js');
+    const { config } = await import('../../src/lib/core/config.js');
 
     expect(config.SCAN_INITIAL_STATE).toBe('new');
   });
@@ -61,7 +61,7 @@ describe('config', () => {
     process.env.SCAN_INITIAL_STATE = 'ALL';
     process.env.AI_ENABLED = 'false';
 
-    const { config } = await import('../../src/lib/config/config.js');
+    const { config } = await import('../../src/lib/core/config.js');
 
     expect(config.SCAN_INITIAL_STATE).toBe('all');
   });
@@ -70,7 +70,7 @@ describe('config', () => {
     process.env.SCAN_INITIAL_STATE = 'everything';
     process.env.AI_ENABLED = 'false';
 
-    await expect(import('../../src/lib/config/config.js')).rejects.toThrow(
+    await expect(import('../../src/lib/core/config.js')).rejects.toThrow(
       /SCAN_INITIAL_STATE/
     );
   });
@@ -79,7 +79,7 @@ describe('config', () => {
     delete process.env.IMAP_TLS;
     process.env.AI_ENABLED = 'false';
 
-    const { config } = await import('../../src/lib/config/config.js');
+    const { config } = await import('../../src/lib/core/config.js');
 
     expect(config.IMAP_TLS).toBe(true);
   });
@@ -88,7 +88,7 @@ describe('config', () => {
     process.env.IMAP_TLS = 'false';
     process.env.AI_ENABLED = 'false';
 
-    const { config } = await import('../../src/lib/config/config.js');
+    const { config } = await import('../../src/lib/core/config.js');
 
     expect(config.IMAP_TLS).toBe(false);
   });

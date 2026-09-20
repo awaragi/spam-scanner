@@ -28,7 +28,7 @@ describe('processWithRspamd', () => {
   });
 
   test('empty input returns empty array without calling checkEmail', async () => {
-    const result = await processWithRspamd([], new Set());
+    const result = await processWithRspamd([]);
     expect(result).toEqual([]);
     expect(fakeRspamdClient.checkEmail).not.toHaveBeenCalled();
   });
@@ -40,53 +40,18 @@ describe('processWithRspamd', () => {
       required_score: 15,
     });
 
-    const result = await processWithRspamd(messages, new Set());
+    const result = await processWithRspamd(messages);
 
     expect(result).toHaveLength(2);
     expect(result[0]).toMatchObject({
       uid: 1,
-      spamInfo: { score: 1, required: 15, isWhitelisted: false },
+      spamInfo: { score: 1, required: 15 },
     });
     expect(result[1]).toMatchObject({
       uid: 2,
-      spamInfo: { score: 1, required: 15, isWhitelisted: false },
+      spamInfo: { score: 1, required: 15 },
     });
-  });
-
-  test('a whitelisted sender has 20 subtracted from the raw score', async () => {
-    const messages = [makeMessage(1, 'trusted@example.com')];
-    fakeRspamdClient.checkEmail.mockResolvedValue({
-      score: 30,
-      required_score: 15,
-    });
-
-    const result = await processWithRspamd(
-      messages,
-      new Set(['trusted@example.com'])
-    );
-
-    expect(result[0].spamInfo).toMatchObject({
-      score: 10,
-      isWhitelisted: true,
-    });
-  });
-
-  test('a non-whitelisted sender keeps the raw score unchanged', async () => {
-    const messages = [makeMessage(1, 'stranger@example.com')];
-    fakeRspamdClient.checkEmail.mockResolvedValue({
-      score: 30,
-      required_score: 15,
-    });
-
-    const result = await processWithRspamd(
-      messages,
-      new Set(['trusted@example.com'])
-    );
-
-    expect(result[0].spamInfo).toMatchObject({
-      score: 30,
-      isWhitelisted: false,
-    });
+    expect(result[0].spamInfo).not.toHaveProperty('isWhitelisted');
   });
 
   test('one permanent failure, one success: permanent one skipped, success kept, no throw', async () => {
@@ -100,7 +65,7 @@ describe('processWithRspamd', () => {
       return { score: 1, required_score: 15 };
     });
 
-    const result = await processWithRspamd(messages, new Set());
+    const result = await processWithRspamd(messages);
 
     expect(result).toHaveLength(1);
     expect(result[0].uid).toBe(2);
@@ -110,9 +75,7 @@ describe('processWithRspamd', () => {
     const messages = [makeMessage(1)];
     fakeRspamdClient.checkEmail.mockRejectedValue(new Error('network error'));
 
-    await expect(processWithRspamd(messages, new Set())).rejects.toThrow(
-      /transiently/
-    );
+    await expect(processWithRspamd(messages)).rejects.toThrow(/transiently/);
   });
 
   test('mixed permanent and transient failures: rejects', async () => {
@@ -126,8 +89,6 @@ describe('processWithRspamd', () => {
       throw new Error('network error');
     });
 
-    await expect(processWithRspamd(messages, new Set())).rejects.toThrow(
-      /transiently/
-    );
+    await expect(processWithRspamd(messages)).rejects.toThrow(/transiently/);
   });
 });

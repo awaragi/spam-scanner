@@ -1,7 +1,7 @@
-import { rootLogger } from '../../utils/logger.js';
+import { rootLogger } from '../../core/logger.js';
 import { learnSpam, learnHam } from '../../clients/rspamd.client.js';
 import { isPermanentError } from '../../services/error-classifier.service.js';
-import { createDefaultContext } from '../../config/context.js';
+import { createDefaultContext } from '../../core/context.js';
 
 const logger = rootLogger.forComponent('rspamd-training');
 

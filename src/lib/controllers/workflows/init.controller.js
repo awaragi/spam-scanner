@@ -1,7 +1,7 @@
 import { createAppFolders } from '../../clients/imap.client.js';
-import { rootLogger } from '../../utils/logger.js';
+import { rootLogger } from '../../core/logger.js';
 import { resolveFolders } from '../../clients/folder-resolver.client.js';
-import { createDefaultContext } from '../../config/context.js';
+import { createDefaultContext } from '../../core/context.js';
 
 const logger = rootLogger.forComponent('init-controller');
 

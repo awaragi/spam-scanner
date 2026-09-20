@@ -1,7 +1,7 @@
-import { config } from '../config/config.js';
+import { config } from '../core/config.js';
 import { splitFolderParts } from '../utils/mailboxes.util.js';
 import { getImapDelimiter } from './imap.client.js';
-import { rootLogger } from '../utils/logger.js';
+import { rootLogger } from '../core/logger.js';
 
 const logger = rootLogger.forComponent('folder-resolver');
 

@@ -1,9 +1,9 @@
-import { rootLogger } from '../../utils/logger.js';
+import { rootLogger } from '../../core/logger.js';
 import { formatAddressList } from '../../utils/ai-content.util.js';
 import { extractAiContent } from '../../services/ai-content.service.js';
 import { classifyEmail } from '../../clients/ai.client.js';
 import { mapWithConcurrency } from '../../utils/concurrency.util.js';
-import { createDefaultContext } from '../../config/context.js';
+import { createDefaultContext } from '../../core/context.js';
 
 const logger = rootLogger.forComponent('ai-classification');
 

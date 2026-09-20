@@ -82,3 +82,19 @@ export function buildScanQuery(state, scanRead) {
   }
   return query;
 }
+
+/**
+ * Reduces one batch's counts into `runScan`'s running totals.
+ * @param {{lowSpamTotal: number, highSpamTotal: number, nonSpamTotal: number, spamTotal: number, whitelistedTotal: number}} totals
+ * @param {{lowSpamTotal: number, highSpamTotal: number, nonSpamTotal: number, spamTotal: number, whitelistedTotal: number}} counts
+ * @returns {Object} - new totals object
+ */
+export function sumBatchTotals(totals, counts) {
+  return {
+    lowSpamTotal: totals.lowSpamTotal + counts.lowSpamTotal,
+    highSpamTotal: totals.highSpamTotal + counts.highSpamTotal,
+    nonSpamTotal: totals.nonSpamTotal + counts.nonSpamTotal,
+    spamTotal: totals.spamTotal + counts.spamTotal,
+    whitelistedTotal: totals.whitelistedTotal + counts.whitelistedTotal,
+  };
+}

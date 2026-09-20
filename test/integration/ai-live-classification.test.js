@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { simpleParser } from 'mailparser';
-import { config } from '../../src/lib/config/config.js';
+import { config } from '../../src/lib/core/config.js';
 import { extractAiContent } from '../../src/lib/services/ai-content.service.js';
 import { classifyEmail } from '../../src/lib/clients/ai.client.js';
 

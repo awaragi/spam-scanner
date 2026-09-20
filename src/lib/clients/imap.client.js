@@ -1,7 +1,7 @@
 import { ImapFlow } from 'imapflow';
 import { setTimeout as delay } from 'timers/promises';
-import { config } from '../config/config.js';
-import { rootLogger } from '../utils/logger.js';
+import { config } from '../core/config.js';
+import { rootLogger } from '../core/logger.js';
 import { parseEmail, stripSpamHeaders } from '../utils/email-parser.util.js';
 import { collectFoldersToCreate } from '../utils/mailboxes.util.js';
 

@@ -1,4 +1,4 @@
-import { config } from '../config/config.js';
+import { config } from '../core/config.js';
 import { fetchMessagesByUIDs, open, search } from './imap.client.js';
 import {
   formatAppStateEmail,
@@ -6,7 +6,7 @@ import {
   parseStateFromEmail,
   validateState,
 } from '../services/state-format.service.js';
-import { rootLogger } from '../utils/logger.js';
+import { rootLogger } from '../core/logger.js';
 
 const logger = rootLogger.forComponent('state-manager');
 

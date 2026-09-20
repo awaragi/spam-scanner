@@ -11,9 +11,9 @@ import {
 import { runScan } from './lib/controllers/workflows/scan.controller.js';
 import { runIdle } from './lib/controllers/workflows/idle.controller.js';
 import { newClient, safeLogout } from './lib/clients/imap.client.js';
-import { config } from './lib/config/config.js';
-import { rootLogger } from './lib/utils/logger.js';
-import { createDefaultContext } from './lib/config/context.js';
+import { config } from './lib/core/config.js';
+import { rootLogger } from './lib/core/logger.js';
+import { createDefaultContext } from './lib/core/context.js';
 
 const logger = rootLogger.forComponent('orchestrator');
 

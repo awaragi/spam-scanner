@@ -1,6 +1,6 @@
 import { moveMessages } from '../../clients/imap.client.js';
-import { rootLogger } from '../../utils/logger.js';
-import { createDefaultContext } from '../../config/context.js';
+import { rootLogger } from '../../core/logger.js';
+import { createDefaultContext } from '../../core/context.js';
 import { count } from 'console';
 
 const logger = rootLogger.forComponent('folder-move');

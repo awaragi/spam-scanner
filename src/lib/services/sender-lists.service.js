@@ -5,7 +5,7 @@
  * `sender-lists` capability. Pure, never sees `ctx`.
  */
 import emailAddresses from 'email-addresses';
-import { rootLogger } from '../utils/logger.js';
+import { rootLogger } from '../core/logger.js';
 
 const { parseOneAddress } = emailAddresses;
 const logger = rootLogger.forComponent('sender-lists');

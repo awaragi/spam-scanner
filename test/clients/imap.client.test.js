@@ -1,7 +1,7 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../../src/lib/config/config.js', () => ({ config: {} }));
-vi.mock('../../src/lib/utils/logger.js', () => ({
+vi.mock('../../src/lib/core/config.js', () => ({ config: {} }));
+vi.mock('../../src/lib/core/logger.js', () => ({
   rootLogger: {
     forComponent: () => ({
       debug: vi.fn(),

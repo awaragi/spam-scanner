@@ -2,6 +2,7 @@ import {
   categorizeMessages,
   applyAiEscalation,
   applyWhitelistAdjustment,
+  applyWhitelistAdjustments,
   partitionByWhitelistFlag,
   mergeWhitelistedBack,
 } from '../../src/lib/services/spam-classifier.service.js';
@@ -414,6 +415,62 @@ describe('applyWhitelistAdjustment', () => {
 
   test('leaves the score unchanged when not whitelisted', () => {
     expect(applyWhitelistAdjustment(30, false)).toBe(30);
+  });
+});
+
+describe('applyWhitelistAdjustments', () => {
+  function messageFrom(uid, address, score = 30, required = 15) {
+    return {
+      uid,
+      envelope: { from: [{ address }] },
+      spamInfo: { score, required },
+    };
+  }
+
+  test('a whitelisted sender has 20 subtracted from the score and isWhitelisted set', () => {
+    const messages = [messageFrom(1, 'trusted@example.com', 30)];
+
+    const { messages: result, whitelistedTotal } = applyWhitelistAdjustments(
+      messages,
+      new Set(['trusted@example.com'])
+    );
+
+    expect(result[0].spamInfo).toMatchObject({
+      score: 10,
+      isWhitelisted: true,
+    });
+    expect(whitelistedTotal).toBe(1);
+  });
+
+  test('a non-whitelisted sender keeps its score unchanged and isWhitelisted false', () => {
+    const messages = [messageFrom(1, 'stranger@example.com', 30)];
+
+    const { messages: result, whitelistedTotal } = applyWhitelistAdjustments(
+      messages,
+      new Set(['trusted@example.com'])
+    );
+
+    expect(result[0].spamInfo).toMatchObject({
+      score: 30,
+      isWhitelisted: false,
+    });
+    expect(whitelistedTotal).toBe(0);
+  });
+
+  test('counts whitelistedTotal across a mixed batch, unmatched entries untouched', () => {
+    const messages = [
+      messageFrom(1, 'trusted@example.com', 30),
+      messageFrom(2, 'stranger@example.com', 30),
+      messageFrom(3, 'trusted@example.com', 50),
+    ];
+
+    const { messages: result, whitelistedTotal } = applyWhitelistAdjustments(
+      messages,
+      new Set(['trusted@example.com'])
+    );
+
+    expect(result.map(m => m.spamInfo.score)).toEqual([10, 30, 30]);
+    expect(whitelistedTotal).toBe(2);
   });
 });
 

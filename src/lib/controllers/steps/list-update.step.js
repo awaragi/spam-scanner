@@ -1,10 +1,10 @@
-import { rootLogger } from '../../utils/logger.js';
+import { rootLogger } from '../../core/logger.js';
 import {
   readMapState,
   writeMapState,
 } from '../../clients/state-manager.client.js';
 import { diffListUpdate } from '../../services/list-diff.service.js';
-import { createDefaultContext } from '../../config/context.js';
+import { createDefaultContext } from '../../core/context.js';
 
 const logger = rootLogger.forComponent('list-update');
 

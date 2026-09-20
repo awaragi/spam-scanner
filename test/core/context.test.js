@@ -1,7 +1,7 @@
 import { describe, test, expect } from 'vitest';
-import { createDefaultContext } from '../../src/lib/config/context.js';
+import { createDefaultContext } from '../../src/lib/core/context.js';
 import { AiFailureTracker } from '../../src/lib/services/ai-failure-tracker.service.js';
-import { config } from '../../src/lib/config/config.js';
+import { config } from '../../src/lib/core/config.js';
 
 describe('createDefaultContext', () => {
   test('returns the real config singleton and an AiFailureTracker instance', () => {

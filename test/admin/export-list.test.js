@@ -21,14 +21,14 @@ vi.mock('../../src/lib/clients/state-manager.client.js', () => ({
   writeMapState: vi.fn(),
 }));
 
-vi.mock('../../src/lib/config/config.js', () => ({
+vi.mock('../../src/lib/core/config.js', () => ({
   config: {
     STATE_KEY_WHITELIST_MAP: 'rspamd-whitelist-map',
     STATE_KEY_BLACKLIST_MAP: 'rspamd-blacklist-map',
   },
 }));
 
-vi.mock('../../src/lib/utils/logger.js', () => ({
+vi.mock('../../src/lib/core/logger.js', () => ({
   rootLogger: {
     forComponent: () => ({
       debug: vi.fn(),

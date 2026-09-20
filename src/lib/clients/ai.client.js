@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
-import { rootLogger } from '../utils/logger.js';
-import { config } from '../config/config.js';
+import { rootLogger } from '../core/logger.js';
+import { config } from '../core/config.js';
 import { parseAiClassificationOutput } from '../utils/email-parser.util.js';
 
 const logger = rootLogger.forComponent('ai-client');

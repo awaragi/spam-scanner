@@ -1,4 +1,4 @@
-import { rootLogger } from '../utils/logger.js';
+import { rootLogger } from './logger.js';
 import { homedir, userInfo } from 'os';
 
 const logger = rootLogger.forComponent('config');

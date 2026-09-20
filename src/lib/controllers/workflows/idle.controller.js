@@ -1,5 +1,5 @@
 import { waitForNewMail } from '../../clients/imap.client.js';
-import { createDefaultContext } from '../../config/context.js';
+import { createDefaultContext } from '../../core/context.js';
 
 /**
  * Waits for new mail to arrive in FOLDER_INBOX. Thin pass-through to

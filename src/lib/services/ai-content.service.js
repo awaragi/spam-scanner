@@ -4,7 +4,7 @@ import {
   formatAddressList,
   truncateToTokenBudget,
 } from '../utils/ai-content.util.js';
-import { rootLogger } from '../utils/logger.js';
+import { rootLogger } from '../core/logger.js';
 
 const logger = rootLogger.forComponent('ai-content');
 

@@ -1,35 +1,27 @@
-import { rootLogger } from '../../utils/logger.js';
-import {
-  readScannerState,
-  writeScannerState,
-  readMapState,
-} from '../../clients/state-manager.client.js';
-import {
-  open,
-  search,
-  fetchMessagesByUIDs,
-  moveMessages,
-  appendMessage,
-} from '../../clients/imap.client.js';
-import { learnHam } from '../../clients/rspamd.client.js';
+import { rootLogger } from '../../core/logger.js';
+import { writeScannerState } from '../../clients/state-manager.client.js';
+import { fetchMessagesByUIDs } from '../../clients/imap.client.js';
 import { processWithRspamd } from '../steps/rspamd-check.step.js';
 import {
   categorizeMessages,
   applyAiEscalation,
+  applyWhitelistAdjustments,
   partitionByWhitelistFlag,
   mergeWhitelistedBack,
 } from '../../services/spam-classifier.service.js';
 import { partitionBySender } from '../../services/sender-lists.service.js';
 import {
   computeScanProgress,
-  computeUidValidityReset,
-  buildScanQuery,
+  sumBatchTotals,
 } from '../../services/scan-progress.service.js';
-import { buildAiFailureAlertEmail } from '../../services/alert-email.service.js';
 import { classifyWithAi } from '../steps/ai-classification.step.js';
+import { postAiFailureAlert } from '../steps/ai-failure-alert.step.js';
 import { applyLabels } from '../steps/label-apply.step.js';
 import { moveToFolders } from '../steps/folder-move.step.js';
-import { createDefaultContext } from '../../config/context.js';
+import { locatePendingMessages } from '../steps/pending-messages.step.js';
+import { loadSenderLists } from '../steps/sender-list-lookup.step.js';
+import { moveConfirmedSpam } from '../steps/spam-move.step.js';
+import { createDefaultContext } from '../../core/context.js';
 
 const logger = rootLogger.forComponent('scan-controller');
 
@@ -55,48 +47,6 @@ function resolveProcessFn(mode) {
 }
 
 /**
- * Posts a one-time INBOX alert when the batch's AI failures crossed the
- * consecutive-same-reason threshold. Best-effort: an append failure is logged
- * and left un-notified in the tracker so the next failure retries the post.
- *
- * Also trains rspamd's Bayes classifier that this exact template is ham
- * (fire-and-forget - a training failure never blocks the alert itself). This
- * is the same `learnHam` mechanism the ham-training folder uses, not the
- * whitelist map, and is what keeps the alert reliably out of rspamd's spam
- * buckets on future occurrences (Message-ID alone clears the default
- * threshold but by a thin margin; Bayes training widens it considerably).
- * @param {Object} imap - ImapFlow client
- * @param {{reason: string, count: number, lastError: string, lastAt: string}|null} alert
- * @param {Object} ctx
- */
-async function postAiFailureAlert(imap, alert, ctx) {
-  if (!alert) {
-    return;
-  }
-  const raw = buildAiFailureAlertEmail(alert, ctx.config.IMAP_USER);
-  try {
-    await appendMessage(imap, ctx.config.FOLDER_INBOX, raw);
-    ctx.aiFailureTracker.markNotified(alert.reason);
-    logger.warn(alert, 'Posted AI failure alert to INBOX');
-  } catch (err) {
-    logger.error(
-      { ...alert, error: err.message },
-      'Failed to post AI failure alert to INBOX - will retry on next failure'
-    );
-    return;
-  }
-
-  try {
-    await learnHam(raw);
-  } catch (err) {
-    logger.warn(
-      { error: err.message },
-      'Failed to train rspamd on the AI failure alert template (non-critical)'
-    );
-  }
-}
-
-/**
  * Scan and process a batch of messages.
  * @param {Object} imap - ImapFlow client
  * @param {Array} uids - Array of message UIDs to process
@@ -118,14 +68,9 @@ async function scanBatch(imap, uids, state, processFn, lists, ctx) {
   const { matched: blacklistedMessages, rest: remainingMessages } =
     partitionBySender(messages, blacklistSet);
 
-  const processedMessages = await processWithRspamd(
-    remainingMessages,
-    whitelistSet,
-    ctx
-  );
-  const whitelistedTotal = processedMessages.filter(
-    m => m.spamInfo?.isWhitelisted
-  ).length;
+  const checkedMessages = await processWithRspamd(remainingMessages, ctx);
+  const { messages: processedMessages, whitelistedTotal } =
+    applyWhitelistAdjustments(checkedMessages, whitelistSet);
 
   let categorized = categorizeMessages(
     processedMessages,
@@ -188,12 +133,7 @@ async function scanBatch(imap, uids, state, processFn, lists, ctx) {
     ctx
   );
 
-  // Move spam messages to spam folder
-  logger.debug(
-    { count: spamMessages.length },
-    'Moving spam messages to spam folder'
-  );
-  await moveMessages(imap, spamMessages, cfg.FOLDER_SPAM);
+  await moveConfirmedSpam(imap, spamMessages, ctx);
 
   const progress = computeScanProgress(state, messages);
 
@@ -241,90 +181,28 @@ async function scanBatch(imap, uids, state, processFn, lists, ctx) {
  */
 export async function runScan(imap, ctx = createDefaultContext()) {
   const { config: cfg } = ctx;
-  const now = new Date().toISOString();
-  const defaultState = {
-    last_uid: 0,
-    last_seen_date: now,
-    last_checked: now,
-  };
-  const state = await readScannerState(imap, defaultState, cfg.FOLDER_INBOX);
 
   try {
-    // Step 1: Open the inbox folder
-    const mailbox = await open(imap, cfg.FOLDER_INBOX);
-
-    // UIDVALIDITY identifies a specific numbering "epoch" for this mailbox's
-    // UIDs; a mismatch is treated the same as "no state" - reset to
-    // new-mail-only rather than either trusting the stale UID or rescanning
-    // the whole inbox.
-    const uidReset = computeUidValidityReset(state, mailbox);
-    if (uidReset.changed) {
-      logger.warn(
-        {
-          folder: cfg.FOLDER_INBOX,
-          previousUidValidity: uidReset.previousUidValidity,
-          currentUidValidity: uidReset.currentUidValidity,
-          previousLastUid: state.last_uid,
-          resetLastUid: uidReset.state.last_uid,
-        },
-        'UIDVALIDITY changed - resetting to new-mail-only instead of trusting stale UIDs'
-      );
-    }
-    Object.assign(state, uidReset.state);
-
-    // Step 2: Search for new messages
-    const query = buildScanQuery(state, cfg.SCAN_READ);
-    // Filter out UIDs <= last_uid: IMAP returns the max UID when the range start
-    // exceeds the mailbox max (e.g. "7385:*" becomes "7384:7385"), causing the
-    // last processed email to always be re-scanned.
-    const newUIDs = (await search(imap, query)).filter(
-      uid => uid > state.last_uid
-    );
-    if (newUIDs.length === 0) {
-      // Persist a UIDVALIDITY reset even with nothing new to process, so the
-      // next cycle doesn't re-detect the same "mismatch" and re-warn forever.
-      if (uidReset.changed) {
-        await writeScannerState(imap, {
-          last_uid: state.last_uid,
-          last_seen_date: state.last_seen_date,
-          last_checked: new Date().toISOString(),
-          uid_validity: state.uid_validity,
-        });
-      }
+    const { state, uids } = await locatePendingMessages(imap, ctx);
+    if (uids.length === 0) {
       logger.debug({ folder: cfg.FOLDER_INBOX }, 'No new messages to process');
       return { processed: 0, last_uid: state.last_uid };
     }
 
-    const uids = newUIDs.slice(0, cfg.SCAN_BATCH_SIZE);
-
     // Resolve the processing strategy based on configuration
     const processFn = resolveProcessFn(cfg.SPAM_PROCESSING_MODE);
 
-    // Load whitelist/blacklist once per runScan call, not once per batch -
-    // the underlying IMAP-backed state doesn't change mid-scan (see the
-    // `sender-lists` capability). Sequential, not Promise.all: each read
-    // switches the connection's selected mailbox and restores it afterward,
-    // which isn't safe to run concurrently on a single IMAP connection.
-    const whitelistEntries = await readMapState(
-      imap,
-      cfg.STATE_KEY_WHITELIST_MAP
-    );
-    const blacklistEntries = await readMapState(
-      imap,
-      cfg.STATE_KEY_BLACKLIST_MAP
-    );
-    const lists = {
-      whitelistSet: new Set(whitelistEntries),
-      blacklistSet: new Set(blacklistEntries),
+    const lists = await loadSenderLists(imap, ctx);
+
+    let totals = {
+      lowSpamTotal: 0,
+      highSpamTotal: 0,
+      nonSpamTotal: 0,
+      spamTotal: 0,
+      whitelistedTotal: 0,
     };
 
-    let lowSpamTotal = 0,
-      highSpamTotal = 0,
-      nonSpamTotal = 0,
-      spamTotal = 0,
-      whitelistedTotal = 0;
-
-    // Step 3: Process messages in batches
+    // Process messages in batches
     for (let i = 0; i < uids.length; i += cfg.PROCESS_BATCH_SIZE) {
       logger.debug(
         {
@@ -343,23 +221,11 @@ export async function runScan(imap, ctx = createDefaultContext()) {
         lists,
         ctx
       );
-      lowSpamTotal += counts.lowSpamTotal;
-      highSpamTotal += counts.highSpamTotal;
-      nonSpamTotal += counts.nonSpamTotal;
-      spamTotal += counts.spamTotal;
-      whitelistedTotal += counts.whitelistedTotal;
+      totals = sumBatchTotals(totals, counts);
     }
 
     logger.info(
-      {
-        folder: cfg.FOLDER_INBOX,
-        total: uids.length,
-        lowSpamTotal,
-        highSpamTotal,
-        nonSpamTotal,
-        spamTotal,
-        whitelistedTotal,
-      },
+      { folder: cfg.FOLDER_INBOX, total: uids.length, ...totals },
       'All scan operations completed'
     );
 

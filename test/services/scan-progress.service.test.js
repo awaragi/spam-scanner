@@ -3,6 +3,7 @@ import {
   computeScanProgress,
   computeUidValidityReset,
   buildScanQuery,
+  sumBatchTotals,
 } from '../../src/lib/services/scan-progress.service.js';
 
 describe('computeScanProgress', () => {
@@ -113,5 +114,54 @@ describe('buildScanQuery', () => {
       uid: '101:*',
       seen: false,
     });
+  });
+});
+
+describe('sumBatchTotals', () => {
+  test('adds each field of counts onto the matching field of totals', () => {
+    const totals = {
+      lowSpamTotal: 1,
+      highSpamTotal: 2,
+      nonSpamTotal: 3,
+      spamTotal: 4,
+      whitelistedTotal: 5,
+    };
+    const counts = {
+      lowSpamTotal: 10,
+      highSpamTotal: 20,
+      nonSpamTotal: 30,
+      spamTotal: 40,
+      whitelistedTotal: 50,
+    };
+
+    expect(sumBatchTotals(totals, counts)).toEqual({
+      lowSpamTotal: 11,
+      highSpamTotal: 22,
+      nonSpamTotal: 33,
+      spamTotal: 44,
+      whitelistedTotal: 55,
+    });
+  });
+
+  test('does not mutate its inputs', () => {
+    const totals = {
+      lowSpamTotal: 1,
+      highSpamTotal: 0,
+      nonSpamTotal: 0,
+      spamTotal: 0,
+      whitelistedTotal: 0,
+    };
+    const counts = {
+      lowSpamTotal: 1,
+      highSpamTotal: 0,
+      nonSpamTotal: 0,
+      spamTotal: 0,
+      whitelistedTotal: 0,
+    };
+
+    sumBatchTotals(totals, counts);
+
+    expect(totals.lowSpamTotal).toBe(1);
+    expect(counts.lowSpamTotal).toBe(1);
   });
 });

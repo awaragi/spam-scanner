@@ -1,4 +1,4 @@
-import { rootLogger } from '../../utils/logger.js';
+import { rootLogger } from '../../core/logger.js';
 import {
   open,
   count,
@@ -6,7 +6,7 @@ import {
   moveMessages,
 } from '../../clients/imap.client.js';
 import { trainSpam, trainHam } from '../steps/rspamd-training.step.js';
-import { createDefaultContext } from '../../config/context.js';
+import { createDefaultContext } from '../../core/context.js';
 
 const logger = rootLogger.forComponent('train-controller');
 

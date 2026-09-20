@@ -9,11 +9,11 @@ const { mockConfig, warn } = vi.hoisted(() => ({
   warn: vi.fn(),
 }));
 
-vi.mock('../../src/lib/config/config.js', () => ({
+vi.mock('../../src/lib/core/config.js', () => ({
   config: mockConfig,
 }));
 
-vi.mock('../../src/lib/utils/logger.js', () => ({
+vi.mock('../../src/lib/core/logger.js', () => ({
   rootLogger: {
     forComponent: () => ({
       debug: vi.fn(),

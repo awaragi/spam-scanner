@@ -1,6 +1,6 @@
 import { updateLabels } from '../../clients/imap.client.js';
-import { rootLogger } from '../../utils/logger.js';
-import { createDefaultContext } from '../../config/context.js';
+import { rootLogger } from '../../core/logger.js';
+import { createDefaultContext } from '../../core/context.js';
 
 const logger = rootLogger.forComponent('label-apply');
 
