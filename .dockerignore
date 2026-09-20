@@ -43,6 +43,3 @@ logs
 
 # macOS files
 .DS_Store
-
-# Rspamd maps (mounted separately)
-rspamd/maps/*.map

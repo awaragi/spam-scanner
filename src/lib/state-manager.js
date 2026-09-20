@@ -125,6 +125,48 @@ export async function writeScannerState(imap, state) {
   return true;
 }
 
+export async function readMapState(imap, mapStateKey) {
+  // remember original mailbox
+  const originalPath = imap.mailbox?.path;
+
+  // Open the state folder in read-only mode
+  await open(imap, config.FOLDER_STATE, true);
+
+  // Search for state messages matching this list's key
+  const results = await search(imap, buildStateCriteria(mapStateKey));
+
+  if (results.length === 0) {
+    if (originalPath) {
+      await imap.mailboxOpen(originalPath);
+    }
+    return [];
+  }
+
+  // Fetch and parse the state message from the highest-UID match (the most
+  // recently written one) - same rationale as readScannerState.
+  const latestUid = Math.max(...results);
+  const messages = await fetchMessagesByUIDs(imap, [latestUid]);
+
+  if (originalPath) {
+    await imap.mailboxOpen(originalPath);
+  }
+
+  if (messages.length === 0) {
+    return [];
+  }
+
+  const parsed = parseStateFromEmail(messages[0].body);
+
+  // A missing message, unparseable JSON, or JSON that isn't an address array
+  // (e.g. a legacy newline-delimited plain-text backup, or malformed content)
+  // is treated the same as no state at all, rather than throwing.
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  return parsed;
+}
+
 export async function writeMapState(imap, mapStateKey, mapContent) {
   if (typeof mapContent !== 'string') {
     throw new Error('Invalid map content: expected a string');

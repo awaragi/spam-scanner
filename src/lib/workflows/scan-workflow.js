@@ -1,7 +1,11 @@
 import { randomUUID } from 'crypto';
 import { rootLogger } from '../utils/logger.js';
 import { config } from '../utils/config.js';
-import { readScannerState, writeScannerState } from '../state-manager.js';
+import {
+  readScannerState,
+  writeScannerState,
+  readMapState,
+} from '../state-manager.js';
 import {
   open,
   search,
@@ -19,6 +23,7 @@ import { classifyWithAi } from '../services/ai-classification-service.js';
 import { markNotified } from '../services/ai-failure-tracker.js';
 import { createProcessor } from '../processors/base-processor.js';
 import { dateToString } from '../utils/email.js';
+import { senderAddressOf } from '../utils/sender-lists.js';
 
 const logger = rootLogger.forComponent('scan-workflow');
 
@@ -102,43 +107,115 @@ async function postAiFailureAlert(imap, alert) {
 }
 
 /**
+ * Splits a list of already-categorized messages by whether their sender is
+ * whitelisted. Used only to decide AI eligibility - it never changes which
+ * tier a message is in (see `spam-classifier.js`'s `categorizeMessages`).
+ * @param {Array} messages
+ * @returns {{whitelisted: Array, rest: Array}}
+ */
+function partitionByWhitelist(messages) {
+  const whitelisted = [];
+  const rest = [];
+  for (const message of messages) {
+    (message.spamInfo?.isWhitelisted ? whitelisted : rest).push(message);
+  }
+  return { whitelisted, rest };
+}
+
+/**
  * Scan and process a batch of messages
  * @param {Object} imap - ImapFlow client
  * @param {Array} uids - Array of message UIDs to process
  * @param {Object} state - Current scanner state
  * @param {Object} processor - Message processor instance
+ * @param {{whitelistSet: Set<string>, blacklistSet: Set<string>}} lists - Sender lists loaded once per `runScan` call
  * @returns {Promise<Object>} - Counts of processed messages by category
  */
-async function scanBatch(imap, uids, state, processor) {
+async function scanBatch(imap, uids, state, processor, lists) {
+  const { whitelistSet, blacklistSet } = lists;
   const messages = await fetchMessagesByUIDs(imap, uids);
 
-  const processedMessages = await processWithRspamd(messages);
-
-  let categorized = categorizeMessages(processedMessages);
-  const whitelistedMessages = categorized.whitelistedMessages;
-
-  if (config.AI_ENABLED) {
-    // Whitelisted senders are never sent to AI - a human-curated whitelist entry
-    // is a stronger trust signal than an AI re-check, and skipping it avoids
-    // spending AI budget on mail the mailbox owner already trusts.
-    const aiResults = await classifyWithAi({
-      nonSpamMessages: categorized.nonSpamMessages,
-      lowSpamMessages: categorized.lowSpamMessages,
-    });
-    await postAiFailureAlert(imap, aiResults.aiFailureAlert);
-    categorized = applyAiEscalation(categorized, aiResults, {
-      escalateToLowThreshold: config.AI_ESCALATE_TO_LOW_THRESHOLD,
-      escalateToHighThreshold: config.AI_ESCALATE_TO_HIGH_THRESHOLD,
-    });
+  // Blacklist check precedes the rspamd call entirely (see the `sender-lists`
+  // capability) - a blacklisted sender is confirmed spam unconditionally,
+  // with no content scoring and no AI review. Everyone else proceeds to
+  // rspamd as before.
+  const blacklistedMessages = [];
+  const remainingMessages = [];
+  for (const message of messages) {
+    const sender = senderAddressOf(message);
+    if (blacklistSet.has(sender)) {
+      logger
+        .forMessage(message.uid)
+        .debug(
+          { sender },
+          'Blacklist match - classified confirmed, skipping rspamd and AI'
+        );
+      blacklistedMessages.push(message);
+    } else {
+      remainingMessages.push(message);
+    }
   }
 
-  const { lowSpamMessages, highSpamMessages, spamMessages } = categorized;
-  // Whitelisted messages were held out of AI review; merge them back in as clean
-  // mail for labeling/moving purposes.
-  const nonSpamMessages = [
-    ...categorized.nonSpamMessages,
-    ...whitelistedMessages,
-  ];
+  const processedMessages = await processWithRspamd(
+    remainingMessages,
+    whitelistSet
+  );
+  const whitelistedTotal = processedMessages.filter(
+    m => m.spamInfo?.isWhitelisted
+  ).length;
+
+  let categorized = categorizeMessages(
+    processedMessages,
+    config.SPAM_CLEAN_THRESHOLD,
+    config.SPAM_LOW_THRESHOLD,
+    config.SPAM_CONFIRMED_THRESHOLD
+  );
+
+  if (config.AI_ENABLED) {
+    // Whitelisted senders are never sent to AI - a human-curated whitelist
+    // entry is a stronger trust signal than an AI re-check, and skipping it
+    // avoids spending AI budget on mail the mailbox owner already trusts.
+    // They still keep whatever tier their (whitelist-adjusted) score
+    // actually produced - only non-whitelisted clean/low messages go to AI.
+    const nonSpamPartition = partitionByWhitelist(categorized.nonSpamMessages);
+    const lowSpamPartition = partitionByWhitelist(categorized.lowSpamMessages);
+
+    const aiResults = await classifyWithAi({
+      nonSpamMessages: nonSpamPartition.rest,
+      lowSpamMessages: lowSpamPartition.rest,
+    });
+    await postAiFailureAlert(imap, aiResults.aiFailureAlert);
+
+    const escalated = applyAiEscalation(
+      {
+        ...categorized,
+        nonSpamMessages: nonSpamPartition.rest,
+        lowSpamMessages: lowSpamPartition.rest,
+      },
+      aiResults,
+      {
+        escalateToLowThreshold: config.AI_ESCALATE_TO_LOW_THRESHOLD,
+        escalateToHighThreshold: config.AI_ESCALATE_TO_HIGH_THRESHOLD,
+      }
+    );
+
+    categorized = {
+      ...escalated,
+      nonSpamMessages: [
+        ...escalated.nonSpamMessages,
+        ...nonSpamPartition.whitelisted,
+      ],
+      lowSpamMessages: [
+        ...escalated.lowSpamMessages,
+        ...lowSpamPartition.whitelisted,
+      ],
+    };
+  }
+
+  const { nonSpamMessages, lowSpamMessages, highSpamMessages } = categorized;
+  // Blacklisted messages never went through categorizeMessages - merge them
+  // into the confirmed/spam bucket here.
+  const spamMessages = [...categorized.spamMessages, ...blacklistedMessages];
 
   // Process messages with the configured strategy (label/folder/color)
   await processor.process(imap, {
@@ -184,7 +261,7 @@ async function scanBatch(imap, uids, state, processor) {
       lowSpamCount: lowSpamMessages.length,
       highSpamCount: highSpamMessages.length,
       nonSpamCount: nonSpamMessages.length,
-      whitelistedCount: whitelistedMessages.length,
+      whitelistedCount: whitelistedTotal,
       last_uid,
       last_seen_date,
     },
@@ -196,7 +273,7 @@ async function scanBatch(imap, uids, state, processor) {
     highSpamTotal: highSpamMessages.length,
     nonSpamTotal: nonSpamMessages.length,
     spamTotal: spamMessages.length,
-    whitelistedTotal: whitelistedMessages.length,
+    whitelistedTotal,
   };
 }
 
@@ -285,6 +362,24 @@ export async function runScan(imap) {
     const processingMode = config.SPAM_PROCESSING_MODE || 'label';
     const processor = await createProcessor(processingMode);
 
+    // Load whitelist/blacklist once per runScan call, not once per batch -
+    // the underlying IMAP-backed state doesn't change mid-scan (see the
+    // `sender-lists` capability). Sequential, not Promise.all: each read
+    // switches the connection's selected mailbox and restores it afterward,
+    // which isn't safe to run concurrently on a single IMAP connection.
+    const whitelistEntries = await readMapState(
+      imap,
+      config.STATE_KEY_WHITELIST_MAP
+    );
+    const blacklistEntries = await readMapState(
+      imap,
+      config.STATE_KEY_BLACKLIST_MAP
+    );
+    const lists = {
+      whitelistSet: new Set(whitelistEntries),
+      blacklistSet: new Set(blacklistEntries),
+    };
+
     let lowSpamTotal = 0,
       highSpamTotal = 0,
       nonSpamTotal = 0,
@@ -302,7 +397,7 @@ export async function runScan(imap) {
         'Scanning batch'
       );
       const batchUids = uids.slice(i, i + PROCESS_BATCH_SIZE);
-      const counts = await scanBatch(imap, batchUids, state, processor);
+      const counts = await scanBatch(imap, batchUids, state, processor, lists);
       lowSpamTotal += counts.lowSpamTotal;
       highSpamTotal += counts.highSpamTotal;
       nonSpamTotal += counts.nonSpamTotal;

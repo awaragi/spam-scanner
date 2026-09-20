@@ -1,241 +1,218 @@
-import { categorizeMessages, applyAiEscalation } from '../src/lib/utils/spam-classifier.js';
+import {
+  categorizeMessages,
+  applyAiEscalation,
+} from '../src/lib/utils/spam-classifier.js';
 
 describe('categorizeMessages', () => {
-  test('should categorize messages based on spam score percentage', () => {
+  test('should categorize messages based on spam score percentage (clean/low/high)', () => {
+    const messages = [
+      {
+        uid: 1,
+        spamInfo: { score: 10, required: 100, subject: 'Clean message' },
+      }, // 10% - below clean (30%)
+      {
+        uid: 2,
+        spamInfo: { score: 45, required: 100, subject: 'Low spam score' },
+      }, // 45% - between clean (30%) and low (60%)
+      {
+        uid: 3,
+        spamInfo: { score: 80, required: 100, subject: 'High spam score' },
+      }, // 80% - between low (60%) and confirmed (200%)
+    ];
+
+    const result = categorizeMessages(messages, 30, 60, 200);
+
+    expect(result.nonSpamMessages.map(m => m.uid)).toEqual([1]);
+    expect(result.lowSpamMessages.map(m => m.uid)).toEqual([2]);
+    expect(result.highSpamMessages.map(m => m.uid)).toEqual([3]);
+    expect(result.spamMessages).toEqual([]);
+  });
+
+  test('a message at or above the confirmed threshold is confirmed spam', () => {
+    const messages = [
+      {
+        uid: 1,
+        spamInfo: { score: 200, required: 100, subject: 'Exactly 200%' },
+      },
+      {
+        uid: 2,
+        spamInfo: { score: 300, required: 100, subject: 'Well above 200%' },
+      },
+    ];
+
+    const result = categorizeMessages(messages, 30, 60, 200);
+
+    expect(result.spamMessages.map(m => m.uid)).toEqual([1, 2]);
+    expect(result.highSpamMessages).toEqual([]);
+  });
+
+  test('should handle null scores and required values as clean', () => {
+    const messages = [
+      { uid: 1, spamInfo: { score: null, required: 100, subject: 'No score' } },
+      {
+        uid: 2,
+        spamInfo: { score: 50, required: null, subject: 'No required value' },
+      },
+      {
+        uid: 3,
+        spamInfo: { score: 50, required: 0, subject: 'Zero required value' },
+      },
+    ];
+
+    const result = categorizeMessages(messages, 30, 60, 200);
+
+    expect(result.nonSpamMessages.map(m => m.uid)).toEqual([1, 2, 3]);
+    expect(result.lowSpamMessages).toEqual([]);
+    expect(result.highSpamMessages).toEqual([]);
+    expect(result.spamMessages).toEqual([]);
+  });
+
+  test('should use custom thresholds (clean, low, confirmed)', () => {
+    const messages = [
+      { uid: 1, spamInfo: { score: 10, required: 100, subject: 'Low score' } }, // 10% - below custom clean (20%)
+      {
+        uid: 2,
+        spamInfo: { score: 30, required: 100, subject: 'Medium score' },
+      }, // 30% - between clean (20%) and low (40%)
+      { uid: 3, spamInfo: { score: 50, required: 100, subject: 'High score' } }, // 50% - between low (40%) and confirmed (80%)
+      {
+        uid: 4,
+        spamInfo: { score: 90, required: 100, subject: 'Confirmed score' },
+      }, // 90% - at/above custom confirmed (80%)
+    ];
+
+    const result = categorizeMessages(messages, 20, 40, 80);
+
+    expect(result.nonSpamMessages.map(m => m.uid)).toEqual([1]);
+    expect(result.lowSpamMessages.map(m => m.uid)).toEqual([2]);
+    expect(result.highSpamMessages.map(m => m.uid)).toEqual([3]);
+    expect(result.spamMessages.map(m => m.uid)).toEqual([4]);
+  });
+
+  test('isWhitelisted has no effect on tier assignment - a low-scoring whitelisted message is just clean', () => {
+    const messages = [
+      {
+        uid: 1,
+        spamInfo: {
+          score: 5,
+          required: 100,
+          isWhitelisted: true,
+          subject: 'Newsletter from a whitelisted sender',
+        },
+      },
+    ];
+
+    const result = categorizeMessages(messages, 30, 60, 200);
+
+    expect(result.nonSpamMessages.map(m => m.uid)).toEqual([1]);
+  });
+
+  test('a whitelisted message scoring in the high band is classified high, not silently treated as clean', () => {
+    const messages = [
+      {
+        uid: 1,
+        spamInfo: {
+          score: 90,
+          required: 100,
+          isWhitelisted: true,
+          subject: 'Whitelisted sender, elevated content',
+        },
+      },
+    ];
+
+    const result = categorizeMessages(messages, 30, 60, 200);
+
+    expect(result.highSpamMessages.map(m => m.uid)).toEqual([1]);
+    expect(result.nonSpamMessages).toEqual([]);
+  });
+
+  test('severe content still confirms a whitelisted sender (content overrides whitelist)', () => {
+    const messages = [
+      {
+        uid: 1,
+        spamInfo: {
+          score: 250,
+          required: 100,
+          isWhitelisted: true,
+          subject: 'Whitelisted but severe content',
+        },
+      },
+    ];
+
+    const result = categorizeMessages(messages, 30, 60, 200);
+
+    expect(result.spamMessages.map(m => m.uid)).toEqual([1]);
+  });
+
+  test('should treat isWhitelisted as false when absent', () => {
     const messages = [
       {
         uid: 1,
         spamInfo: {
           score: 10,
           required: 100,
-          isSpam: false,
-          subject: 'Clean message' // 10% - below clean threshold (30%)
-        }
+          subject: 'No isWhitelisted field at all',
+        },
+      },
+    ];
+
+    const result = categorizeMessages(messages, 30, 60, 200);
+
+    expect(result.nonSpamMessages.map(m => m.uid)).toEqual([1]);
+  });
+
+  test('should partition a mixed batch into nonSpam, lowSpam, highSpam, and spam purely by score, ignoring isWhitelisted', () => {
+    const messages = [
+      {
+        uid: 1,
+        spamInfo: {
+          score: 5,
+          required: 100,
+          isWhitelisted: true,
+          subject: 'whitelisted but clean anyway',
+        },
       },
       {
         uid: 2,
         spamInfo: {
-          score: 45,
+          score: 10,
           required: 100,
-          isSpam: false,
-          subject: 'Low spam score' // 45% - between clean (30%) and low probable (60%)
-        }
+          isWhitelisted: false,
+          subject: 'clean',
+        },
       },
       {
         uid: 3,
         spamInfo: {
-          score: 80,
+          score: 45,
           required: 100,
-          isSpam: false,
-          subject: 'High spam score' // 80% - between low probable (60%) and high probable (100%)
-        }
+          isWhitelisted: false,
+          subject: 'low',
+        },
       },
       {
         uid: 4,
         spamInfo: {
-          score: 50,
+          score: 80,
           required: 100,
-          isSpam: true,
-          subject: 'Spam message' // Marked as spam regardless of score
-        }
-      }
-    ];
-
-    const result = categorizeMessages(messages);
-
-    expect(result.nonSpamMessages.length).toBe(1);
-    expect(result.nonSpamMessages[0].uid).toBe(1);
-
-    expect(result.lowSpamMessages.length).toBe(1);
-    expect(result.lowSpamMessages[0].uid).toBe(2);
-
-    expect(result.highSpamMessages.length).toBe(1);
-    expect(result.highSpamMessages[0].uid).toBe(3);
-
-    expect(result.spamMessages.length).toBe(1);
-    expect(result.spamMessages[0].uid).toBe(4);
-  });
-
-  test('should handle null scores and required values', () => {
-    const messages = [
-      {
-        uid: 1,
-        spamInfo: {
-          score: null,
-          required: 100,
-          isSpam: false,
-          subject: 'No score'
-        }
-      },
-      {
-        uid: 2,
-        spamInfo: {
-          score: 50,
-          required: null,
-          isSpam: false,
-          subject: 'No required value'
-        }
-      },
-      {
-        uid: 3,
-        spamInfo: {
-          score: 50,
-          required: 0,
-          isSpam: false,
-          subject: 'Zero required value'
-        }
-      }
-    ];
-
-    const result = categorizeMessages(messages);
-
-    expect(result.nonSpamMessages.length).toBe(3);
-    expect(result.nonSpamMessages.map(m => m.uid)).toEqual([1, 2, 3]);
-    expect(result.lowSpamMessages.length).toBe(0);
-    expect(result.highSpamMessages.length).toBe(0);
-    expect(result.spamMessages.length).toBe(0);
-  });
-
-  test('should use custom thresholds', () => {
-    const messages = [
-      {
-        uid: 1,
-        spamInfo: {
-          score: 10,
-          required: 100,
-          isSpam: false,
-          subject: 'Low score' // 10% - below custom clean threshold (20%)
-        }
-      },
-      {
-        uid: 2,
-        spamInfo: {
-          score: 30,
-          required: 100,
-          isSpam: false,
-          subject: 'Medium score' // 30% - between clean (20%) and low probable (40%)
-        }
-      },
-      {
-        uid: 3,
-        spamInfo: {
-          score: 50,
-          required: 100,
-          isSpam: false,
-          subject: 'High score' // 50% - between low probable (40%) and high probable (80%)
-        }
-      }
-    ];
-
-    // Use custom thresholds: clean < 20%, low < 40%, high < 80%
-    const result = categorizeMessages(messages, 20, 40, 80);
-
-    expect(result.nonSpamMessages.length).toBe(1);
-    expect(result.nonSpamMessages[0].uid).toBe(1);
-
-    expect(result.lowSpamMessages.length).toBe(1);
-    expect(result.lowSpamMessages[0].uid).toBe(2);
-
-    expect(result.highSpamMessages.length).toBe(1);
-    expect(result.highSpamMessages[0].uid).toBe(3);
-  });
-
-  test('should prioritize isSpam flag over score', () => {
-    const messages = [
-      {
-        uid: 1,
-        spamInfo: {
-          score: 5,
-          required: 100,
-          isSpam: true, // Marked as spam despite low score (5%)
-          subject: 'Spam despite low score'
-        }
-      }
-    ];
-
-    const result = categorizeMessages(messages);
-
-    expect(result.spamMessages.length).toBe(1);
-    expect(result.spamMessages[0].uid).toBe(1);
-    expect(result.nonSpamMessages.length).toBe(0);
-    expect(result.lowSpamMessages.length).toBe(0);
-    expect(result.highSpamMessages.length).toBe(0);
-  });
-
-  test('should put a whitelisted, non-spam message in whitelistedMessages instead of nonSpamMessages', () => {
-    const messages = [
-      {
-        uid: 1,
-        spamInfo: {
-          score: 5,
-          required: 100,
-          isSpam: false,
           isWhitelisted: true,
-          subject: 'Newsletter from a whitelisted sender'
-        }
-      }
-    ];
-
-    const result = categorizeMessages(messages);
-
-    expect(result.whitelistedMessages.length).toBe(1);
-    expect(result.whitelistedMessages[0].uid).toBe(1);
-    expect(result.nonSpamMessages).toEqual([]);
-  });
-
-  test('should still bucket a whitelisted message by score if it is also flagged isSpam (reject wins)', () => {
-    const messages = [
+          subject: 'whitelisted but still high',
+        },
+      },
       {
-        uid: 1,
+        uid: 5,
         spamInfo: {
-          score: 50,
+          score: 250,
           required: 100,
-          isSpam: true,
-          isWhitelisted: true,
-          subject: 'Whitelisted sender but rspamd rejected anyway'
-        }
-      }
+          isWhitelisted: false,
+          subject: 'confirmed',
+        },
+      },
     ];
 
-    const result = categorizeMessages(messages);
+    const result = categorizeMessages(messages, 30, 60, 200);
 
-    expect(result.spamMessages.length).toBe(1);
-    expect(result.spamMessages[0].uid).toBe(1);
-    expect(result.whitelistedMessages).toEqual([]);
-  });
-
-  test('should treat isWhitelisted as false when absent (backward compatible)', () => {
-    const messages = [
-      {
-        uid: 1,
-        spamInfo: {
-          score: 10,
-          required: 100,
-          isSpam: false,
-          subject: 'No isWhitelisted field at all'
-        }
-      }
-    ];
-
-    const result = categorizeMessages(messages);
-
-    expect(result.whitelistedMessages).toEqual([]);
-    expect(result.nonSpamMessages.map(m => m.uid)).toEqual([1]);
-  });
-
-  test('should partition a mixed batch into whitelisted, nonSpam, lowSpam, highSpam, and spam', () => {
-    const messages = [
-      {uid: 1, spamInfo: {score: 5, required: 100, isSpam: false, isWhitelisted: true, subject: 'wl'}},
-      {uid: 2, spamInfo: {score: 10, required: 100, isSpam: false, isWhitelisted: false, subject: 'clean'}},
-      {uid: 3, spamInfo: {score: 45, required: 100, isSpam: false, isWhitelisted: false, subject: 'low'}},
-      {uid: 4, spamInfo: {score: 80, required: 100, isSpam: false, isWhitelisted: false, subject: 'high'}},
-      {uid: 5, spamInfo: {score: 50, required: 100, isSpam: true, isWhitelisted: false, subject: 'spam'}}
-    ];
-
-    const result = categorizeMessages(messages);
-
-    expect(result.whitelistedMessages.map(m => m.uid)).toEqual([1]);
-    expect(result.nonSpamMessages.map(m => m.uid)).toEqual([2]);
+    expect(result.nonSpamMessages.map(m => m.uid)).toEqual([1, 2]);
     expect(result.lowSpamMessages.map(m => m.uid)).toEqual([3]);
     expect(result.highSpamMessages.map(m => m.uid)).toEqual([4]);
     expect(result.spamMessages.map(m => m.uid)).toEqual([5]);
@@ -244,10 +221,22 @@ describe('categorizeMessages', () => {
 
 describe('applyAiEscalation', () => {
   function withAiScore(uid, score, error = null) {
-    return {uid, aiInfo: {score, reasoning: score === null ? null : 'ai reasoning', error}};
+    return {
+      uid,
+      aiInfo: {
+        score,
+        reasoning: score === null ? null : 'ai reasoning',
+        error,
+      },
+    };
   }
 
-  function categorizedOf({nonSpam = [], lowSpam = [], highSpam = [], spam = []}) {
+  function categorizedOf({
+    nonSpam = [],
+    lowSpam = [],
+    highSpam = [],
+    spam = [],
+  }) {
     return {
       nonSpamMessages: nonSpam,
       lowSpamMessages: lowSpam,
@@ -258,9 +247,15 @@ describe('applyAiEscalation', () => {
 
   test('nonSpam message below both thresholds stays nonSpam', () => {
     const categorized = categorizedOf({});
-    const aiResults = {nonSpamMessages: [withAiScore(1, 10)], lowSpamMessages: []};
+    const aiResults = {
+      nonSpamMessages: [withAiScore(1, 10)],
+      lowSpamMessages: [],
+    };
 
-    const result = applyAiEscalation(categorized, aiResults, {escalateToLowThreshold: 50, escalateToHighThreshold: 80});
+    const result = applyAiEscalation(categorized, aiResults, {
+      escalateToLowThreshold: 50,
+      escalateToHighThreshold: 80,
+    });
 
     expect(result.nonSpamMessages.map(m => m.uid)).toEqual([1]);
     expect(result.lowSpamMessages).toEqual([]);
@@ -269,9 +264,15 @@ describe('applyAiEscalation', () => {
 
   test('nonSpam message in the low band escalates to lowSpam', () => {
     const categorized = categorizedOf({});
-    const aiResults = {nonSpamMessages: [withAiScore(1, 60)], lowSpamMessages: []};
+    const aiResults = {
+      nonSpamMessages: [withAiScore(1, 60)],
+      lowSpamMessages: [],
+    };
 
-    const result = applyAiEscalation(categorized, aiResults, {escalateToLowThreshold: 50, escalateToHighThreshold: 80});
+    const result = applyAiEscalation(categorized, aiResults, {
+      escalateToLowThreshold: 50,
+      escalateToHighThreshold: 80,
+    });
 
     expect(result.nonSpamMessages).toEqual([]);
     expect(result.lowSpamMessages.map(m => m.uid)).toEqual([1]);
@@ -280,9 +281,15 @@ describe('applyAiEscalation', () => {
 
   test('nonSpam message in the high band escalates directly to highSpam', () => {
     const categorized = categorizedOf({});
-    const aiResults = {nonSpamMessages: [withAiScore(1, 90)], lowSpamMessages: []};
+    const aiResults = {
+      nonSpamMessages: [withAiScore(1, 90)],
+      lowSpamMessages: [],
+    };
 
-    const result = applyAiEscalation(categorized, aiResults, {escalateToLowThreshold: 50, escalateToHighThreshold: 80});
+    const result = applyAiEscalation(categorized, aiResults, {
+      escalateToLowThreshold: 50,
+      escalateToHighThreshold: 80,
+    });
 
     expect(result.nonSpamMessages).toEqual([]);
     expect(result.lowSpamMessages).toEqual([]);
@@ -291,9 +298,15 @@ describe('applyAiEscalation', () => {
 
   test('lowSpam message below the low threshold stays lowSpam (no de-escalation to nonSpam)', () => {
     const categorized = categorizedOf({});
-    const aiResults = {nonSpamMessages: [], lowSpamMessages: [withAiScore(1, 0)]};
+    const aiResults = {
+      nonSpamMessages: [],
+      lowSpamMessages: [withAiScore(1, 0)],
+    };
 
-    const result = applyAiEscalation(categorized, aiResults, {escalateToLowThreshold: 50, escalateToHighThreshold: 80});
+    const result = applyAiEscalation(categorized, aiResults, {
+      escalateToLowThreshold: 50,
+      escalateToHighThreshold: 80,
+    });
 
     expect(result.nonSpamMessages).toEqual([]);
     expect(result.lowSpamMessages.map(m => m.uid)).toEqual([1]);
@@ -301,9 +314,15 @@ describe('applyAiEscalation', () => {
 
   test('lowSpam message above the high threshold escalates to highSpam', () => {
     const categorized = categorizedOf({});
-    const aiResults = {nonSpamMessages: [], lowSpamMessages: [withAiScore(1, 95)]};
+    const aiResults = {
+      nonSpamMessages: [],
+      lowSpamMessages: [withAiScore(1, 95)],
+    };
 
-    const result = applyAiEscalation(categorized, aiResults, {escalateToLowThreshold: 50, escalateToHighThreshold: 80});
+    const result = applyAiEscalation(categorized, aiResults, {
+      escalateToLowThreshold: 50,
+      escalateToHighThreshold: 80,
+    });
 
     expect(result.lowSpamMessages).toEqual([]);
     expect(result.highSpamMessages.map(m => m.uid)).toEqual([1]);
@@ -316,7 +335,10 @@ describe('applyAiEscalation', () => {
       lowSpamMessages: [withAiScore(2, null, 'timeout')],
     };
 
-    const result = applyAiEscalation(categorized, aiResults, {escalateToLowThreshold: 50, escalateToHighThreshold: 80});
+    const result = applyAiEscalation(categorized, aiResults, {
+      escalateToLowThreshold: 50,
+      escalateToHighThreshold: 80,
+    });
 
     expect(result.nonSpamMessages.map(m => m.uid)).toEqual([1]);
     expect(result.lowSpamMessages.map(m => m.uid)).toEqual([2]);
@@ -329,7 +351,10 @@ describe('applyAiEscalation', () => {
       lowSpamMessages: [],
     };
 
-    const result = applyAiEscalation(categorized, aiResults, {escalateToLowThreshold: 50, escalateToHighThreshold: 80});
+    const result = applyAiEscalation(categorized, aiResults, {
+      escalateToLowThreshold: 50,
+      escalateToHighThreshold: 80,
+    });
 
     expect(result.lowSpamMessages.map(m => m.uid)).toEqual([1]);
     expect(result.highSpamMessages.map(m => m.uid)).toEqual([2]);
@@ -337,18 +362,24 @@ describe('applyAiEscalation', () => {
 
   test('custom thresholds override the defaults', () => {
     const categorized = categorizedOf({});
-    const aiResults = {nonSpamMessages: [withAiScore(1, 30)], lowSpamMessages: []};
+    const aiResults = {
+      nonSpamMessages: [withAiScore(1, 30)],
+      lowSpamMessages: [],
+    };
 
-    const result = applyAiEscalation(categorized, aiResults, {escalateToLowThreshold: 25, escalateToHighThreshold: 60});
+    const result = applyAiEscalation(categorized, aiResults, {
+      escalateToLowThreshold: 25,
+      escalateToHighThreshold: 60,
+    });
 
     expect(result.lowSpamMessages.map(m => m.uid)).toEqual([1]);
   });
 
   test('original highSpamMessages and spamMessages pass through unmodified', () => {
-    const highSpam = [{uid: 10}];
-    const spam = [{uid: 20}];
-    const categorized = categorizedOf({highSpam, spam});
-    const aiResults = {nonSpamMessages: [], lowSpamMessages: []};
+    const highSpam = [{ uid: 10 }];
+    const spam = [{ uid: 20 }];
+    const categorized = categorizedOf({ highSpam, spam });
+    const aiResults = { nonSpamMessages: [], lowSpamMessages: [] };
 
     const result = applyAiEscalation(categorized, aiResults);
 
@@ -363,7 +394,10 @@ describe('applyAiEscalation', () => {
       lowSpamMessages: [withAiScore(2, 100)],
     };
 
-    const result = applyAiEscalation(categorized, aiResults, {escalateToLowThreshold: 50, escalateToHighThreshold: 80});
+    const result = applyAiEscalation(categorized, aiResults, {
+      escalateToLowThreshold: 50,
+      escalateToHighThreshold: 80,
+    });
 
     expect(result.spamMessages).toEqual([]);
     expect(result.highSpamMessages.map(m => m.uid).sort()).toEqual([1, 2]);

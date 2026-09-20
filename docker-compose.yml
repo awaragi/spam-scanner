@@ -6,15 +6,10 @@ services:
     depends_on:
       - rspamd
     restart: unless-stopped
-    volumes:
-      - ${SPAM_SCANNER_DATA:?Set SPAM_SCANNER_DATA in .env to an absolute path}/rspamd/maps:/data/rspamd/maps
     environment:
       # Hardcode internal Rspamd URL for service-to-service communication
       - RSPAMD_URL=http://rspamd:11334
       # RSPAMD_PASSWORD comes from env_file above, not restated here (see .env)
-      # Map paths inside the container (mounted above)
-      - RSPAMD_WHITELIST_MAP_PATH=/data/rspamd/maps/whitelist.map
-      - RSPAMD_BLACKLIST_MAP_PATH=/data/rspamd/maps/blacklist.map
     networks:
       - spam-network
 
@@ -30,7 +25,6 @@ services:
       - ./rspamd/config:/etc/rspamd/local.d
       - ${SPAM_SCANNER_DATA:?Set SPAM_SCANNER_DATA in .env to an absolute path}/rspamd/data:/var/lib/rspamd
       - ${SPAM_SCANNER_DATA:?Set SPAM_SCANNER_DATA in .env to an absolute path}/rspamd/logs:/var/log/rspamd
-      - ${SPAM_SCANNER_DATA:?Set SPAM_SCANNER_DATA in .env to an absolute path}/rspamd/maps:/etc/rspamd/maps
     depends_on:
       - redis
       - unbound

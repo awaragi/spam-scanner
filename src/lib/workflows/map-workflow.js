@@ -1,6 +1,5 @@
 import { rootLogger } from '../utils/logger.js';
 import { config } from '../utils/config.js';
-import { writeMapState } from '../state-manager.js';
 import {
   open,
   count,
@@ -9,10 +8,8 @@ import {
 } from '../clients/imap-client.js';
 import {
   extractSenderAddresses,
-  updateMapFile,
+  updateListState,
 } from '../services/map-service.js';
-import path from 'path';
-import fs from 'fs/promises';
 
 const logger = rootLogger.forComponent('map-workflow');
 
@@ -20,25 +17,12 @@ const logger = rootLogger.forComponent('map-workflow');
  * Generic map training workflow handler
  * @param {Object} imap - ImapFlow client
  * @param {string} folder - Training folder path
- * @param {string} mapPath - Path to map file
- * @param {string} mapStateKey - State key for map backup
+ * @param {string} mapStateKey - State key identifying the mailbox's IMAP-backed whitelist/blacklist (see config.js STATE_KEY_WHITELIST_MAP/STATE_KEY_BLACKLIST_MAP)
  * @param {string} destFolder - Destination folder after processing
  * @param {string} type - Map type ('whitelist' or 'blacklist')
  * @returns {Promise<void>}
  */
-async function runMapTraining(
-  imap,
-  folder,
-  mapPath,
-  mapStateKey,
-  destFolder,
-  type
-) {
-  // Resolve map path relative to repo root if it's not absolute
-  const resolvedMapPath = path.isAbsolute(mapPath)
-    ? mapPath
-    : path.resolve(process.cwd(), mapPath);
-
+async function runMapTraining(imap, folder, mapStateKey, destFolder, type) {
   try {
     const box = await open(imap, folder);
     const messageCount = count(box);
@@ -57,29 +41,15 @@ async function runMapTraining(
         `No extractable senders found among ${type} training messages; moving them on unlearned`
       );
     } else {
-      // Update map file with senders
-      const result = await updateMapFile(resolvedMapPath, senders);
-      logger.info({ folder, type, ...result }, `${type} map updated`);
-
-      // Backup map state
-      let mapContent = null;
-      try {
-        mapContent = await fs.readFile(resolvedMapPath, 'utf-8');
-      } catch (err) {
-        if (err.code === 'ENOENT') {
-          logger.debug(
-            { mapPath: resolvedMapPath, type },
-            'Map file not found for state backup'
-          );
-        } else {
-          throw err;
-        }
-      }
-
-      if (mapContent !== null) {
-        await writeMapState(imap, mapStateKey, mapContent);
-        logger.debug({ folder, type, mapStateKey }, 'Map state backup updated');
-      }
+      // Training always appends - it merges newly extracted senders with
+      // whatever's already in the mailbox's IMAP-backed list, never replaces it.
+      const result = await updateListState(
+        imap,
+        mapStateKey,
+        senders,
+        'append'
+      );
+      logger.info({ folder, type, ...result }, `${type} list updated`);
     }
 
     // Move processed messages to destination folder
@@ -99,7 +69,7 @@ async function runMapTraining(
 
 /**
  * Run whitelist training workflow
- * Orchestrates extracting senders and updating whitelist map
+ * Orchestrates extracting senders and updating the mailbox's IMAP-backed whitelist
  * @param {Object} imap - ImapFlow client
  * @returns {Promise<void>}
  */
@@ -107,7 +77,6 @@ export async function runWhitelist(imap) {
   await runMapTraining(
     imap,
     config.FOLDER_TRAIN_WHITELIST,
-    config.RSPAMD_WHITELIST_MAP_PATH,
     config.STATE_KEY_WHITELIST_MAP,
     config.FOLDER_INBOX,
     'whitelist'
@@ -116,7 +85,7 @@ export async function runWhitelist(imap) {
 
 /**
  * Run blacklist training workflow
- * Orchestrates extracting senders and updating blacklist map
+ * Orchestrates extracting senders and updating the mailbox's IMAP-backed blacklist
  * @param {Object} imap - ImapFlow client
  * @returns {Promise<void>}
  */
@@ -124,7 +93,6 @@ export async function runBlacklist(imap) {
   await runMapTraining(
     imap,
     config.FOLDER_TRAIN_BLACKLIST,
-    config.RSPAMD_BLACKLIST_MAP_PATH,
     config.STATE_KEY_BLACKLIST_MAP,
     config.FOLDER_SPAM,
     'blacklist'

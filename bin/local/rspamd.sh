@@ -55,12 +55,7 @@ cmd_init() {
     mkdir -p \
         "${data_dir}/rspamd/data" \
         "${data_dir}/rspamd/logs" \
-        "${data_dir}/rspamd/maps" \
         "${data_dir}/redis"
-
-    # Create empty map files if they don't exist
-    touch "${data_dir}/rspamd/maps/whitelist.map"
-    touch "${data_dir}/rspamd/maps/blacklist.map"
 
     echo "Done. Directory structure:"
     find "${data_dir}" -maxdepth 3 -print | sort

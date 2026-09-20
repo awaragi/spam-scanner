@@ -38,10 +38,14 @@ import { processWithRspamd } from '../src/lib/services/message-service.js';
 import { checkEmail } from '../src/lib/clients/rspamd-client.js';
 import { parseRspamdOutput } from '../src/lib/utils/email-parser.js';
 
-function makeMessage(uid) {
+function makeMessage(uid, from) {
   return {
     uid,
-    envelope: { subject: `subject-${uid}`, date: new Date() },
+    envelope: {
+      subject: `subject-${uid}`,
+      date: new Date(),
+      ...(from ? { from: [{ address: from }] } : {}),
+    },
     raw: `raw-${uid}`,
   };
 }
@@ -60,19 +64,51 @@ describe('processWithRspamd', () => {
   test('all messages succeed: returns each with spamInfo attached, unchanged shape', async () => {
     const messages = [makeMessage(1), makeMessage(2)];
     checkEmail.mockResolvedValue({ action: 'no action', score: 1 });
-    parseRspamdOutput.mockReturnValue({
-      score: 1,
-      required: 15,
-      level: null,
-      isSpam: false,
-      isWhitelisted: false,
-    });
+    parseRspamdOutput.mockReturnValue({ score: 1, required: 15 });
 
-    const result = await processWithRspamd(messages);
+    const result = await processWithRspamd(messages, new Set());
 
     expect(result).toHaveLength(2);
-    expect(result[0]).toMatchObject({ uid: 1, spamInfo: { isSpam: false } });
-    expect(result[1]).toMatchObject({ uid: 2, spamInfo: { isSpam: false } });
+    expect(result[0]).toMatchObject({
+      uid: 1,
+      spamInfo: { score: 1, required: 15, isWhitelisted: false },
+    });
+    expect(result[1]).toMatchObject({
+      uid: 2,
+      spamInfo: { score: 1, required: 15, isWhitelisted: false },
+    });
+  });
+
+  test('a whitelisted sender has 20 subtracted from the raw score', async () => {
+    const messages = [makeMessage(1, 'trusted@example.com')];
+    checkEmail.mockResolvedValue({ action: 'no action', score: 30 });
+    parseRspamdOutput.mockReturnValue({ score: 30, required: 15 });
+
+    const result = await processWithRspamd(
+      messages,
+      new Set(['trusted@example.com'])
+    );
+
+    expect(result[0].spamInfo).toMatchObject({
+      score: 10,
+      isWhitelisted: true,
+    });
+  });
+
+  test('a non-whitelisted sender keeps the raw score unchanged', async () => {
+    const messages = [makeMessage(1, 'stranger@example.com')];
+    checkEmail.mockResolvedValue({ action: 'no action', score: 30 });
+    parseRspamdOutput.mockReturnValue({ score: 30, required: 15 });
+
+    const result = await processWithRspamd(
+      messages,
+      new Set(['trusted@example.com'])
+    );
+
+    expect(result[0].spamInfo).toMatchObject({
+      score: 30,
+      isWhitelisted: false,
+    });
   });
 
   test('one permanent failure, one success: permanent one skipped and logged, success kept, no throw', async () => {
@@ -93,7 +129,7 @@ describe('processWithRspamd', () => {
       isWhitelisted: false,
     });
 
-    const result = await processWithRspamd(messages);
+    const result = await processWithRspamd(messages, new Set());
 
     expect(result).toHaveLength(1);
     expect(result[0].uid).toBe(2);

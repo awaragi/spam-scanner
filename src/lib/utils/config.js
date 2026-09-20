@@ -1,13 +1,9 @@
 import { rootLogger } from './logger.js';
 import { homedir, userInfo } from 'os';
-import path from 'path';
 
 const logger = rootLogger.forComponent('config');
 
 export const config = (() => {
-  const dataDir =
-    process.env.SPAM_SCANNER_DATA || path.join(homedir(), '.spam-scanner');
-
   const c = {
     HOME: homedir(),
     USER: userInfo().username,
@@ -50,12 +46,16 @@ export const config = (() => {
     RSPAMD_URL: process.env.RSPAMD_URL || 'http://localhost:11334',
     RSPAMD_PASSWORD: process.env.RSPAMD_PASSWORD || '',
     RSPAMD_TIMEOUT_MS: parseInt(process.env.RSPAMD_TIMEOUT_MS || '30000', 10),
-    RSPAMD_WHITELIST_MAP_PATH:
-      process.env.RSPAMD_WHITELIST_MAP_PATH ||
-      path.join(dataDir, 'rspamd/maps/whitelist.map'),
-    RSPAMD_BLACKLIST_MAP_PATH:
-      process.env.RSPAMD_BLACKLIST_MAP_PATH ||
-      path.join(dataDir, 'rspamd/maps/blacklist.map'),
+
+    SPAM_CLEAN_THRESHOLD: parseInt(
+      process.env.SPAM_CLEAN_THRESHOLD || '30',
+      10
+    ),
+    SPAM_LOW_THRESHOLD: parseInt(process.env.SPAM_LOW_THRESHOLD || '60', 10),
+    SPAM_CONFIRMED_THRESHOLD: parseInt(
+      process.env.SPAM_CONFIRMED_THRESHOLD || '200',
+      10
+    ),
 
     AI_ENABLED: process.env.AI_ENABLED === 'true',
     AI_BASE_URL: process.env.AI_BASE_URL || 'https://api.openai.com/v1',

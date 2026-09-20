@@ -3,6 +3,7 @@ import { checkEmail } from '../clients/rspamd-client.js';
 import { parseRspamdOutput } from '../utils/email-parser.js';
 import { dateToString } from '../utils/email.js';
 import { isPermanentError } from '../utils/error-classifier.js';
+import { senderAddressOf } from '../utils/sender-lists.js';
 
 const logger = rootLogger.forComponent('message-service');
 
@@ -13,8 +14,12 @@ const logger = rootLogger.forComponent('message-service');
  *   is logged at warn and resolved as `null` (skip marker) - it never rejects.
  * - A transient error (network, 5xx, timeout) rejects, so the caller can fail
  *   the whole batch for retry.
+ * A whitelist match subtracts 20 from rspamd's raw score before it's used
+ * for categorization (see `spam-classifier.js`) - the same adjustment
+ * rspamd's own multimap rule used to apply internally, now computed here
+ * since rspamd is a stateless content scorer with no list awareness.
  */
-async function processOneMessage(message) {
+async function processOneMessage(message, whitelistSet) {
   const { uid, envelope, raw } = message;
   const messageLogger = logger.forMessage(uid);
   const subject = envelope.subject;
@@ -31,11 +36,20 @@ async function processOneMessage(message) {
       'Rspamd check completed'
     );
 
-    // Parse Rspamd output
-    const { score, required, level, isSpam, isWhitelisted } =
-      parseRspamdOutput(result);
+    const { score: rawScore, required } = parseRspamdOutput(result);
+    const sender = senderAddressOf(message);
+    const isWhitelisted = whitelistSet.has(sender);
+    const score = isWhitelisted ? rawScore - 20 : rawScore;
+
+    if (isWhitelisted) {
+      messageLogger.debug(
+        { sender, rawScore, adjustedScore: score, adjustment: -20 },
+        'Whitelist match - subtracting 20 from score'
+      );
+    }
+
     messageLogger.debug(
-      { score, required, level, isSpam, isWhitelisted, date, subject },
+      { score, rawScore, required, isWhitelisted, date, subject },
       'Rspamd scan results'
     );
 
@@ -45,8 +59,6 @@ async function processOneMessage(message) {
       spamInfo: {
         score,
         required,
-        level,
-        isSpam,
         isWhitelisted,
         subject,
         date,
@@ -72,14 +84,17 @@ async function processOneMessage(message) {
  * message never blocks the rest of the batch; a transient failure fails the
  * whole call so the caller's existing retry-the-batch behavior applies.
  * @param {Array} messages - Array of message objects with uid, envelope, raw
+ * @param {Set<string>} whitelistSet - Normalized whitelist addresses, for score adjustment
  * @returns {Promise<Array>} - Array of messages with spamInfo attached
  */
-export async function processWithRspamd(messages) {
+export async function processWithRspamd(messages, whitelistSet) {
   if (messages.length === 0) {
     return [];
   }
 
-  const settled = await Promise.allSettled(messages.map(processOneMessage));
+  const settled = await Promise.allSettled(
+    messages.map(message => processOneMessage(message, whitelistSet))
+  );
 
   const processedMessages = [];
   const failedUids = [];

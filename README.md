@@ -10,8 +10,8 @@ Supports UID-based incremental scanning, mailbox-contained state, and both manua
 - IMAP inbox scanning using Rspamd HTTP API
 - UID-based incremental progress tracking (no reprocessing)
 - Manual spam/ham/whitelist/blacklist training via dedicated IMAP folders
-- Whitelist and blacklist email maps with automatic updates
-- Spam classification with different probability levels (low/high)
+- Whitelist and blacklist sender lists, stored per mailbox in IMAP state (not a local file), with automatic updates
+- Spam classification with four score-percentage tiers (clean/low/high/confirmed)
 - Scanner state stored inside the mailbox itself (no external database) - but Redis and a host data directory are still required for Rspamd's own Bayes/statistics storage, see [Docker Deployment](#docker-deployment)
 - Optional AI/LLM-based safety-net re-check of rspamd's non-confident buckets (see `AI_*` settings below)
 - Single-run, poll-loop, or event-driven IMAP IDLE run modes
@@ -19,21 +19,47 @@ Supports UID-based incremental scanning, mailbox-contained state, and both manua
 
 ---
 
-## Whitelist & Blacklist Maps
+## Whitelist & Blacklist
 
-The application supports email address whitelisting and blacklisting via static Rspamd multimap rules (`rspamd/config/multimap.conf`):
+Email address whitelisting and blacklisting is decided entirely in application code, keyed on the message's sender address - Rspamd itself is a stateless content scorer with no list or mailbox awareness, so the same Rspamd instance can safely be shared by more than one mailbox's scanner. Each mailbox's lists are stored as JSON in that mailbox's own IMAP state folder (the same folder and mechanism scanner progress already uses), not in a file on local disk.
 
-- **Whitelist**: Emails from whitelisted senders receive a **−20** score adjustment (trusted senders)
-- **Blacklist**: Emails from blacklisted senders receive a **+20** score adjustment (blocked senders)
+Blacklist and whitelist are treated differently on purpose:
 
-Map files are simple text files with one email address per line (normalized to lowercase, entries kept in the order they were added - not sorted):
+- **Blacklist**: an absolute override. A blacklisted sender is checked _before_ Rspamd is even called - the message is classified `confirmed` (moved to the spam folder) unconditionally, with no content scoring and no AI review.
+- **Whitelist**: a **−20** adjustment to Rspamd's own content score, applied _after_ Rspamd responds. A whitelisted sender still skips AI review, but severe-enough content can still push the message into the `confirmed` tier despite the whitelist match - a spoofed "trusted" address doesn't get a free pass on content that's bad enough.
+
+If a sender is listed on both, blacklist wins.
+
+Training messages by moving them to the `INBOX.scanner.train.whitelist` or `INBOX.scanner.train.blacklist` folder automatically extracts sender addresses and merges them into the corresponding mailbox-backed list.
+
+### Importing, exporting, and backing up lists
+
+If you're upgrading from a version that used local `whitelist.map`/`blacklist.map` files read by Rspamd's multimap module, import them once with `src/admin/import-list.js`:
 
 ```
-user1@trusted-company.com
-user2@trusted-company.com
+node src/admin/import-list.js --list whitelist --file /path/to/whitelist.map
+node src/admin/import-list.js --list blacklist --file /path/to/blacklist.map
 ```
 
-Training messages by moving them to the `INBOX.scanner.train.whitelist` or `INBOX.scanner.train.blacklist` folder will automatically extract sender addresses and add them to the corresponding map file. The map files live under `${SPAM_SCANNER_DATA}/rspamd/maps/` and are mounted into the Rspamd container, which auto-reloads them.
+`--file` is a plain path to any local file you can read - it has no relation to any env var or Docker mount. `--mode` defaults to `append` (merge with whatever's already in the mailbox's list); pass `--mode override` to replace the mailbox's list with exactly the file's contents instead. `--format` defaults to `txt` (one address per line, the legacy map format); pass `--format json` to import a JSON array instead - the same shape `export-list.js` produces and list state is stored in. Both `--mode` and `--format` are safe to run more than once.
+
+`src/admin/export-list.js` is the reverse - dump a mailbox's list out, either for a human-readable backup (`--format txt`, the default) or for moving a list to another mailbox/account (`--format json`, which round-trips exactly through `import-list.js --format json --mode override`):
+
+```
+node src/admin/export-list.js --list whitelist --file whitelist-backup.txt
+node src/admin/export-list.js --list whitelist --format json --file whitelist-backup.json
+```
+
+Omit `--file` on either script to print to standard output instead (useful for piping, e.g. `node src/admin/export-list.js --list whitelist | less`).
+
+To back up or move a mailbox's _entire_ state - scanner progress plus both lists - in one file, use `export-mailbox-state.js`/`import-mailbox-state.js` instead of the per-list scripts above:
+
+```
+node src/admin/export-mailbox-state.js --file mailbox-backup.json
+node src/admin/import-mailbox-state.js --file mailbox-backup.json --mode override
+```
+
+The bundle is a single JSON object (`{ scannerState, whitelist, blacklist }`), always all three on export. On import, only the keys present in the file are restored - a hand-edited or partial bundle (e.g. lists only) is fine. `--mode` applies to the lists only, the same `append`/`override` semantics as `import-list.js`; `scannerState`, when present, always fully replaces the destination's scanner state (it has no merge concept, matching how it's always behaved). Point `import-mailbox-state.js` at a different mailbox's IMAP credentials than the one you exported from to move an entire configuration between accounts. Use this pair for a full snapshot; use `import-list.js`/`export-list.js` for a single list, or `read-state.js`/`write-state.js` for scanner progress alone.
 
 ---
 
@@ -42,7 +68,7 @@ Training messages by moving them to the `INBOX.scanner.train.whitelist` or `INBO
 | Purpose                             | Default Folder                  |
 | ----------------------------------- | ------------------------------- |
 | Inbox to scan                       | `INBOX`                         |
-| Spam destination (reject verdict)   | `INBOX.spam`                    |
+| Spam destination (confirmed tier)   | `INBOX.spam`                    |
 | Low-probability spam (folder mode)  | `INBOX.spam.low`                |
 | High-probability spam (folder mode) | `INBOX.spam.high`               |
 | Manual spam training                | `INBOX.scanner.train.spam`      |
@@ -124,10 +150,16 @@ SPAM_PROCESSING_MODE=folder
 LABEL_SPAM_LOW=Spam:Low
 LABEL_SPAM_HIGH=Spam:High
 
+# Score-percentage thresholds ((score / required_score) * 100) that decide a
+# message's tier - clean, low, high, or confirmed (moved to FOLDER_SPAM,
+# skips AI). A blacklist match is always confirmed regardless of score; a
+# whitelist match subtracts 20 from the score before this math runs.
+SPAM_CLEAN_THRESHOLD=30
+SPAM_LOW_THRESHOLD=60
+SPAM_CONFIRMED_THRESHOLD=200
+
 RSPAMD_URL=http://localhost:11334
 RSPAMD_PASSWORD=
-RSPAMD_WHITELIST_MAP_PATH=<SPAM_SCANNER_DATA>/rspamd/maps/whitelist.map
-RSPAMD_BLACKLIST_MAP_PATH=<SPAM_SCANNER_DATA>/rspamd/maps/blacklist.map
 
 LOG_LEVEL=info
 LOG_FORMAT=json
@@ -281,8 +313,9 @@ Everything Rspamd/Redis need to persist is bind-mounted from `${SPAM_SCANNER_DAT
 
 - `${SPAM_SCANNER_DATA}/rspamd/data`: Bayes classifier database and statistics
 - `${SPAM_SCANNER_DATA}/rspamd/logs`: Rspamd service logs
-- `${SPAM_SCANNER_DATA}/rspamd/maps`: Whitelist and blacklist email maps
 - `${SPAM_SCANNER_DATA}/redis`: Redis persistence data
+
+Whitelist/blacklist entries are not stored here - they live in each mailbox's own IMAP state folder (see [Whitelist & Blacklist](#whitelist--blacklist)), so they travel with the mailbox rather than the host.
 
 Additionally, `./rspamd/config` (from the repo) is bind-mounted read-only into the Rspamd container for configuration.
 
@@ -416,8 +449,8 @@ The orchestrator runs the following steps in order on each cycle:
 
 1. `train-spam` - Learn spam from the spam training folder
 2. `train-ham` - Learn ham from the ham training folder
-3. `train-whitelist` - Extract senders from the whitelist training folder into the whitelist map
-4. `train-blacklist` - Extract senders from the blacklist training folder into the blacklist map
+3. `train-whitelist` - Extract senders from the whitelist training folder into the mailbox's IMAP-backed whitelist
+4. `train-blacklist` - Extract senders from the blacklist training folder into the mailbox's IMAP-backed blacklist
 5. `scan-inbox` - Scan the inbox for spam messages
 
 ---
@@ -426,18 +459,27 @@ The orchestrator runs the following steps in order on each cycle:
 
 There is no dedicated backup/restore tooling yet. The state that matters:
 
-- **`${SPAM_SCANNER_DATA}`** (Rspamd Bayes data, Rspamd logs, whitelist/blacklist maps, Redis persistence) - a plain host directory, back it up with `tar` after stopping the stack (or use `redis-cli BGSAVE` first for a consistent Redis snapshot while running):
+- **`${SPAM_SCANNER_DATA}`** (Rspamd Bayes data, Rspamd logs, Redis persistence) - a plain host directory, back it up with `tar` after stopping the stack (or use `redis-cli BGSAVE` first for a consistent Redis snapshot while running):
   ```bash
   docker compose down
   tar czf spam-scanner-data-backup.tar.gz -C "$(dirname "$SPAM_SCANNER_DATA")" "$(basename "$SPAM_SCANNER_DATA")"
   docker compose up -d
   ```
   Restore by extracting the archive back to the same path and starting the stack.
-- **Scanner state** (also stored as a message inside your mailbox's state folder, `FOLDER_STATE`):
+- **Scanner state, and the whitelist/blacklist** (all stored as messages inside your mailbox's state folder, `FOLDER_STATE`) - covered by whatever backs up the mailbox itself (e.g. your IMAP provider's own backups); each can also be dumped/restored directly:
+
   ```bash
   node src/admin/read-state.js > scanner-state.json
   cat scanner-state.json | node src/admin/write-state.js
+
+  node src/admin/export-list.js --list whitelist --format json --file whitelist-backup.json
+  node src/admin/import-list.js --list whitelist --format json --mode override --file whitelist-backup.json
+
+  # Or all three (scanner state + both lists) in one file:
+  node src/admin/export-mailbox-state.js --file mailbox-backup.json
+  node src/admin/import-mailbox-state.js --file mailbox-backup.json --mode override
   ```
+
 - **`.env`** and any local edits to `rspamd/config/` - back these up yourself (they're not covered by `${SPAM_SCANNER_DATA}`).
 
 ---

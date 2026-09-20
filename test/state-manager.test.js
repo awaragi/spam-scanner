@@ -41,6 +41,7 @@ import {
   readScannerState,
   writeScannerState,
   writeMapState,
+  readMapState,
 } from '../src/lib/state-manager.js';
 import {
   open,
@@ -154,6 +155,66 @@ describe('writeMapState', () => {
     ).rejects.toThrow('connection dropped');
 
     expect(imap.messageDelete).not.toHaveBeenCalled();
+  });
+});
+
+describe('readMapState', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  test('reads back a previously written JSON list', async () => {
+    const imap = makeImap();
+    search.mockResolvedValue([9]);
+    fetchMessagesByUIDs.mockResolvedValue([{ body: 'raw' }]);
+    parseStateFromEmail.mockReturnValue(['a@b.com', 'c@d.com']);
+
+    const result = await readMapState(imap, 'rspamd-whitelist-map');
+
+    expect(result).toEqual(['a@b.com', 'c@d.com']);
+  });
+
+  test('multiple matching state messages: reads the highest-UID one', async () => {
+    const imap = makeImap();
+    search.mockResolvedValue([5, 12, 8]);
+    fetchMessagesByUIDs.mockResolvedValue([{ body: 'raw' }]);
+    parseStateFromEmail.mockReturnValue(['a@b.com']);
+
+    await readMapState(imap, 'rspamd-whitelist-map');
+
+    expect(fetchMessagesByUIDs).toHaveBeenCalledWith(imap, [12]);
+  });
+
+  test('no matching state message: returns [] rather than throwing', async () => {
+    const imap = makeImap();
+    search.mockResolvedValue([]);
+
+    const result = await readMapState(imap, 'rspamd-whitelist-map');
+
+    expect(result).toEqual([]);
+    expect(fetchMessagesByUIDs).not.toHaveBeenCalled();
+  });
+
+  test('unparseable JSON body: returns [] rather than throwing', async () => {
+    const imap = makeImap();
+    search.mockResolvedValue([9]);
+    fetchMessagesByUIDs.mockResolvedValue([{ body: 'not json' }]);
+    parseStateFromEmail.mockReturnValue(null);
+
+    const result = await readMapState(imap, 'rspamd-whitelist-map');
+
+    expect(result).toEqual([]);
+  });
+
+  test('JSON body that is not an array (e.g. a legacy plain-text backup): returns []', async () => {
+    const imap = makeImap();
+    search.mockResolvedValue([9]);
+    fetchMessagesByUIDs.mockResolvedValue([{ body: 'a@b.com\nc@d.com' }]);
+    parseStateFromEmail.mockReturnValue(null);
+
+    const result = await readMapState(imap, 'rspamd-whitelist-map');
+
+    expect(result).toEqual([]);
   });
 });
 

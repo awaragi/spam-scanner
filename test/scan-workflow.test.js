@@ -13,6 +13,11 @@ const { mockConfig, warn } = vi.hoisted(() => ({
     AI_ESCALATE_TO_LOW_THRESHOLD: 50,
     AI_ESCALATE_TO_HIGH_THRESHOLD: 80,
     IMAP_USER: 'owner@example.com',
+    STATE_KEY_WHITELIST_MAP: 'rspamd-whitelist-map',
+    STATE_KEY_BLACKLIST_MAP: 'rspamd-blacklist-map',
+    SPAM_CLEAN_THRESHOLD: 30,
+    SPAM_LOW_THRESHOLD: 60,
+    SPAM_CONFIRMED_THRESHOLD: 200,
   },
   warn: vi.fn(),
 }));
@@ -28,6 +33,12 @@ vi.mock('../src/lib/utils/logger.js', () => ({
       info: vi.fn(),
       warn,
       error: vi.fn(),
+      forMessage: () => ({
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      }),
     }),
   },
 }));
@@ -35,6 +46,9 @@ vi.mock('../src/lib/utils/logger.js', () => ({
 vi.mock('../src/lib/state-manager.js', () => ({
   readScannerState: vi.fn(),
   writeScannerState: vi.fn(),
+  // Default: no trained whitelist/blacklist entries. Tests that care about
+  // list matching override this per-test.
+  readMapState: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../src/lib/clients/imap-client.js', () => ({
@@ -78,6 +92,7 @@ import { runScan } from '../src/lib/workflows/scan-workflow.js';
 import {
   readScannerState,
   writeScannerState,
+  readMapState,
 } from '../src/lib/state-manager.js';
 import {
   open,
@@ -108,7 +123,6 @@ describe('scan-workflow UID filter', () => {
 
     // Default: no messages to process
     categorizeMessages.mockReturnValue({
-      whitelistedMessages: [],
       lowSpamMessages: [],
       highSpamMessages: [],
       nonSpamMessages: [],
@@ -190,6 +204,111 @@ describe('scan-workflow UID filter', () => {
   });
 });
 
+describe('scan-workflow sender-list handling', () => {
+  let mockProcessor;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockConfig.AI_ENABLED = false;
+    open.mockResolvedValue({ uidValidity: 123n, uidNext: 9999 });
+    categorizeMessages.mockReturnValue({
+      lowSpamMessages: [],
+      highSpamMessages: [],
+      nonSpamMessages: [],
+      spamMessages: [],
+    });
+    processWithRspamd.mockResolvedValue([]);
+    mockProcessor = { process: vi.fn() };
+    createProcessor.mockResolvedValue(mockProcessor);
+    readScannerState.mockResolvedValue({
+      last_uid: 100,
+      last_seen_date: new Date().toISOString(),
+      last_checked: new Date().toISOString(),
+    });
+  });
+
+  test('a blacklisted sender never reaches processWithRspamd and is moved to FOLDER_SPAM directly', async () => {
+    const uids = [101, 102];
+    search.mockResolvedValue(uids);
+    fetchMessagesByUIDs.mockResolvedValue([
+      {
+        uid: 101,
+        envelope: { date: new Date(), from: [{ address: 'bad@evil.com' }] },
+        body: '',
+      },
+      {
+        uid: 102,
+        envelope: { date: new Date(), from: [{ address: 'ok@example.com' }] },
+        body: '',
+      },
+    ]);
+    readMapState.mockImplementation((imap, key) =>
+      Promise.resolve(
+        key === mockConfig.STATE_KEY_BLACKLIST_MAP ? ['bad@evil.com'] : []
+      )
+    );
+
+    await runScan(mockImap);
+
+    expect(processWithRspamd).toHaveBeenCalledTimes(1);
+    const [remainingMessages] = processWithRspamd.mock.calls[0];
+    expect(remainingMessages.map(m => m.uid)).toEqual([102]);
+    expect(moveMessages).toHaveBeenCalledWith(
+      mockImap,
+      expect.arrayContaining([expect.objectContaining({ uid: 101 })]),
+      mockConfig.FOLDER_SPAM
+    );
+  });
+
+  test('a whitelisted sender never blocks the rspamd call, and its address reaches processWithRspamd as the whitelistSet', async () => {
+    const uids = [101];
+    search.mockResolvedValue(uids);
+    fetchMessagesByUIDs.mockResolvedValue([
+      {
+        uid: 101,
+        envelope: {
+          date: new Date(),
+          from: [{ address: 'trusted@example.com' }],
+        },
+        body: '',
+      },
+    ]);
+    readMapState.mockImplementation((imap, key) =>
+      Promise.resolve(
+        key === mockConfig.STATE_KEY_WHITELIST_MAP
+          ? ['trusted@example.com']
+          : []
+      )
+    );
+
+    await runScan(mockImap);
+
+    expect(processWithRspamd).toHaveBeenCalledTimes(1);
+    const [, whitelistSet] = processWithRspamd.mock.calls[0];
+    expect(whitelistSet.has('trusted@example.com')).toBe(true);
+  });
+
+  test('list state is read once per runScan call, not once per batch, across multiple batches', async () => {
+    const uids = Array.from({ length: 25 }, (_, i) => 101 + i); // 3 batches at PROCESS_BATCH_SIZE=10
+    search.mockResolvedValue(uids);
+    fetchMessagesByUIDs.mockImplementation((imap, batchUids) =>
+      Promise.resolve(
+        batchUids.map(uid => ({
+          uid,
+          envelope: { date: new Date() },
+          body: '',
+        }))
+      )
+    );
+
+    await runScan(mockImap);
+
+    expect(processWithRspamd).toHaveBeenCalledTimes(3);
+    // Once for the whitelist key, once for the blacklist key - not per batch.
+    expect(readMapState).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('scan-workflow state advancement past permanently-skipped messages (4.4)', () => {
   let mockProcessor;
 
@@ -198,7 +317,6 @@ describe('scan-workflow state advancement past permanently-skipped messages (4.4
     mockConfig.AI_ENABLED = false;
     open.mockResolvedValue({ uidValidity: 123n, uidNext: 9999 });
     categorizeMessages.mockReturnValue({
-      whitelistedMessages: [],
       lowSpamMessages: [],
       highSpamMessages: [],
       nonSpamMessages: [],
@@ -229,7 +347,6 @@ describe('scan-workflow state advancement past permanently-skipped messages (4.4
     // in the fetched `messages` array used for the last_uid calculation.
     processWithRspamd.mockResolvedValue([{ uid: 101 }]);
     categorizeMessages.mockReturnValue({
-      whitelistedMessages: [],
       lowSpamMessages: [],
       highSpamMessages: [],
       nonSpamMessages: [{ uid: 101 }],
@@ -269,7 +386,6 @@ describe('scan-workflow AI escalation wiring', () => {
 
   test('AI_ENABLED=false: classifyWithAi/applyAiEscalation are never called, processor/moveMessages receive raw categorizeMessages output', async () => {
     const categorized = {
-      whitelistedMessages: [],
       nonSpamMessages: [{ uid: 101 }],
       lowSpamMessages: [],
       highSpamMessages: [],
@@ -297,7 +413,6 @@ describe('scan-workflow AI escalation wiring', () => {
     mockConfig.AI_ENABLED = true;
 
     const categorized = {
-      whitelistedMessages: [],
       nonSpamMessages: [{ uid: 101 }],
       lowSpamMessages: [{ uid: 102 }],
       highSpamMessages: [{ uid: 103 }],
@@ -341,14 +456,14 @@ describe('scan-workflow AI escalation wiring', () => {
     );
   });
 
-  test('AI_ENABLED=true: whitelisted messages are excluded from classifyWithAi and merged back into nonSpamMessages for processor/moveMessages', async () => {
+  test('AI_ENABLED=true: a whitelisted clean-tier message is excluded from classifyWithAi/applyAiEscalation and stays in nonSpamMessages', async () => {
     mockConfig.AI_ENABLED = true;
 
-    const whitelisted = { uid: 999 };
+    const plainClean = { uid: 101, spamInfo: { isWhitelisted: false } };
+    const whitelistedClean = { uid: 999, spamInfo: { isWhitelisted: true } };
     const categorized = {
-      whitelistedMessages: [whitelisted],
-      nonSpamMessages: [{ uid: 101 }],
-      lowSpamMessages: [{ uid: 102 }],
+      nonSpamMessages: [plainClean, whitelistedClean],
+      lowSpamMessages: [],
       highSpamMessages: [],
       spamMessages: [],
     };
@@ -356,13 +471,69 @@ describe('scan-workflow AI escalation wiring', () => {
 
     const aiResults = {
       nonSpamMessages: [{ uid: 101, aiInfo: { score: 10 } }],
-      lowSpamMessages: [{ uid: 102, aiInfo: { score: 20 } }],
+      lowSpamMessages: [],
     };
     classifyWithAi.mockResolvedValue(aiResults);
 
     const escalated = {
       nonSpamMessages: [{ uid: 101 }],
-      lowSpamMessages: [{ uid: 102 }],
+      lowSpamMessages: [],
+      highSpamMessages: [],
+      spamMessages: [],
+    };
+    applyAiEscalation.mockReturnValue(escalated);
+
+    await runScan(mockImap);
+
+    // Only the non-whitelisted message is sent to classifyWithAi/applyAiEscalation.
+    expect(classifyWithAi).toHaveBeenCalledWith({
+      nonSpamMessages: [plainClean],
+      lowSpamMessages: [],
+    });
+    expect(applyAiEscalation).toHaveBeenCalledWith(
+      {
+        ...categorized,
+        nonSpamMessages: [plainClean],
+        lowSpamMessages: [],
+      },
+      aiResults,
+      {
+        escalateToLowThreshold: mockConfig.AI_ESCALATE_TO_LOW_THRESHOLD,
+        escalateToHighThreshold: mockConfig.AI_ESCALATE_TO_HIGH_THRESHOLD,
+      }
+    );
+
+    // The whitelisted message reappears in nonSpamMessages - its own tier.
+    expect(mockProcessor.process).toHaveBeenCalledWith(mockImap, {
+      nonSpamMessages: [...escalated.nonSpamMessages, whitelistedClean],
+      lowSpamMessages: escalated.lowSpamMessages,
+      highSpamMessages: escalated.highSpamMessages,
+    });
+    expect(moveMessages).toHaveBeenCalledWith(
+      mockImap,
+      escalated.spamMessages,
+      'INBOX.spam'
+    );
+  });
+
+  test('AI_ENABLED=true: a whitelisted low-tier message skips AI but stays in lowSpamMessages, not force-merged into nonSpamMessages', async () => {
+    mockConfig.AI_ENABLED = true;
+
+    const whitelistedLow = { uid: 999, spamInfo: { isWhitelisted: true } };
+    const categorized = {
+      nonSpamMessages: [],
+      lowSpamMessages: [whitelistedLow],
+      highSpamMessages: [],
+      spamMessages: [],
+    };
+    categorizeMessages.mockReturnValue(categorized);
+
+    const aiResults = { nonSpamMessages: [], lowSpamMessages: [] };
+    classifyWithAi.mockResolvedValue(aiResults);
+
+    const escalated = {
+      nonSpamMessages: [],
+      lowSpamMessages: [],
       highSpamMessages: [],
       spamMessages: [],
     };
@@ -372,21 +543,17 @@ describe('scan-workflow AI escalation wiring', () => {
 
     // The whitelisted message must never be sent to classifyWithAi.
     expect(classifyWithAi).toHaveBeenCalledWith({
-      nonSpamMessages: categorized.nonSpamMessages,
-      lowSpamMessages: categorized.lowSpamMessages,
+      nonSpamMessages: [],
+      lowSpamMessages: [],
     });
 
-    // It must reappear as clean mail in the final processor call.
+    // It must reappear in lowSpamMessages, NOT nonSpamMessages - this is
+    // the regression case: whitelist must never force a tier change.
     expect(mockProcessor.process).toHaveBeenCalledWith(mockImap, {
-      nonSpamMessages: [...escalated.nonSpamMessages, whitelisted],
-      lowSpamMessages: escalated.lowSpamMessages,
+      nonSpamMessages: escalated.nonSpamMessages,
+      lowSpamMessages: [whitelistedLow],
       highSpamMessages: escalated.highSpamMessages,
     });
-    expect(moveMessages).toHaveBeenCalledWith(
-      mockImap,
-      escalated.spamMessages,
-      'INBOX.spam'
-    );
   });
 });
 
@@ -412,7 +579,6 @@ describe('scan-workflow AI failure alert wiring', () => {
     createProcessor.mockResolvedValue(mockProcessor);
 
     categorizeMessages.mockReturnValue({
-      whitelistedMessages: [],
       nonSpamMessages: [{ uid: 101 }],
       lowSpamMessages: [],
       highSpamMessages: [],
@@ -517,7 +683,6 @@ describe('scan-workflow UIDVALIDITY tracking (5.4)', () => {
     vi.clearAllMocks();
     mockConfig.AI_ENABLED = false;
     categorizeMessages.mockReturnValue({
-      whitelistedMessages: [],
       lowSpamMessages: [],
       highSpamMessages: [],
       nonSpamMessages: [{ uid: 101 }],

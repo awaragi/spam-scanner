@@ -6,8 +6,6 @@ const { mockConfig, error } = vi.hoisted(() => ({
     FOLDER_TRAIN_BLACKLIST: 'INBOX.scanner.train.blacklist',
     FOLDER_INBOX: 'INBOX',
     FOLDER_SPAM: 'INBOX.spam',
-    RSPAMD_WHITELIST_MAP_PATH: '/data/rspamd/maps/whitelist.map',
-    RSPAMD_BLACKLIST_MAP_PATH: '/data/rspamd/maps/blacklist.map',
     STATE_KEY_WHITELIST_MAP: 'rspamd-whitelist-map',
     STATE_KEY_BLACKLIST_MAP: 'rspamd-blacklist-map',
   },
@@ -29,10 +27,6 @@ vi.mock('../src/lib/utils/logger.js', () => ({
   },
 }));
 
-vi.mock('../src/lib/state-manager.js', () => ({
-  writeMapState: vi.fn(),
-}));
-
 vi.mock('../src/lib/clients/imap-client.js', () => ({
   open: vi.fn(),
   count: vi.fn(),
@@ -42,17 +36,7 @@ vi.mock('../src/lib/clients/imap-client.js', () => ({
 
 vi.mock('../src/lib/services/map-service.js', () => ({
   extractSenderAddresses: vi.fn(),
-  updateMapFile: vi.fn(),
-}));
-
-vi.mock('fs/promises', () => ({
-  default: {
-    readFile: vi
-      .fn()
-      .mockRejectedValue(
-        Object.assign(new Error('not found'), { code: 'ENOENT' })
-      ),
-  },
+  updateListState: vi.fn(),
 }));
 
 import { runWhitelist } from '../src/lib/workflows/map-workflow.js';
@@ -64,7 +48,7 @@ import {
 } from '../src/lib/clients/imap-client.js';
 import {
   extractSenderAddresses,
-  updateMapFile,
+  updateListState,
 } from '../src/lib/services/map-service.js';
 
 const mockImap = {};
@@ -88,7 +72,7 @@ describe('map-workflow: messages with no extractable sender are still moved on (
     expect(moveMessages).not.toHaveBeenCalled();
   });
 
-  test('no extractable senders: messages are still moved on, map is left untouched', async () => {
+  test('no extractable senders: messages are still moved on, list is left untouched', async () => {
     const messages = [makeMessage(1), makeMessage(2)];
     count.mockReturnValue(2);
     fetchAllMessages.mockResolvedValue(messages);
@@ -96,7 +80,7 @@ describe('map-workflow: messages with no extractable sender are still moved on (
 
     await runWhitelist(mockImap);
 
-    expect(updateMapFile).not.toHaveBeenCalled();
+    expect(updateListState).not.toHaveBeenCalled();
     expect(moveMessages).toHaveBeenCalledWith(
       mockImap,
       messages,
@@ -104,16 +88,26 @@ describe('map-workflow: messages with no extractable sender are still moved on (
     );
   });
 
-  test('extractable senders: map is updated and messages are moved on', async () => {
+  test('extractable senders: IMAP-backed list is updated in append mode and messages are moved on', async () => {
     const messages = [makeMessage(1)];
     count.mockReturnValue(1);
     fetchAllMessages.mockResolvedValue(messages);
     extractSenderAddresses.mockReturnValue(['sender@example.com']);
-    updateMapFile.mockResolvedValue({ addedCount: 1, skippedCount: 0 });
+    updateListState.mockResolvedValue({
+      added: ['sender@example.com'],
+      skipped: [],
+      removed: [],
+      total: 1,
+    });
 
     await runWhitelist(mockImap);
 
-    expect(updateMapFile).toHaveBeenCalled();
+    expect(updateListState).toHaveBeenCalledWith(
+      mockImap,
+      mockConfig.STATE_KEY_WHITELIST_MAP,
+      ['sender@example.com'],
+      'append'
+    );
     expect(moveMessages).toHaveBeenCalledWith(
       mockImap,
       messages,

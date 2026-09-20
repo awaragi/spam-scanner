@@ -146,9 +146,6 @@ data/
 !.env.example
 *.local.sh
 
-# Rspamd map files (dynamically managed at runtime)
-rspamd/maps/
-
 # Rspamd controller password hash - generated per install (see
 # bin/local/hash-rspamd-password.sh), must never be a shared committed secret
 rspamd/config/worker-controller.inc

@@ -3,55 +3,62 @@
  */
 
 /**
- * Categorizes messages based on spam score
+ * Categorizes messages into four score-percentage-driven tiers - clean, low,
+ * high, confirmed - per the `scan-inbox` capability. `scorePercentage` is
+ * `(spamInfo.score / spamInfo.required) * 100`, where `spamInfo.score` is
+ * already whitelist-adjusted (see `message-service.js`) before this runs.
+ * Tier assignment is purely a function of that score - `isWhitelisted` is
+ * NOT read here at all. Whitelist only ever influences the score itself
+ * (the `-20` already applied upstream); it never overrides which tier a
+ * message lands in, so a whitelisted sender whose content is bad enough
+ * still gets classified `high` (or `confirmed`) like anyone else - it does
+ * not get silently treated as `clean`. Whitelist's other effect (skipping
+ * AI for `clean`/`low` messages) is applied by the caller, after this
+ * function has already decided the tier - see `scan-workflow.js`.
+ * Blacklist is not read here at all either - it's resolved upstream,
+ * before rspamd is even called, and its results are merged into
+ * `spamMessages` by the caller.
+ * No defaults here - this stays config-agnostic pure logic, so the caller
+ * (scan-workflow.js, reading config.SPAM_*_THRESHOLD) is the single source
+ * of truth for what these thresholds actually are; a local default would
+ * just be a second copy of the same numbers with nothing keeping them in
+ * sync.
  * @param {Array} messages - Array of messages with spam information
- * @param cleanThreshold
- * @param lowProbableThreshold
- * @param highProbableThreshold
+ * @param {number} cleanThreshold - clean/low boundary
+ * @param {number} lowThreshold - low/high boundary
+ * @param {number} confirmedThreshold - high/confirmed boundary
  * @returns {Object} - Object with categorized messages
  */
 export function categorizeMessages(
   messages,
-  cleanThreshold = 30,
-  lowProbableThreshold = 60,
-  highProbableThreshold = 100
+  cleanThreshold,
+  lowThreshold,
+  confirmedThreshold
 ) {
-  const whitelistedMessages = [];
   const lowSpamMessages = [];
   const highSpamMessages = [];
   const nonSpamMessages = [];
   const spamMessages = [];
 
   messages.forEach(message => {
-    const { score, required, isSpam, isWhitelisted } = message.spamInfo;
+    const { score, required } = message.spamInfo;
     const scorePercentage =
-      score !== null && required !== null && required !== 0
+      score !== null && score !== undefined && required
         ? (score / required) * 100
         : null;
 
-    if (isSpam) {
-      // rspamd's own "reject" verdict always wins, even for a whitelisted sender.
-      spamMessages.push(message);
-    } else if (isWhitelisted) {
-      whitelistedMessages.push(message);
+    if (scorePercentage === null || scorePercentage <= cleanThreshold) {
+      nonSpamMessages.push(message);
+    } else if (scorePercentage <= lowThreshold) {
+      lowSpamMessages.push(message);
+    } else if (scorePercentage < confirmedThreshold) {
+      highSpamMessages.push(message);
     } else {
-      if (scorePercentage === null) {
-        nonSpamMessages.push(message);
-      } else if (scorePercentage <= cleanThreshold) {
-        nonSpamMessages.push(message);
-      } else if (scorePercentage < lowProbableThreshold) {
-        lowSpamMessages.push(message);
-      } else if (scorePercentage < highProbableThreshold) {
-        highSpamMessages.push(message);
-      } else {
-        // default
-        highSpamMessages.push(message);
-      }
+      spamMessages.push(message);
     }
   });
 
   return {
-    whitelistedMessages,
     lowSpamMessages,
     highSpamMessages,
     nonSpamMessages,

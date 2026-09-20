@@ -116,9 +116,14 @@ export function parseSpamAssassinOutput(headers) {
 }
 
 /**
- * Parses Rspamd JSON response to extract spam information
+ * Parses Rspamd JSON response to extract its content score. Rspamd is a
+ * stateless content scorer only (see the `sender-lists` capability) - it has
+ * no list/mailbox awareness, so its own `action` and any `symbols` it
+ * returns are no longer used to derive spam/whitelist status. That
+ * derivation happens entirely in app code from `score`/`required` plus the
+ * app's own whitelist/blacklist lookups (see `spam-classifier.js`).
  * @param {Object} response - JSON response object from Rspamd /checkv2 endpoint
- * @returns {Object} - Object containing spam information
+ * @returns {{score: number, required: number}} - Rspamd's content score and its add-header threshold
  */
 export function parseRspamdOutput(response) {
   if (!response || typeof response !== 'object') {
@@ -130,26 +135,9 @@ export function parseRspamdOutput(response) {
   const score = response.score || 0;
   const required = response.required_score || 0;
 
-  // Map Rspamd actions to isSpam boolean
-  // "reject" and "add header" are spam actions
-  // "no action", "greylist" are non-spam actions
-  const action = response.action || 'no action';
-  // Only "reject" action means definite spam
-  // "add header" means suspicious but below spam threshold
-  const isSpam = action === 'reject';
-
-  // WHITELIST_EMAIL fires when the sender matches whitelist.map (see
-  // rspamd/config/multimap.conf) - a deliberate, human-curated trust decision.
-  const isWhitelisted = Boolean(
-    response.symbols && response.symbols.WHITELIST_EMAIL
-  );
-
   return {
     score,
     required,
-    level: null,
-    isSpam,
-    isWhitelisted,
   };
 }
 

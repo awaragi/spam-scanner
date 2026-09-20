@@ -254,77 +254,20 @@ describe('parseSpamAssassinOutput', () => {
 });
 
 describe('parseRspamdOutput', () => {
-  test('should parse Rspamd response with add-header action as not spam (only reject means spam)', () => {
+  test('should parse score and required from a response, ignoring action/symbols entirely', () => {
     const response = {
-      action: 'add header',
-      score: 8.5,
+      action: 'reject',
+      score: 15.0,
       required_score: 10.0,
       symbols: {
-        TEST_SYMBOL: { score: 2.5 },
+        WHITELIST_EMAIL: { score: -20 },
       },
     };
 
     const result = parseRspamdOutput(response);
     expect(result).toEqual({
-      score: 8.5,
-      required: 10.0,
-      level: null,
-      isSpam: false,
-      isWhitelisted: false,
-    });
-  });
-
-  test('should parse Rspamd response with reject action', () => {
-    const response = {
-      action: 'reject',
-      score: 15.0,
-      required_score: 10.0,
-      symbols: {},
-    };
-
-    const result = parseRspamdOutput(response);
-    expect(result).toEqual({
       score: 15.0,
       required: 10.0,
-      level: null,
-      isSpam: true,
-      isWhitelisted: false,
-    });
-  });
-
-  test('should parse Rspamd response with no action (not spam)', () => {
-    const response = {
-      action: 'no action',
-      score: 0.5,
-      required_score: 10.0,
-      symbols: {},
-    };
-
-    const result = parseRspamdOutput(response);
-    expect(result).toEqual({
-      score: 0.5,
-      required: 10.0,
-      level: null,
-      isSpam: false,
-      isWhitelisted: false,
-    });
-  });
-
-  test('should parse Rspamd response with greylist action', () => {
-    const response = {
-      action: 'greylist',
-      score: 7.0,
-      required_score: 10.0,
-      symbols: {},
-    };
-
-    const result = parseRspamdOutput(response);
-    expect(result).toEqual({
-      score: 7.0,
-      required: 10.0,
-      level: null,
-      isSpam: false,
-      isWhitelisted: false,
     });
   });
 
@@ -335,55 +278,7 @@ describe('parseRspamdOutput', () => {
     expect(result).toEqual({
       score: 0,
       required: 0,
-      level: null,
-      isSpam: false,
-      isWhitelisted: false,
     });
-  });
-
-  test('should handle null action field', () => {
-    const response = {
-      action: null,
-      score: 5.0,
-      required_score: 10.0,
-    };
-
-    const result = parseRspamdOutput(response);
-    expect(result).toEqual({
-      score: 5.0,
-      required: 10.0,
-      level: null,
-      isSpam: false,
-      isWhitelisted: false,
-    });
-  });
-
-  test('should detect a whitelist match via the WHITELIST_EMAIL symbol', () => {
-    const response = {
-      action: 'no action',
-      score: -18.0,
-      required_score: 10.0,
-      symbols: {
-        WHITELIST_EMAIL: { score: -20 },
-      },
-    };
-
-    const result = parseRspamdOutput(response);
-    expect(result.isWhitelisted).toBe(true);
-  });
-
-  test('should not flag isWhitelisted when other symbols fire but not WHITELIST_EMAIL', () => {
-    const response = {
-      action: 'no action',
-      score: 2.0,
-      required_score: 10.0,
-      symbols: {
-        SOME_OTHER_SYMBOL: { score: 2.0 },
-      },
-    };
-
-    const result = parseRspamdOutput(response);
-    expect(result.isWhitelisted).toBe(false);
   });
 
   test('should throw error for non-object response', () => {
