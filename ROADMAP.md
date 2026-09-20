@@ -721,6 +721,8 @@ Critical logic (3.1, 4.4, 4.5, 5.1, 5.4) lives in the untested modules.
 
 **Recommendation.** Replace the tar-over-ssh flow with the registry-based flow in 7.3 (`docker compose pull && docker compose up -d`). If keeping it, add a tracked `bin/deploy.sh --host … --path …` with the flags implemented.
 
+- **Status:** ✅ **Resolved (won't fix, moot)**. `bin/local/build.sh` deleted outright — user decision, not using the tar-over-ssh build/export flow. The untracked `build-deploy-linux.local.sh` calling it is the caller's own concern.
+
 ### 5.25 Two parallel process/documentation systems (`docs/features` vs `openspec`)
 
 - **Area:** HYG, DOC · **Complexity:** S

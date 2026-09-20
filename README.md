@@ -122,7 +122,9 @@ FOLDER_STATE=INBOX.scanner.state
 #   >0  = poll mode: repeat every N seconds
 SCAN_INTERVAL=-1
 SCAN_BATCH_SIZE=200
-SCAN_READ=true
+# SCAN_READ: when false, the scan query is restricted to unseen (\Seen-unset)
+# messages only; true also rescans messages already marked read.
+SCAN_READ=false
 PROCESS_BATCH_SIZE=10
 
 # SCAN_INITIAL_STATE: only matters the very first run against a mailbox with no
@@ -160,9 +162,11 @@ SPAM_CONFIRMED_THRESHOLD=200
 
 RSPAMD_URL=http://localhost:11334
 RSPAMD_PASSWORD=
+# RSPAMD_TIMEOUT_MS: abort a stalled rspamd HTTP call (check/learn) after this many ms
+RSPAMD_TIMEOUT_MS=30000
 
 LOG_LEVEL=info
-LOG_FORMAT=jsonl
+LOG_FORMAT=json
 # LOG_FILTER_INCLUDES / LOG_FILTER_EXCLUDES: comma-delimited component name filters, both empty by default
 ```
 
@@ -243,6 +247,29 @@ bin/local/rspamd.sh down
 
 ```bash
 node src/cli/init-folders.js
+```
+
+### Running Tests
+
+```bash
+npm test                 # unit tests (vitest)
+npm run test:integration # hits a real AI provider, loads .env via env-cmd
+```
+
+### Formatting
+
+```bash
+npm run format       # Prettier, writes changes
+npm run format:check # Prettier, check only (no changes)
+```
+
+### Testing Rspamd Directly
+
+`bin/local/check-eml.sh` POSTs a `.eml` file straight to a running Rspamd instance's `/checkv2` endpoint and prints the score/action (or the full JSON with `--verbose`) - useful for checking Rspamd's own verdict on a message without going through the scanner at all. Reads `RSPAMD_URL`/`RSPAMD_PASSWORD` from the environment, falling back to `.env`. Requires `curl` and `jq`.
+
+```bash
+bin/local/check-eml.sh path/to/message.eml
+bin/local/check-eml.sh --verbose path/to/message.eml
 ```
 
 ---
@@ -509,7 +536,7 @@ Admin/maintenance scripts live under `src/admin/`:
 - `src/admin/write-state.js` - accepts JSON from stdin and updates the IMAP state
 - `src/admin/delete-state.js` - deletes scanner state from IMAP
 - `src/admin/reset-state.js` - resets the IMAP state to `last_uid=0`
-- `src/admin/uid-on-date.js FOLDER [--since date] [--write]` - finds the first UID on/after a date
+- `src/admin/uid-on-date.js FOLDER [--since date]` - finds the first UID on/after a date
 - `src/admin/list-all.js` - lists all messages in a folder
 - `src/admin/read-email.js` - reads and saves a specific email (edit the `UID`/`MESSAGE_ID` constants at the top of the script)
 
@@ -557,10 +584,12 @@ All logs include contextual information for tracing:
 
 ```json
 {
-  "level": "info",
+  "level": "debug",
   "time": "2026-02-15T12:34:56.789Z",
-  "component": "rspamd",
-  "folder": "INBOX",
+  "component": "scan-controller",
+  "from": 0,
+  "to": 10,
+  "total": 42,
   "msg": "Scanning batch"
 }
 ```
@@ -569,19 +598,27 @@ All logs include contextual information for tracing:
 
 ```json
 {
-  "level": "info",
+  "level": "debug",
   "time": "2026-02-15T12:34:56.789Z",
-  "component": "rspamd",
+  "component": "rspamd-check",
   "uid": 12455,
-  "score": 8.5,
+  "subject": "...",
   "action": "add header",
+  "score": 8.5,
   "msg": "Rspamd check completed"
 }
 ```
 
 The `uid` field allows you to trace all operations related to a specific email message across the entire processing pipeline.
 
-**Component names:** `config`, `imap`, `imapflow`, `rspamd`, `rspamd-maps`, `state-manager`, `folder-resolver`, `orchestrator`, and one per workflow (`scan-workflow`, `train-workflow`, `map-workflow`, `init-workflow`, `idle-workflow`).
+**Component names:**
+
+- Core: `config`, `orchestrator`
+- Clients (I/O boundary): `imap`, `imapflow`, `rspamd`, `ai-client`, `state-manager`, `folder-resolver`
+- Workflow controllers: `scan-controller`, `train-controller`, `init-controller`, `sender-list-training-controller` (idle mode logs through `imap`, not its own component)
+- Steps: `rspamd-check`, `rspamd-training`, `pending-messages`, `folder-move`, `spam-move`, `label-apply`, `list-update`, `ai-classification`, `ai-failure-alert`
+- Services: `ai-content`, `sender-lists`
+- Admin scripts (`src/admin/`): `export-list`, `import-list`, `export-mailbox-state`, `import-mailbox-state`, `read-state`, `read-email`, `list-all`
 
 ---
 

@@ -25,7 +25,7 @@ export const config = (() => {
       process.env.FOLDER_TRAIN_WHITELIST || 'INBOX.scanner.train.whitelist',
     FOLDER_TRAIN_BLACKLIST:
       process.env.FOLDER_TRAIN_BLACKLIST || 'INBOX.scanner.train.blacklist',
-    FOLDER_STATE: process.env.FOLDER_STATE || 'scanner.state',
+    FOLDER_STATE: process.env.FOLDER_STATE || 'INBOX.scanner.state',
 
     STATE_KEY_SCANNER: process.env.STATE_KEY_SCANNER || 'scanner',
     STATE_KEY_WHITELIST_MAP:
