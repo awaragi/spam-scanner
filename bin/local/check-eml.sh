@@ -37,15 +37,15 @@ readonly RSPAMD_PASSWORD="$(load_env_var RSPAMD_PASSWORD "")"
 
 usage() {
   cat <<'EOF'
-Usage: check-rspamd.sh [--verbose] PATH
+Usage: check-eml.sh [--verbose] PATH
 
 Arguments:
   PATH       Path to the .eml file (required)
   --verbose  Show full JSON output
 
 Example:
-  check-rspamd.sh "message.eml"
-  check-rspamd.sh --verbose "message.eml"
+  check-eml.sh "message.eml"
+  check-eml.sh --verbose "message.eml"
 EOF
 }
 

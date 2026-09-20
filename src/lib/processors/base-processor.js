@@ -24,7 +24,7 @@ export class BaseProcessor {
 
 /**
  * Factory function to create appropriate processor based on mode
- * @param {string} mode - Processing mode: 'label', 'folder', or 'color'
+ * @param {string} mode - Processing mode: 'label' or 'folder'
  * @returns {Promise<BaseProcessor>} - Concrete processor instance
  * @throws {Error} - If mode is unknown
  */
@@ -37,18 +37,13 @@ export async function createProcessor(mode = 'label') {
       const {LabelProcessor} = await import('./label-processor.js');
       return new LabelProcessor();
     }
-    
+
     case 'folder': {
       const {FolderProcessor} = await import('./folder-processor.js');
       return new FolderProcessor();
     }
-    
-    case 'color': {
-      const {ColorProcessor} = await import('./color-processor.js');
-      return new ColorProcessor();
-    }
-    
+
     default:
-      throw new Error(`Unknown processing mode: ${mode}. Expected 'label', 'folder', or 'color'`);
+      throw new Error(`Unknown processing mode: ${mode}. Expected 'label' or 'folder'`);
   }
 }

@@ -1,7 +1,6 @@
 import {BaseProcessor, createProcessor} from '../src/lib/processors/base-processor.js';
 import {LabelProcessor} from '../src/lib/processors/label-processor.js';
 import {FolderProcessor} from '../src/lib/processors/folder-processor.js';
-import {ColorProcessor} from '../src/lib/processors/color-processor.js';
 
 describe('base-processor', () => {
   describe('BaseProcessor', () => {
@@ -27,13 +26,6 @@ describe('base-processor', () => {
       expect(processor).toBeInstanceOf(BaseProcessor);
     });
 
-    it('should create ColorProcessor for color mode', async () => {
-      const processor = await createProcessor('color');
-      
-      expect(processor).toBeInstanceOf(ColorProcessor);
-      expect(processor).toBeInstanceOf(BaseProcessor);
-    });
-
     it('should default to label mode when no mode specified', async () => {
       const processor = await createProcessor();
       
@@ -45,7 +37,7 @@ describe('base-processor', () => {
     });
 
     it('should throw error message mentioning valid modes', async () => {
-      await expect(createProcessor('invalid')).rejects.toThrow("Expected 'label', 'folder', or 'color'");
+      await expect(createProcessor('invalid')).rejects.toThrow("Expected 'label' or 'folder'");
     });
   });
 });

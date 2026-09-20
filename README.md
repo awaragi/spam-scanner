@@ -140,7 +140,7 @@ IDLE_WATCHDOG_MS=1200000
 
 STATE_KEY_SCANNER=scanner
 
-# SPAM_PROCESSING_MODE: label, folder (default), or color (not yet implemented)
+# SPAM_PROCESSING_MODE: label, or folder (default)
 # - folder: moves messages to FOLDER_SPAM_LOW / FOLDER_SPAM_HIGH - visible in every IMAP client
 # - label: applies IMAP keywords (Spam:Low, Spam:High) in place. This is NOT the same as Gmail
 #   labels - many clients (Gmail, most mobile apps) don't surface IMAP keywords at all;

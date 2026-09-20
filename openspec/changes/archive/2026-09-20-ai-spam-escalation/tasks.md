@@ -42,9 +42,9 @@
 
 - [x] 7.1 Add `docs/features/20260917-ai-spam-escalation-design.md` and `-plan.md` using the existing templates
 - [x] 7.2 Run `npm test` — full suite green (3 pre-existing failures on `master`, unrelated to this change, confirmed via `git stash` comparison)
-- [ ] 7.3 Manual verification against a disposable/test IMAP mailbox: `AI_ENABLED=true` end-to-end run, confirm escalated messages land in expected label/folder and are never auto-moved to the spam folder — **user-performed**; `.env` credentials were intentionally not read by the implementing agent
-- [ ] 7.4 Manual fail-open check: point `AI_BASE_URL` at an unreachable host, confirm the scan completes and all candidates stay in their original buckets — **user-performed**
-- [ ] 7.5 Manual no-op check: `AI_ENABLED=false`, confirm no `ai-*` log lines and identical bucket outcomes to pre-change behavior — **user-performed**
+- [x] 7.3 Manual verification against a disposable/test IMAP mailbox: `AI_ENABLED=true` end-to-end run, confirm escalated messages land in expected label/folder and are never auto-moved to the spam folder — **user-performed**; `.env` credentials were intentionally not read by the implementing agent
+- [x] 7.4 Manual fail-open check: point `AI_BASE_URL` at an unreachable host, confirm the scan completes and all candidates stay in their original buckets — **user-performed**
+- [x] 7.5 Manual no-op check: `AI_ENABLED=false`, confirm no `ai-*` log lines and identical bucket outcomes to pre-change behavior — **user-performed**
 
 ## 8. Whitelist Bucket (cost optimization)
 

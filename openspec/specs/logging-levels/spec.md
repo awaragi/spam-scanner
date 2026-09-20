@@ -1,4 +1,65 @@
-## ADDED Requirements
+# logging-levels Specification
+
+## Purpose
+
+Governs how the system logs: a centralized, structured Pino logger configurable via environment variables (level, output format, component filtering), with per-component and per-message child loggers for correlation, secrets always redacted, and log-level choices tuned so `.info` carries only cycle/workflow summaries while per-message and driver-level detail stays at `.debug`.
+
+## Requirements
+
+### Requirement: Log level is configurable via LOG_LEVEL
+The system SHALL read the minimum log level from `LOG_LEVEL`, accepting `trace`, `debug`, `info`, `warn`, `error`, or `fatal` (case-insensitive), defaulting to `info` when unset or invalid. An invalid value SHALL be reported via `console.warn` at startup rather than silently accepted.
+
+#### Scenario: Valid level is applied
+- **WHEN** `LOG_LEVEL=debug` is set
+- **THEN** log lines below `debug` (i.e. `trace`) SHALL be suppressed, and `debug` and above SHALL be emitted
+
+#### Scenario: Unset defaults to info
+- **WHEN** `LOG_LEVEL` is not set
+- **THEN** the effective level SHALL be `info`
+
+#### Scenario: Invalid value falls back to info with a warning
+- **WHEN** `LOG_LEVEL` is set to a value outside the accepted list
+- **THEN** the system SHALL emit a startup warning naming the invalid value and fall back to `info`
+
+### Requirement: Output format is configurable via LOG_FORMAT
+The system SHALL read the output format from `LOG_FORMAT`, accepting `json`, `jsonl`, or `pretty` (case-insensitive), defaulting to `json` when unset or invalid. `pretty` requires the optional `pino-pretty` dependency, which is not installed in the production Docker image.
+
+#### Scenario: Default is JSON
+- **WHEN** `LOG_FORMAT` is not set
+- **THEN** log lines SHALL be emitted as JSON
+
+#### Scenario: Invalid value falls back to json with a warning
+- **WHEN** `LOG_FORMAT` is set to a value outside the accepted list
+- **THEN** the system SHALL emit a startup warning naming the invalid value and fall back to `json`
+
+### Requirement: Component and per-message logging is filterable via LOG_FILTER_INCLUDES/EXCLUDES
+The system SHALL support restricting emitted logs to a comma-separated allowlist of component names via `LOG_FILTER_INCLUDES`, and/or excluding a comma-separated denylist via `LOG_FILTER_EXCLUDES`. When both are set, a component SHALL be logged only if it is in the includes list and not in the excludes list.
+
+#### Scenario: Includes list restricts output
+- **WHEN** `LOG_FILTER_INCLUDES=scan-workflow` is set
+- **THEN** only log lines from the `scan-workflow` component SHALL be emitted
+
+#### Scenario: Excludes list suppresses output
+- **WHEN** `LOG_FILTER_EXCLUDES=imap-client` is set
+- **THEN** log lines from the `imap-client` component SHALL be suppressed while all other components are still emitted
+
+### Requirement: Secrets are always redacted regardless of level or format
+The system SHALL redact `IMAP_PASSWORD`, `RSPAMD_PASSWORD`, and `AI_API_KEY` (at both the top level and one level of nesting, e.g. under a `headers` object) from every log line, including at `LOG_LEVEL=debug`.
+
+#### Scenario: Secret value never reaches log output
+- **WHEN** a log call's merging object contains `IMAP_PASSWORD`, `RSPAMD_PASSWORD`, or `AI_API_KEY`
+- **THEN** the emitted log line SHALL contain a redaction placeholder instead of the real value, at every configured log level
+
+### Requirement: Component and per-message child loggers for correlation
+The system SHALL provide a component-scoped child logger (identifying which module emitted a line) and a per-message child logger (attaching the message UID) so related log lines can be correlated without repeating that context on every call.
+
+#### Scenario: Component logger tags every line from that module
+- **WHEN** a module creates a logger via the component-logger helper
+- **THEN** every log line from that logger SHALL include the component's name
+
+#### Scenario: Per-message logger tags every line for that message
+- **WHEN** a workflow creates a per-message logger for a given UID
+- **THEN** every log line from that logger SHALL include that UID, so all lines for one message can be correlated
 
 ### Requirement: Idle cycle produces no `.info` output
 In continuous operation, when a workflow cycle finds zero messages to process, the system SHALL NOT emit any `.info` log lines during that cycle.
@@ -79,17 +140,20 @@ The system SHALL log intermediate batch progress ("Scanning batch", "Learn batch
 
 ---
 
-### Requirement: Map and state backup detail logs are at `.debug`
-The system SHALL log map state backup operations and internal map-service calls at `.debug`. Final map update confirmations (actual file writes) SHALL remain at `.info`.
+### Requirement: List training detail logs are at `.debug`; the list-updated summary stays at `.info`
+The system SHALL log training-folder message-move confirmations and internal list-state write detail at `.debug`. The per-run summary of a whitelist/blacklist update (per the `sender-lists` capability) SHALL remain at `.info`.
 
-#### Scenario: Map backup detail
-- **WHEN** a map workflow updates a map file and backs up state
-- **THEN** "Map state backup updated", "Training messages moved", "Map file not found for state backup" SHALL be emitted at `.debug`
-- **THEN** "${type} map updated" SHALL be emitted at `.info`
+#### Scenario: Training move detail
+- **WHEN** a whitelist/blacklist training workflow moves processed messages to their destination folder
+- **THEN** "Training messages moved" SHALL be emitted at `.debug`
 
-#### Scenario: Map service internal call
-- **WHEN** `updateMapFile` is called from map-service
-- **THEN** the "Map file updated" log in map-service.js SHALL be emitted at `.debug` (the definitive log is in rspamd-maps.js at `.info`)
+#### Scenario: List update summary
+- **WHEN** a whitelist/blacklist training workflow extracts one or more sender addresses and updates the mailbox's list state
+- **THEN** "${type} list updated" SHALL be emitted at `.info`
+
+#### Scenario: List service internal call
+- **WHEN** `updateListState` writes a mailbox's whitelist or blacklist state (`map-service.js`)
+- **THEN** "List state updated" SHALL be emitted at `.debug`
 
 ---
 

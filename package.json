@@ -15,8 +15,6 @@
   },
   "dependencies": {
     "email-addresses": "^5.0.0",
-    "emailjs-mime-codec": "^2.0.9",
-    "env-cmd": "^10.1.0",
     "imapflow": "^1.0.148",
     "mailparser": "^3.9.28",
     "openai": "^7.17.0",
@@ -24,7 +22,7 @@
     "yargs": "^17.7.2"
   },
   "devDependencies": {
-    "@types/emailjs-mime-codec": "^2.0.2",
+    "env-cmd": "^10.1.0",
     "pino-pretty": "^10.0.0",
     "prettier": "^3.6.2",
     "vitest": "^3.2.4"

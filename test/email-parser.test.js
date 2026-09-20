@@ -1,8 +1,5 @@
 import {
-  extractDateFromRaw,
-  extractHeaders,
   parseEmail,
-  parseSpamAssassinOutput,
   parseRspamdOutput,
   parseAiClassificationOutput,
   stripSpamHeaders,
@@ -70,48 +67,6 @@ This is a test email.`;
   });
 });
 
-describe('extractDateFromRaw', () => {
-  test('should extract date from email', () => {
-    const input = `From: test@example.com
-To: recipient@example.com
-Subject: Test Email
-Date: Mon, 15 May 2023 10:30:00 +0000
-Content-Type: text/plain
-
-This is a test email.`;
-
-    const date = extractDateFromRaw(input);
-    expect(date).toBe(
-      new Date('Mon, 15 May 2023 10:30:00 +0000').toISOString()
-    );
-  });
-
-  test('should return null for invalid date', () => {
-    const input = `From: test@example.com
-To: recipient@example.com
-Subject: Test Email
-Date: Invalid Date
-Content-Type: text/plain
-
-This is a test email.`;
-
-    const date = extractDateFromRaw(input);
-    expect(date).toBeNull();
-  });
-
-  test('should return null if no date is found', () => {
-    const input = `From: test@example.com
-To: recipient@example.com
-Subject: Test Email
-Content-Type: text/plain
-
-This is a test email.`;
-
-    const date = extractDateFromRaw(input);
-    expect(date).toBeNull();
-  });
-});
-
 describe('parse', () => {
   test('should parse headers and body from raw email', () => {
     const rawEmail = `From: test@example.com
@@ -161,94 +116,6 @@ This is a test email.`;
     expect(parsed).toEqual({
       headers: {},
       body: 'This is not a valid email',
-    });
-  });
-});
-
-describe('parseSpamAssassinOutput', () => {
-  test('should parse SpamAssassin output with spam', () => {
-    const headers = {
-      from: 'test@example.com',
-      to: 'recipient@example.com',
-      subject: '[SPAM] Test Email',
-      'x-spam-status': 'Yes, score=8.5 required=5.0',
-      'x-spam-level': '********',
-      'x-spam-flag': 'YES',
-      'content-type': 'text/plain',
-    };
-
-    const result = parseSpamAssassinOutput(headers);
-    expect(result).toEqual({
-      score: 8.5,
-      level: 8,
-      required: 5.0,
-      isSpam: true,
-    });
-  });
-
-  test('should parse SpamAssassin output without spam', () => {
-    const headers = {
-      from: 'test@example.com',
-      to: 'recipient@example.com',
-      subject: 'Test Email',
-      'x-spam-status': 'No, score=0.5 required=5.0',
-      'x-spam-level': '',
-      'content-type': 'text/plain',
-    };
-
-    const result = parseSpamAssassinOutput(headers);
-    expect(result).toEqual({
-      score: 0.5,
-      level: 0,
-      required: 5.0,
-      isSpam: false,
-    });
-  });
-
-  test('should handle missing fields', () => {
-    const headers = {
-      from: 'test@example.com',
-      to: 'recipient@example.com',
-      'content-type': 'text/plain',
-    };
-
-    const result = parseSpamAssassinOutput(headers);
-    expect(result).toEqual({
-      score: null,
-      level: 0,
-      required: null,
-      isSpam: false,
-    });
-  });
-
-  test('should handle missing x-spam-flag', () => {
-    const headers = {
-      'x-spam-status': 'No, score=2.1 required=5.0',
-      'x-spam-level': '**',
-    };
-
-    const result = parseSpamAssassinOutput(headers);
-    expect(result).toEqual({
-      score: 2.1,
-      level: 2,
-      required: 5.0,
-      isSpam: false,
-    });
-  });
-
-  test('should handle negative spam scores', () => {
-    const headers = {
-      'x-spam-status': 'No, score=-2.3 required=5.0',
-      'x-spam-level': '',
-      'x-spam-flag': 'NO',
-    };
-
-    const result = parseSpamAssassinOutput(headers);
-    expect(result).toEqual({
-      score: -2.3,
-      level: 0,
-      required: 5.0,
-      isSpam: false,
     });
   });
 });

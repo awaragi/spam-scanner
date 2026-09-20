@@ -6,12 +6,13 @@ This document contains general development guidelines that apply across all modu
 
 This is a Node.js-based IMAP spam scanner application:
 - **src/**: Main application scripts and library modules
-- **src/lib/**: Core reusable modules (IMAP client, SpamAssassin integration, state management)
+- **src/lib/**: Core reusable modules (IMAP client, Rspamd integration, state management)
 - **src/lib/utils/**: Utility functions for email parsing, configuration, etc.
 - **test/**: Unit tests for utility modules
 - **bin/**: Shell scripts for running the application
 - **docs/**: Project documentation
-- **rspamd/**: Rspamd Docker configuration (alternative spam filter)
+- **rspamd/**: Rspamd Docker configuration
+- **openspec/**: Spec-driven change process (specs, active/archived changes) — the project's process of record
 
 ## General Best Practices
 

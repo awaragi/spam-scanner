@@ -1,3 +1,11 @@
+# orchestration Specification
+
+## Purpose
+
+Drives the scanner's repeating cycle of training and scanning steps against isolated IMAP connections, in single-run, poll, or IDLE mode, retrying transient cycle failures with backoff and shutting down gracefully on SIGTERM/SIGINT.
+
+## Requirements
+
 ### Requirement: Startup validation
 The orchestrator SHALL validate that required environment variables (`IMAP_HOST`, `IMAP_USER`) are present at startup and exit with a non-zero status code if any are missing.
 
@@ -42,9 +50,9 @@ The orchestrator SHALL execute the following steps in order on each poll cycle: 
 - **WHEN** the poll loop begins a cycle
 - **THEN** the steps SHALL execute in the order: `runSpam`, `runHam`, `runWhitelist`, `runBlacklist`, `run` (scan)
 
-#### Scenario: Step failure halts the cycle
-- **WHEN** a step throws an unhandled error
-- **THEN** the remaining steps in that cycle SHALL NOT execute and the process SHALL exit
+#### Scenario: An unhandled step error aborts only the current cycle
+- **WHEN** a step throws an unhandled error (in practice, only scanning/IDLE still do — training is best-effort and does not rethrow, per the `batch-processing-resilience` capability)
+- **THEN** the remaining steps in that cycle SHALL NOT execute, but the orchestrator SHALL NOT exit immediately — the failure is instead handled by the cycle-retry-with-backoff requirement below
 
 ### Requirement: Configurable sleep interval
 The orchestrator SHALL use `SCAN_INTERVAL` to control loop behaviour, defaulting to `-1`.
@@ -87,24 +95,43 @@ In IDLE mode, after an IDLE wakeup the orchestrator SHALL repeat the scan step u
 - **WHEN** an IDLE wakeup triggers a cycle
 - **THEN** training steps SHALL run exactly once before the drain loop begins, regardless of how many drain iterations occur
 
-### Requirement: IDLE reconnection with retry
-In IDLE mode, the orchestrator SHALL attempt to reconnect if the IDLE connection fails, up to a configurable maximum.
+### Requirement: Cycle failure retry with backoff
+When any step in a cycle throws an unhandled error (train steps are best-effort per `batch-processing-resilience` and rarely do; in practice this is scan or IDLE), the orchestrator SHALL retry the cycle with exponential backoff rather than exiting immediately, up to `MAX_RETRIES` consecutive failures.
 
-#### Scenario: Retry on IDLE connection failure
-- **WHEN** the IDLE connection throws an error
-- **THEN** the orchestrator SHALL wait with exponential backoff (`min(2^n * 1000ms, 60000ms)`) and retry the IDLE cycle
+#### Scenario: Retry on cycle failure
+- **WHEN** a cycle step throws an unhandled error
+- **THEN** the orchestrator SHALL wait with exponential backoff (`min(2^n * 1000ms, 60000ms)`, where `n` is the consecutive failure count) and start a new cycle
 
 #### Scenario: Fatal exit when retries exhausted
-- **WHEN** the number of consecutive IDLE failures reaches `IDLE_MAX_RETRIES`
-- **THEN** the orchestrator SHALL log a fatal error and exit with a non-zero status code
+- **WHEN** the number of consecutive cycle failures reaches `MAX_RETRIES`
+- **THEN** the orchestrator SHALL log an error and exit with a non-zero status code
 
-#### Scenario: Retry counter resets on success
-- **WHEN** an IDLE cycle completes successfully (IDLE resolves and full step sequence runs without error)
+#### Scenario: Failure counter resets on success
+- **WHEN** a cycle completes successfully
 - **THEN** the consecutive failure counter SHALL be reset to zero
 
 #### Scenario: Default retry limit
-- **WHEN** `IDLE_MAX_RETRIES` is not set in the environment
-- **THEN** the orchestrator SHALL default to `5` maximum retries
+- **WHEN** `MAX_RETRIES` is not set in the environment
+- **THEN** the orchestrator SHALL default to `5` maximum consecutive failures
+
+### Requirement: Graceful shutdown on SIGTERM/SIGINT
+On receiving `SIGTERM` or `SIGINT`, the orchestrator SHALL finish the in-flight step and exit cleanly rather than being killed mid-write, and SHALL NOT start any further step.
+
+#### Scenario: In-flight step is allowed to finish
+- **WHEN** `SIGTERM` or `SIGINT` is received while a step is executing
+- **THEN** that step SHALL be allowed to complete before the orchestrator exits
+
+#### Scenario: No further steps start after a shutdown request
+- **WHEN** a shutdown has been requested
+- **THEN** the orchestrator SHALL NOT begin the next step in the current cycle, the next cycle, or a new IDLE wait
+
+#### Scenario: An interruptible wait resolves immediately on shutdown
+- **WHEN** a shutdown is requested while the orchestrator is sleeping between poll cycles, backing off after a failure, or waiting in IDLE
+- **THEN** that wait SHALL resolve immediately instead of running to its full duration
+
+#### Scenario: Duplicate signals are ignored
+- **WHEN** a second `SIGTERM`/`SIGINT` is received after shutdown has already been requested
+- **THEN** the orchestrator SHALL NOT re-trigger shutdown handling
 
 ### Requirement: Step execution timing
 The orchestrator SHALL log the elapsed time for each step upon completion.

@@ -44,24 +44,6 @@ export function stripSpamHeaders(emailContent) {
 }
 
 /**
- * Extracts date from raw email content
- * @param {string} rawEmail - Raw email content
- * @returns {string|null} - ISO date string or null if not found
- */
-export function extractDateFromRaw(rawEmail) {
-  const dateMatch = rawEmail.match(/Date: (.*)/);
-  if (dateMatch && dateMatch[1]) {
-    try {
-      const date = new Date(dateMatch[1]);
-      return date.toISOString();
-    } catch (e) {
-      return null;
-    }
-  }
-  return null;
-}
-
-/**
  * Parses raw email content into headers and body.
  * @param {string} rawEmail - Full raw email content (headers + body)
  * @returns {{headers: Record<string, string>, body: string}} - Object containing parsed headers and body
@@ -89,30 +71,6 @@ export function parseEmail(rawEmail) {
   }
 
   return { headers, body };
-}
-
-/**
- * Parses SpamAssassin output to extract spam information
- * @returns {Object} - Object containing spam information
- * @param headers
- */
-export function parseSpamAssassinOutput(headers) {
-  const scoreMatch = headers['x-spam-status']?.match(/score=([0-9.-]+)/);
-  const requiredMatch = headers['x-spam-status']?.match(/required=([0-9.-]+)/);
-  const levelMatch = headers['x-spam-level'];
-  const spamFlagMatch = headers['x-spam-flag'];
-
-  const score = scoreMatch ? parseFloat(scoreMatch[1]) : null;
-  const required = requiredMatch ? parseFloat(requiredMatch[1]) : null;
-  const level = levelMatch ? levelMatch.length : 0;
-  const isSpam = spamFlagMatch === 'YES';
-
-  return {
-    score,
-    required,
-    level,
-    isSpam,
-  };
 }
 
 /**

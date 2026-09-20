@@ -9,7 +9,7 @@
 
 ## Progress since this review
 
-23 of the findings below are resolved — 6 via the `harden-scan-reliability-and-docs` OpenSpec change (archived as `openspec/changes/archive/2026-09-17-harden-scan-reliability-and-docs/`), 1 via the `project-scoped-compose` OpenSpec change (`openspec/changes/project-scoped-compose/`), 2 (5.30, 6.13) via the `imap-backed-allow-deny-lists` OpenSpec change (`openspec/changes/imap-backed-allow-deny-lists/`), and 14 more (4.3, 4.6, 5.5, 3.2, 4.13, 4.7, 4.14, 5.1, 5.18, 4.9, 4.5, 5.12, 5.4, 6.17) as direct follow-up fixes, not tracked through an OpenSpec change. Each resolved finding is marked **✅ Resolved** inline; 5.2 is marked **⚠️ Partially resolved** (as a byproduct of the same `imap-backed-allow-deny-lists` change) rather than counted above. Two specific sub-items — the `\Junk` special-use default in 4.3, and the `HEADER` substring-match nuance in 5.5 — were deliberately decided **will not fix** rather than left open; see their inline notes. The first batch closed out the rest of **Phase 0**; the second batch (4.5, 5.12, 5.4, 6.17) is the first slice of **Phase 1** — IDLE reliability, graceful shutdown, and UIDVALIDITY tracking (see [§9](#9-suggested-roadmap)); 5.26 (project-scoped Compose naming/networking) is a standalone Phase 1 item unblocking multi-instance deployments (5.28); 5.30 (whitelist/blacklist as an app-owned, IMAP-backed capability) is a further slice of Phase 1, removing the rspamd-side statefulness that blocked 5.28's multi-mailbox goal. Nothing else in this document has been re-verified against the current code — treat every other finding as still open.
+23 of the findings below are resolved — 6 via the `harden-scan-reliability-and-docs` OpenSpec change (archived as `openspec/changes/archive/2026-09-17-harden-scan-reliability-and-docs/`), 1 via the `project-scoped-compose` OpenSpec change (`openspec/changes/project-scoped-compose/`), 2 (5.30, 6.13) via the `imap-backed-allow-deny-lists` OpenSpec change (archived as `openspec/changes/archive/2026-09-20-imap-backed-allow-deny-lists/`), and 14 more (4.3, 4.6, 5.5, 3.2, 4.13, 4.7, 4.14, 5.1, 5.18, 4.9, 4.5, 5.12, 5.4, 6.17) as direct follow-up fixes, not tracked through an OpenSpec change. Each resolved finding is marked **✅ Resolved** inline; 5.2 is marked **⚠️ Partially resolved** (as a byproduct of the same `imap-backed-allow-deny-lists` change) rather than counted above. Two specific sub-items — the `\Junk` special-use default in 4.3, and the `HEADER` substring-match nuance in 5.5 — were deliberately decided **will not fix** rather than left open; see their inline notes. The first batch closed out the rest of **Phase 0**; the second batch (4.5, 5.12, 5.4, 6.17) is the first slice of **Phase 1** — IDLE reliability, graceful shutdown, and UIDVALIDITY tracking (see [§9](#9-suggested-roadmap)); 5.26 (project-scoped Compose naming/networking) is a standalone Phase 1 item unblocking multi-instance deployments (5.28); 5.30 (whitelist/blacklist as an app-owned, IMAP-backed capability) is a further slice of Phase 1, removing the rspamd-side statefulness that blocked 5.28's multi-mailbox goal. Nothing else in this document has been re-verified against the current code — treat every other finding as still open.
 
 | Finding | Item                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -137,7 +137,7 @@ Findings are **grouped by severity** (sections 3–6). Each finding carries:
    - 5.28 No support for multiple mailboxes / accounts from one deployment
    - 5.29 No automated end-to-end validation of a fresh install
 6. [Low findings](#6-low-findings)
-   - 6.1 – 6.22 (clean-up, polish, metadata)
+   - 6.1 – 6.23 (clean-up, polish, metadata)
 7. [Deep dives](#7-deep-dives)
    - 7.1 Whitelist / blacklist redesign proposal
    - 7.2 Rspamd configuration simplification proposal
@@ -724,11 +724,12 @@ Critical logic (3.1, 4.4, 4.5, 5.1, 5.4) lives in the untested modules.
 ### 5.25 Two parallel process/documentation systems (`docs/features` vs `openspec`)
 
 - **Area:** HYG, DOC · **Complexity:** S
-- **Where:** `docs/features/*` (Feb 2026), `openspec/`, `.github/prompts`, `.github/skills`, `.github/agents`
+- **Where:** `docs/features/*` (Feb 2026, deleted), `openspec/`, `.github/prompts`, `.github/skills`, `.github/agents` (deleted)
+- **Status:** ✅ **Resolved**. `ai-spam-escalation` and `imap-backed-allow-deny-lists` are both archived (`openspec/changes/archive/2026-09-20-*`) and their delta specs synced into `openspec/specs/`, catching and fixing one cross-change inconsistency in the process (see the earlier note in this same entry's history, preserved in git blame). `docs/features/*` (9 dated design/plan docs plus 3 `.{design,plan,review}-template.md` files) reviewed one by one against current code and deleted outright rather than moved to a `docs/history/` archive: the SpamAssassin→Rspamd, whitelist/blacklist-maps, and src-structure-refactor docs described one-time migrations already fully superseded by later work (the maps design in particular describes a mechanism — local map files, `RSPAMD_HOST_DIR`, `rspamd/docker-compose.yml` — that no longer exists at all); the Docker-containerization and share-rspamd-host-storage docs are fully covered by the current `rspamd-external-storage`/`compose-project-isolation` specs; the centralized-logging design's still-true, still-undocumented behavior (`LOG_LEVEL`/`LOG_FORMAT` validation and fallback, `LOG_FILTER_INCLUDES`/`LOG_FILTER_EXCLUDES` component filtering, secret redaction, component/per-message child loggers) was migrated into an expanded `openspec/specs/logging-levels/spec.md` rather than lost. While fixing that spec's missing `## Purpose` (an existing `openspec validate --all --strict` failure, unrelated to this finding but adjacent), the same check on `orchestration` surfaced real drift from a separate, undocumented history of code changes (not from `docs/features`): its "step failure" scenario claimed an immediate process exit that hasn't been true since 5.12 added retry-with-backoff, and it described IDLE-specific reconnection retry (`IDLE_MAX_RETRIES`) that no longer exists in code (superseded by the same unified cycle-level `MAX_RETRIES` backoff, and by IDLE's own close/watchdog handling from 4.5) — both fixed to match current `orchestrator.js`/`idle-workflow.js`, and a `## Purpose` added. `openspec validate --all --strict` now reports 11/11 passing, 0 failures (previously 2). `openspec/config.yaml` now has a `context:` block (tech stack, storage model, deployment, test/lint status, openspec-as-process-of-record). The three `pa-architect`/`pa-developer`/`pa-reviewer` custom agents in `.github/agents/` — the actual producers of `docs/features/*` content — were deleted outright (by user decision) rather than left to regenerate the directory or rewritten to target openspec; `.github/prompts`/`.github/skills` were already fully openspec-based. Still open: no `CONTRIBUTING.md` stating openspec is the process (never existed, not just unedited); `.github/copilot-instructions.md`'s stale "SpamAssassin integration" line fixed in passing, but the much larger `.github/instructions/nodejs.instructions.md` (221 lines, describes a pre-rspamd-migration module layout including a `spamassassin.js` that no longer exists) was found stale but is out of scope for this pass — flagged as a new item, see 6.23.
 
-**Problem.** Design/plan docs from February live in `docs/features/`; later work uses openspec. Some openspec capabilities (e.g. AI spam escalation) exist only as an **unarchived** change (`openspec/changes/ai-spam-escalation`) whereas the later `ai-failure-notification` change is archived and synced — so `openspec/specs/` doesn't describe the AI escalation behaviour that is already shipped. `openspec/config.yaml` has no project `context`. Contributors (human or AI) have to guess which system is authoritative.
+**Problem.** Design/plan docs from February live in `docs/features/`; later work uses openspec. `openspec/config.yaml` has no project `context`. Contributors (human or AI) have to guess which system is authoritative.
 
-**Recommendation.** Archive/sync `ai-spam-escalation`; move `docs/features/*` to `docs/history/` (or convert the still-relevant decisions into openspec specs); fill `openspec/config.yaml` `context:`; state in `CONTRIBUTING.md` that openspec is the process.
+**Recommendation.** ~~Move `docs/features/*` to `docs/history/` (or convert the still-relevant decisions into openspec specs); fill `openspec/config.yaml` `context:`; add the missing `## Purpose` sections to `logging-levels`/`orchestration`.~~ Done. Still to do: add a `CONTRIBUTING.md` stating openspec is the process; see 6.23 for the newly-found `nodejs.instructions.md` staleness.
 
 ### 5.26 Docker container names and network aren't project-scoped — blocks running multiple instances side by side
 
@@ -815,21 +816,25 @@ This is a smaller, independent slice of the full **7.1** redesign: it doesn't ad
 ### 6.1 Dead code: SpamAssassin-era parsers
 
 - **Area:** CLN · **Complexity:** XS · **Where:** `src/lib/utils/email-parser.js:51-62` (`extractDateFromRaw`), `:99-116` (`parseSpamAssassinOutput`)
+- **Status:** ✅ **Resolved**. Both functions and their tests removed from `email-parser.js`/`test/email-parser.test.js`. Also dropped a stale `extractHeaders` import from the test file (named a function that didn't exist in `email-parser.js` at all). `npm test` green (338 tests).
 - Not used by `src/`. Remove along with their tests.
 
 ### 6.2 Redundant `src/idle.js`
 
 - **Area:** CLN · **Complexity:** XS
+- **Status:** ✅ **Resolved**. Deleted; nothing referenced it outside `ROADMAP.md` itself.
 - Stand-alone IDLE loop that only waits and does nothing on wake-up; superseded by `SCAN_INTERVAL=0` in the orchestrator. Remove.
 
 ### 6.3 `ColorProcessor` stub advertised as a mode
 
 - **Area:** CLN, CFG · **Complexity:** XS
+- **Status:** ✅ **Resolved**. `color-processor.js` deleted; `createProcessor`'s `'color'` case and error message removed (`base-processor.js`); `.env.example`/`README.md` no longer mention `color`; `test/base-processor.test.js` updated. No openspec change opened — `color` mode had zero real behavior to preserve as a spec.
 - `SPAM_PROCESSING_MODE=color` is accepted and silently does nothing except a warning per batch. Remove from factory/docs until implemented (keep an openspec change if desired).
 
 ### 6.4 Unused dependencies
 
 - **Area:** TLG · **Complexity:** XS
+- **Status:** ✅ **Resolved**. `emailjs-mime-codec`/`@types/emailjs-mime-codec` removed from `package.json` (confirmed unimported via `grep`); `env-cmd` moved from `dependencies` to `devDependencies` (only used by the `test:integration` script). `npm install` regenerated `package-lock.json` (5 packages removed).
 - `emailjs-mime-codec` and `@types/emailjs-mime-codec` are not imported anywhere. `env-cmd` is only used by `test:integration` → devDependency.
 
 ### 6.5 `stripSpamHeaders` scans the whole message, not just headers
@@ -870,6 +875,7 @@ This is a smaller, independent slice of the full **7.1** redesign: it doesn't ad
 ### 6.12 `.bin/list-folders.sh` duplicates functionality and uses a fragile env export
 
 - **Area:** HYG · **Complexity:** XS
+- **Status:** ✅ **Resolved** (moot). `.bin/` no longer exists in the working tree (confirmed via `git log --all -- .bin`, `find`) — its last trace predates the current `bin/` layout. Nothing to delete.
 - Two script dirs (`.bin/` hidden, `bin/`). Replace with `spam-scanner folders list` (5.14) and delete `.bin/`.
 
 ### 6.13 `bin/local/sort-maps.sh` points to the old map location
@@ -886,6 +892,7 @@ This is a smaller, independent slice of the full **7.1** redesign: it doesn't ad
 ### 6.15 `check-eml.sh` usage text names a different script
 
 - **Area:** CLN · **Complexity:** XS
+- **Status:** ✅ **Resolved**. `usage()` in `bin/local/check-eml.sh` now says `check-eml.sh` throughout (was `check-rspamd.sh`). The hard-coded URL/password half of this finding was already fixed separately under 3.2/4.13.
 - Usage says `check-rspamd.sh`; hard-coded URL/password (see 3.2).
 
 ### 6.16 `SCAN_BATCH_SIZE` vs `PROCESS_BATCH_SIZE` naming is confusing
@@ -923,6 +930,11 @@ This is a smaller, independent slice of the full **7.1** redesign: it doesn't ad
 
 - **Area:** LIC · **Complexity:** XS
 - App deps are permissive (MIT/Apache-2.0) — compatible with the MIT licence. Docker images: rspamd Apache-2.0; Redis ≥ 7.4 is RSALv2/SSPL (Redis 8 adds AGPLv3). Fine for personal/self-hosted use, but mention it in docs and consider `valkey/valkey` (BSD) as a drop-in. Copyright year in `LICENSE` is 2025 — optionally `2025-2026`.
+
+### 6.23 `.github/instructions/nodejs.instructions.md` describes a pre-Rspamd module layout
+
+- **Area:** DOC, HYG · **Complexity:** S · **Where:** `.github/instructions/nodejs.instructions.md` (221 lines)
+- Found while resolving 5.25. Describes `src/lib/spamassassin.js` and a SpamAssassin-era module layout that no longer exists — the whole file predates the Rspamd migration (docs/features' `20260213-replace-spamassassin-with-rspamd-*` docs, now deleted) and was never updated afterward. `.github/instructions/scripts.instructions.md` and `documentation.instructions.md` weren't checked in the same pass and should be reviewed too. Rewrite against the current `src/lib/` layout, or delete if `.github/copilot-instructions.md` already covers what's still needed.
 
 ---
 
@@ -1030,20 +1042,20 @@ Checks and prints ✅/❌ with a fix hint for each:
 
 ### 7.4 Documentation restructure proposal
 
-| File                            | Audience   | Content                                                                                                    | Complexity |
-| ------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------- | ---------- |
-| `README.md`                     | everyone   | What it does (diagram), features, screenshots of folders, 5-step Quick Start (installer), links            | S          |
-| `docs/INSTALL.md`               | users      | Installer walkthrough, manual Docker install, provider matrix (5.22), troubleshooting table                | M          |
-| `docs/CONFIGURATION.md`         | users      | Generated table of every env var (name, default, description, example) from schema (5.10); modes explained | S          |
-| `docs/USING.md`                 | users      | Training (spam/ham, how many), allow/block lists, removing entries, what labels/folders mean, AI net, FAQ  | S          |
-| `docs/OPERATIONS.md`            | users      | Logs, health, backup/restore, upgrade, rspamd UI access via SSH tunnel, uninstall                          | S          |
-| `docs/PRIVACY.md`               | users      | Data flows (IMAP → rspamd local; optional AI third party), logging of PII                                  | XS         |
-| `docs/ARCHITECTURE.md`          | developers | Components (mermaid), scan cycle sequence, state model, processors, AI escalation rules, failure handling  | M          |
-| `docs/DEVELOPMENT.md`           | developers | Local setup, tests (unit/integration/e2e), formatting/lint, openspec workflow, release process             | S          |
-| `rspamd/config/README.md`       | both       | See 7.2.2                                                                                                  | S          |
-| `CHANGELOG.md`                  | both       | Generated (6.21)                                                                                           | XS         |
-| `CONTRIBUTING.md` / `AGENTS.md` | developers | Conventions, commit style, openspec as process (5.25, 6.19)                                                | XS         |
-| `docs/history/`                 | archive    | Former `docs/features/*`                                                                                   | XS         |
+| File                            | Audience    | Content                                                                                                    | Complexity |
+| ------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------- | ---------- |
+| `README.md`                     | everyone    | What it does (diagram), features, screenshots of folders, 5-step Quick Start (installer), links            | S          |
+| `docs/INSTALL.md`               | users       | Installer walkthrough, manual Docker install, provider matrix (5.22), troubleshooting table                | M          |
+| `docs/CONFIGURATION.md`         | users       | Generated table of every env var (name, default, description, example) from schema (5.10); modes explained | S          |
+| `docs/USING.md`                 | users       | Training (spam/ham, how many), allow/block lists, removing entries, what labels/folders mean, AI net, FAQ  | S          |
+| `docs/OPERATIONS.md`            | users       | Logs, health, backup/restore, upgrade, rspamd UI access via SSH tunnel, uninstall                          | S          |
+| `docs/PRIVACY.md`               | users       | Data flows (IMAP → rspamd local; optional AI third party), logging of PII                                  | XS         |
+| `docs/ARCHITECTURE.md`          | developers  | Components (mermaid), scan cycle sequence, state model, processors, AI escalation rules, failure handling  | M          |
+| `docs/DEVELOPMENT.md`           | developers  | Local setup, tests (unit/integration/e2e), formatting/lint, openspec workflow, release process             | S          |
+| `rspamd/config/README.md`       | both        | See 7.2.2                                                                                                  | S          |
+| `CHANGELOG.md`                  | both        | Generated (6.21)                                                                                           | XS         |
+| `CONTRIBUTING.md` / `AGENTS.md` | developers  | Conventions, commit style, openspec as process (5.25, 6.19)                                                | XS         |
+| ~~`docs/history/`~~             | ~~archive~~ | Moot — `docs/features/*` was deleted outright (5.25), not archived; git history retains it if ever needed  | —          |
 
 Doc hygiene: add a CI check that every env var read in `config.js` appears in `CONFIGURATION.md` and `.env.example` (4.12).
 
@@ -1097,7 +1109,7 @@ Guiding rules: pure logic in `domain/` (no imports of config/logger singletons);
 | -------------------------------- | ----------------------------------------------------------------------------- |
 | **REF** Refactoring & modularity | 5.5, 5.10, 5.14, 5.15, 5.28, 5.30, 6.11, 6.17, 7.5                            |
 | **CLN** Clean-up / dead code     | 5.14, 6.1, 6.2, 6.3, 6.6, 6.7, 6.13, 6.15                                     |
-| **DOC** Documentation            | 4.11, 4.12, 5.19, 5.20, 5.21, 5.22, 5.25, 7.4                                 |
+| **DOC** Documentation            | 4.11, 4.12, 5.19, 5.20, 5.21, 5.22, 5.25, 6.23, 7.4                           |
 | **DEP** Build / deploy / install | 4.3, 4.13, 4.14, 4.15, 5.7, 5.8, 5.9, 5.22, 5.24, 5.26, 5.27, 5.29, 6.14, 7.3 |
 | **MAP** Whitelist / blacklist    | 4.1, 5.1, 5.2, 5.30, 6.11, 6.13, 7.1                                          |
 | **RSP** Rspamd setup             | 3.2, 4.1, 4.10, 4.13, 5.6, 5.11, 5.20, 7.2                                    |
@@ -1137,20 +1149,20 @@ Complexity totals are rough, for a single developer.
 
 ### Phase 1 — Hardening & hygiene (≈ 1–1.5 weeks)
 
-| Finding            | Item                                                         | Cx  | Status                                                                 |
-| ------------------ | ------------------------------------------------------------ | --- | ---------------------------------------------------------------------- |
-| 5.17               | Prettier commit, ESLint, GitHub Actions CI, Renovate         | S   | open                                                                   |
-| 4.4                | Per-message failure isolation (scan + training)              | M   | ✅ done, refined the same round                                        |
-| 4.5                | IDLE close/watchdog, pre-IDLE catch-up, training polling     | M   | ✅ done (training polling via watchdog recycle, not a separate poller) |
-| 5.12               | Graceful shutdown                                            | S   | ✅ done                                                                |
-| 5.10, 4.12         | Config schema + validation; align all defaults               | M   | 4.12 ✅ done (hand-aligned, not schema-generated), 5.10 open           |
-| 4.2                | Delimiter/namespace/special-use folder resolution            | M   | delimiter ✅ done, namespace/special-use still open                    |
-| 5.4, 6.17          | UIDVALIDITY in versioned state                               | S   | ✅ done                                                                |
-| 5.7, 5.8, 5.9      | Pin images, healthchecks, non-root, pretty-log fallback      | S   | open                                                                   |
-| 4.1, 5.6           | Authenticated whitelist; wire unbound                        | S   | open                                                                   |
-| 6.1–6.4, 6.12–6.15 | Dead code & script clean-up                                  | S   | open                                                                   |
-| 5.25               | Archive/sync openspec change; move `docs/features`           | S   | open                                                                   |
-| 5.26               | Project-scoped container names/network (dev vs prod coexist) | S   | ✅ done                                                                |
+| Finding            | Item                                                         | Cx  | Status                                                                    |
+| ------------------ | ------------------------------------------------------------ | --- | ------------------------------------------------------------------------- |
+| 5.17               | Prettier commit, ESLint, GitHub Actions CI, Renovate         | S   | open                                                                      |
+| 4.4                | Per-message failure isolation (scan + training)              | M   | ✅ done, refined the same round                                           |
+| 4.5                | IDLE close/watchdog, pre-IDLE catch-up, training polling     | M   | ✅ done (training polling via watchdog recycle, not a separate poller)    |
+| 5.12               | Graceful shutdown                                            | S   | ✅ done                                                                   |
+| 5.10, 4.12         | Config schema + validation; align all defaults               | M   | 4.12 ✅ done (hand-aligned, not schema-generated), 5.10 open              |
+| 4.2                | Delimiter/namespace/special-use folder resolution            | M   | delimiter ✅ done, namespace/special-use still open                       |
+| 5.4, 6.17          | UIDVALIDITY in versioned state                               | S   | ✅ done                                                                   |
+| 5.7, 5.8, 5.9      | Pin images, healthchecks, non-root, pretty-log fallback      | S   | open                                                                      |
+| 4.1, 5.6           | Authenticated whitelist; wire unbound                        | S   | open                                                                      |
+| 6.1–6.4, 6.12–6.15 | Dead code & script clean-up                                  | S   | ✅ done (6.1, 6.2, 6.3, 6.4, 6.12, 6.15); 6.14 still open (not dead code) |
+| 5.25               | Archive/sync openspec change; remove `docs/features`         | S   | ✅ done; `CONTRIBUTING.md` still open (see 5.25 for detail)               |
+| 5.26               | Project-scoped container names/network (dev vs prod coexist) | S   | ✅ done                                                                   |
 
 ### Phase 2 — Install experience & docs (≈ 2 weeks)
 

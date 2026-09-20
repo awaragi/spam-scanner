@@ -8,6 +8,19 @@ schema: spec-driven
 #     Tech stack: TypeScript, React, Node.js
 #     We use conventional commits
 #     Domain: e-commerce platform
+context: |
+  Node.js (ESM) IMAP spam scanner. Rspamd is a stateless content scorer shared
+  across mailboxes via HTTP (/checkv2, /learnham, /learnspam) - it has no list
+  or mailbox awareness. Whitelist/blacklist matching, scan state, and IDLE
+  orchestration all live in app code; per-mailbox state (scanner progress,
+  whitelist, blacklist) is stored as JSON in that mailbox's own IMAP state
+  folder, not a local file or database. Deployment is Docker Compose
+  (spam-scanner, rspamd, redis, unbound); a separate bin/local/docker-compose.yml
+  drives local dev, both project-scoped so they can coexist.
+  Testing: vitest (`npm test`), no CI yet. No linter configured; Prettier is
+  configured but not fully enforced across the repo. openspec is the process
+  of record for design/plan/spec work - `docs/features/` (an earlier, informal
+  design-doc convention) has been retired in favor of it.
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.

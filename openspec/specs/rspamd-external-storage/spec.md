@@ -6,35 +6,24 @@ Keeps rspamd's and Redis's persistent state (Bayes corpus, logs, list data) on a
 
 ## Requirements
 
-### Requirement: External data directory configurable via env var
-
-The system SHALL use a single `SPAM_SCANNER_DATA` environment variable to define the base host directory for all persistent rspamd and Redis state. When not set, it SHALL default to `~/.spam-scanner` (resolved via `os.homedir()`).
-
-#### Scenario: Default path used when env var absent
-
-- **WHEN** `SPAM_SCANNER_DATA` is not set in the environment
-- **THEN** the system SHALL resolve map paths under `~/.spam-scanner/rspamd/maps/`
-
-#### Scenario: Custom path used when env var is set
-
-- **WHEN** `SPAM_SCANNER_DATA=/mnt/data/spam` is set
-- **THEN** the system SHALL resolve map paths under `/mnt/data/spam/rspamd/maps/`
-
----
-
 ### Requirement: Rspamd data, logs, and maps stored at external host path
 
-The rspamd container SHALL mount its persistent directories (`/var/lib/rspamd`, `/var/log/rspamd`, `/etc/rspamd/maps`) from `${SPAM_SCANNER_DATA}/rspamd/data`, `${SPAM_SCANNER_DATA}/rspamd/logs`, and `${SPAM_SCANNER_DATA}/rspamd/maps` respectively.
+The rspamd container SHALL mount its persistent directories (`/var/lib/rspamd`, `/var/log/rspamd`) from `${SPAM_SCANNER_DATA}/rspamd/data` and `${SPAM_SCANNER_DATA}/rspamd/logs` respectively. The rspamd container SHALL NOT mount any map directory — rspamd no longer reads whitelist/blacklist data from disk.
 
 #### Scenario: Both compose environments mount identical host paths
 
 - **WHEN** the root `docker-compose.yml` and `bin/local/docker-compose.yml` are each started
-- **THEN** both SHALL bind-mount the same `${SPAM_SCANNER_DATA}/rspamd/` subdirectories into the rspamd container
+- **THEN** both SHALL bind-mount the same `${SPAM_SCANNER_DATA}/rspamd/data` and `${SPAM_SCANNER_DATA}/rspamd/logs` paths into the rspamd container
 
 #### Scenario: Rspamd config remains in project
 
 - **WHEN** either compose file starts the rspamd container
 - **THEN** `/etc/rspamd/local.d` SHALL be mounted from `rspamd/config/` within the project repository
+
+#### Scenario: No maps directory is mounted
+
+- **WHEN** either compose file starts the rspamd container
+- **THEN** no `${SPAM_SCANNER_DATA}/rspamd/maps` (or equivalent) directory SHALL be mounted into it
 
 ---
 
@@ -51,22 +40,6 @@ The Redis container SHALL use a bind mount at `${SPAM_SCANNER_DATA}/redis/` for 
 
 - **WHEN** the system is trained using `bin/local/docker-compose.yml`
 - **THEN** starting the root `docker-compose.yml` SHALL use the same trained Bayes data without retraining
-
----
-
-### Requirement: spam-scanner container can write map files
-
-The `spam-scanner` service in the root `docker-compose.yml` SHALL have `${SPAM_SCANNER_DATA}/rspamd/maps` mounted into the container, and `RSPAMD_WHITELIST_MAP_PATH` / `RSPAMD_BLACKLIST_MAP_PATH` SHALL be injected as environment variables pointing to that mount path.
-
-#### Scenario: train-whitelist writes to shared maps directory
-
-- **WHEN** `train-whitelist.js` runs inside the `spam-scanner` container
-- **THEN** it SHALL write to a path that is bind-mounted to `${SPAM_SCANNER_DATA}/rspamd/maps/whitelist.map` on the host
-
-#### Scenario: rspamd reads the updated map
-
-- **WHEN** the map file is updated by `spam-scanner`
-- **THEN** rspamd SHALL serve the updated whitelist/blacklist because both containers mount the same host directory
 
 ---
 
@@ -89,19 +62,3 @@ The `.env.example` file SHALL include `SPAM_SCANNER_DATA` with a comment noting 
 
 - **WHEN** a developer copies `.env.example` to `.env` and sets `SPAM_SCANNER_DATA`
 - **THEN** both compose files and Node.js scripts SHALL use that path without further configuration
-
----
-
-### Requirement: Map path defaults derived from SPAM_SCANNER_DATA in config.js
-
-`src/lib/utils/config.js` SHALL compute the default values for `RSPAMD_WHITELIST_MAP_PATH` and `RSPAMD_BLACKLIST_MAP_PATH` using `SPAM_SCANNER_DATA` (or `~/.spam-scanner` fallback), so local Node.js scripts work without explicitly setting the map path variables.
-
-#### Scenario: Local script resolves map path without explicit config
-
-- **WHEN** `node src/train-whitelist.js` is run locally with only `SPAM_SCANNER_DATA` set
-- **THEN** `config.RSPAMD_WHITELIST_MAP_PATH` SHALL resolve to `${SPAM_SCANNER_DATA}/rspamd/maps/whitelist.map`
-
-#### Scenario: Explicit map path env var takes precedence
-
-- **WHEN** `RSPAMD_WHITELIST_MAP_PATH` is explicitly set in the environment
-- **THEN** that value SHALL be used instead of the derived default
