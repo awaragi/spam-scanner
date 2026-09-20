@@ -1,14 +1,18 @@
-import {findFirstUIDOnDate, newClient} from '../lib/clients/imap-client.js';
+import {
+  findFirstUIDOnDate,
+  newClient,
+  safeLogout,
+} from '../lib/clients/imap-client.js';
 import yargs from 'yargs';
-import {hideBin} from 'yargs/helpers';
+import { hideBin } from 'yargs/helpers';
 
 const argv = yargs(hideBin(process.argv))
   .usage('Usage: $0 <folder> [--since YYYY-MM-DD]')
-    .option('since', {
-      type: 'string',
-      default: '1970-01-01'
-    })
-    .demandCommand(1).argv;
+  .option('since', {
+    type: 'string',
+    default: '1970-01-01',
+  })
+  .demandCommand(1).argv;
 
 const [folder] = argv._;
 const imap = newClient();
@@ -23,5 +27,5 @@ try {
     console.log(null);
   }
 } finally {
-  await imap.logout();
+  await safeLogout(imap);
 }

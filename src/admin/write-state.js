@@ -1,16 +1,16 @@
-import {writeScannerState} from '../lib/state-manager.js';
-import {newClient} from '../lib/clients/imap-client.js';
+import { writeScannerState } from '../lib/state-manager.js';
+import { newClient, safeLogout } from '../lib/clients/imap-client.js';
 
 let data = '';
-process.stdin.on('data', chunk => data += chunk);
+process.stdin.on('data', chunk => (data += chunk));
 process.stdin.on('end', async () => {
-    const state = JSON.parse(data);
-    const imap = newClient();
+  const state = JSON.parse(data);
+  const imap = newClient();
 
-    try {
-        await imap.connect();
-        await writeScannerState(imap, state);
-    } finally {
-        await imap.logout();
-    }
+  try {
+    await imap.connect();
+    await writeScannerState(imap, state);
+  } finally {
+    await safeLogout(imap);
+  }
 });

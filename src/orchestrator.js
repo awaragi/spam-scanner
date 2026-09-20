@@ -4,7 +4,7 @@ import { runSpam, runHam } from './lib/workflows/train-workflow.js';
 import { runWhitelist, runBlacklist } from './lib/workflows/map-workflow.js';
 import { runScan as runScan } from './lib/workflows/scan-workflow.js';
 import { runIdle } from './lib/workflows/idle-workflow.js';
-import { newClient } from './lib/clients/imap-client.js';
+import { newClient, safeLogout } from './lib/clients/imap-client.js';
 import { config } from './lib/utils/config.js';
 import { rootLogger } from './lib/utils/logger.js';
 
@@ -70,7 +70,7 @@ async function runStep(workflowFn, ...args) {
       'Step failed'
     );
   } finally {
-    await imap.logout();
+    await safeLogout(imap);
     if (!stepError) {
       const duration = Date.now() - start;
       logger.info({ step: workflowFn.name, duration }, 'Step completed');

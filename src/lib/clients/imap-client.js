@@ -31,6 +31,25 @@ export function newClient() {
 }
 
 /**
+ * Logs out an ImapFlow client, swallowing any error - safe to call in a
+ * `finally` block even when `connect()` itself never succeeded (there's
+ * nothing to log out of in that case, and letting that error escape would
+ * mask whatever error the caller already handled).
+ * @param {ImapFlow} imap
+ * @returns {Promise<void>}
+ */
+export async function safeLogout(imap) {
+  try {
+    await imap.logout();
+  } catch (err) {
+    logger.debug(
+      { error: err.message },
+      'Logout failed (connection likely never established)'
+    );
+  }
+}
+
+/**
  * Retrieves the IMAP folder hierarchy delimiter.
  * @param {ImapFlow} imap - An active and connected ImapFlow client instance.
  * @returns {Promise<string|null>} The folder delimiter (e.g., "/", "."), or null if not found.

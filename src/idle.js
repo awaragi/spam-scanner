@@ -1,5 +1,5 @@
 import { runIdle } from './lib/workflows/idle-workflow.js';
-import { newClient } from './lib/clients/imap-client.js';
+import { newClient, safeLogout } from './lib/clients/imap-client.js';
 import { rootLogger } from './lib/utils/logger.js';
 
 const logger = rootLogger.forComponent('idle');
@@ -15,15 +15,17 @@ while (true) {
     await imap.connect();
     logger.info({ cycle }, 'Entering IDLE — waiting for EXISTS notification');
     await runIdle(imap);
-    logger.info({ cycle }, 'IDLE resolved — new message detected or timeout, restarting');
+    logger.info(
+      { cycle },
+      'IDLE resolved — new message detected or timeout, restarting'
+    );
   } catch (err) {
-    logger.error({ cycle, error: err.message }, 'IDLE cycle error, retrying in 5s');
+    logger.error(
+      { cycle, error: err.message },
+      'IDLE cycle error, retrying in 5s'
+    );
     await new Promise(resolve => setTimeout(resolve, 5000));
   } finally {
-    try {
-      await imap.logout();
-    } catch (_) {
-      // ignore logout errors
-    }
+    await safeLogout(imap);
   }
 }
