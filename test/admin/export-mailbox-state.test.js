@@ -12,20 +12,20 @@ const { readScannerState, readMapState } = vi.hoisted(() => ({
   readMapState: vi.fn(),
 }));
 
-vi.mock('../../src/lib/clients/imap-client.js', () => ({
+vi.mock('../../src/lib/clients/imap.client.js', () => ({
   newClient,
   safeLogout: imap => imap.logout(),
 }));
 
 vi.mock('fs/promises', () => ({ default: { writeFile } }));
 
-vi.mock('../../src/lib/state-manager.js', () => ({
+vi.mock('../../src/lib/clients/state-manager.client.js', () => ({
   readScannerState,
   readMapState,
   writeScannerState: vi.fn(),
 }));
 
-vi.mock('../../src/lib/utils/config.js', () => ({
+vi.mock('../../src/lib/config/config.js', () => ({
   config: {
     STATE_KEY_WHITELIST_MAP: 'rspamd-whitelist-map',
     STATE_KEY_BLACKLIST_MAP: 'rspamd-blacklist-map',

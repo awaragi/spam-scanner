@@ -1,5 +1,5 @@
-import { runBlacklist } from './lib/workflows/map-workflow.js';
-import { newClient, safeLogout } from './lib/clients/imap-client.js';
+import { runBlacklist } from './lib/controllers/workflows/sender-list-training.controller.js';
+import { newClient, safeLogout } from './lib/clients/imap.client.js';
 
 const imap = newClient();
 

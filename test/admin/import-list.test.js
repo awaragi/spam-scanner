@@ -9,19 +9,19 @@ const { connect, logout, newClient } = vi.hoisted(() => {
 const { readFile } = vi.hoisted(() => ({ readFile: vi.fn() }));
 const { updateListState } = vi.hoisted(() => ({ updateListState: vi.fn() }));
 
-vi.mock('../../src/lib/clients/imap-client.js', () => ({
+vi.mock('../../src/lib/clients/imap.client.js', () => ({
   newClient,
   safeLogout: imap => imap.logout(),
 }));
 
 vi.mock('fs/promises', () => ({ default: { readFile } }));
 
-vi.mock('../../src/lib/services/map-service.js', () => ({
+vi.mock('../../src/lib/controllers/steps/list-update.step.js', () => ({
   updateListState,
   extractSenderAddresses: vi.fn(),
 }));
 
-vi.mock('../../src/lib/utils/config.js', () => ({
+vi.mock('../../src/lib/config/config.js', () => ({
   config: {
     STATE_KEY_WHITELIST_MAP: 'rspamd-whitelist-map',
     STATE_KEY_BLACKLIST_MAP: 'rspamd-blacklist-map',

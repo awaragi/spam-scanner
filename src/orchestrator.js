@@ -1,12 +1,19 @@
 import { setTimeout as delay } from 'timers/promises';
-import { runInit } from './lib/workflows/init-workflow.js';
-import { runSpam, runHam } from './lib/workflows/train-workflow.js';
-import { runWhitelist, runBlacklist } from './lib/workflows/map-workflow.js';
-import { runScan as runScan } from './lib/workflows/scan-workflow.js';
-import { runIdle } from './lib/workflows/idle-workflow.js';
-import { newClient, safeLogout } from './lib/clients/imap-client.js';
-import { config } from './lib/utils/config.js';
+import { runInit } from './lib/controllers/workflows/init.controller.js';
+import {
+  runSpam,
+  runHam,
+} from './lib/controllers/workflows/train.controller.js';
+import {
+  runWhitelist,
+  runBlacklist,
+} from './lib/controllers/workflows/sender-list-training.controller.js';
+import { runScan } from './lib/controllers/workflows/scan.controller.js';
+import { runIdle } from './lib/controllers/workflows/idle.controller.js';
+import { newClient, safeLogout } from './lib/clients/imap.client.js';
+import { config } from './lib/config/config.js';
 import { rootLogger } from './lib/utils/logger.js';
+import { createDefaultContext } from './lib/config/context.js';
 
 const logger = rootLogger.forComponent('orchestrator');
 
@@ -110,26 +117,32 @@ logger.info(
   'AI classification configuration'
 );
 
-await runStep(runInit);
+// Built once, before the very first step, and reused for every subsequent
+// step - this is what gives ctx.aiFailureTracker its process-lifetime
+// persistence. runIdle takes an `options` object before ctx, so its call is
+// the one with three arguments.
+const ctx = createDefaultContext();
+
+await runStep(runInit, ctx);
 
 let failures = 0;
 let lastUid;
 while (!stopping) {
   try {
     // Run training steps
-    await runStep(runSpam);
+    await runStep(runSpam, ctx);
     if (stopping) break;
-    await runStep(runHam);
+    await runStep(runHam, ctx);
     if (stopping) break;
-    await runStep(runWhitelist);
+    await runStep(runWhitelist, ctx);
     if (stopping) break;
-    await runStep(runBlacklist);
+    await runStep(runBlacklist, ctx);
     if (stopping) break;
 
     // Scan drain loop: repeat until no new messages remain
     let scanResult;
     do {
-      scanResult = await runStep(runScan);
+      scanResult = await runStep(runScan, ctx);
       if (scanResult && typeof scanResult.last_uid === 'number') {
         lastUid = scanResult.last_uid;
       }
@@ -144,7 +157,11 @@ while (!stopping) {
     } else if (scanInterval === 0) {
       // IDLE mode: wait for IMAP EXISTS notification
       logger.info('Waiting for new messages (IDLE)');
-      await runStep(runIdle, { signal: shutdownController.signal, lastUid });
+      await runStep(
+        runIdle,
+        { signal: shutdownController.signal, lastUid },
+        ctx
+      );
       if (stopping) break;
       logger.info('IDLE wakeup received, restarting scan cycle');
     } else {

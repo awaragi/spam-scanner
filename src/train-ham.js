@@ -1,5 +1,5 @@
-import { runHam } from './lib/workflows/train-workflow.js';
-import { newClient, safeLogout } from './lib/clients/imap-client.js';
+import { runHam } from './lib/controllers/workflows/train.controller.js';
+import { newClient, safeLogout } from './lib/clients/imap.client.js';
 
 const imap = newClient();
 

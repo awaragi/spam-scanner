@@ -2,7 +2,7 @@ import {
   findFirstUIDOnDate,
   newClient,
   safeLogout,
-} from '../lib/clients/imap-client.js';
+} from '../lib/clients/imap.client.js';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 

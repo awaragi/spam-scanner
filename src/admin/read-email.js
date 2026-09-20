@@ -2,8 +2,8 @@ import {
   newClient,
   processMessage,
   safeLogout,
-} from '../lib/clients/imap-client.js';
-import { config } from '../lib/utils/config.js';
+} from '../lib/clients/imap.client.js';
+import { config } from '../lib/config/config.js';
 import { rootLogger } from '../lib/utils/logger.js';
 import path from 'path';
 import fs from 'fs/promises';

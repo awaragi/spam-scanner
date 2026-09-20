@@ -1,9 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import { simpleParser } from 'mailparser';
-import { config } from '../../src/lib/utils/config.js';
-import { extractAiContent } from '../../src/lib/utils/ai-content.js';
-import { classifyEmail } from '../../src/lib/clients/ai-client.js';
+import { config } from '../../src/lib/config/config.js';
+import { extractAiContent } from '../../src/lib/services/ai-content.service.js';
+import { classifyEmail } from '../../src/lib/clients/ai.client.js';
 
 // Opt-in only: makes real calls to the configured AI provider using real API
 // credentials. Skipped entirely unless local .eml fixtures are present under
@@ -45,7 +45,9 @@ async function classifyFixture(filePath) {
     raw,
   };
 
-  const content = await extractAiContent(message);
+  const content = await extractAiContent(message, {
+    maxInputTokens: config.AI_MAX_INPUT_TOKENS,
+  });
   return classifyEmail(content);
 }
 

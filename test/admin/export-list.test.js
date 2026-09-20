@@ -9,19 +9,19 @@ const { connect, logout, newClient } = vi.hoisted(() => {
 const { writeFile } = vi.hoisted(() => ({ writeFile: vi.fn() }));
 const { readMapState } = vi.hoisted(() => ({ readMapState: vi.fn() }));
 
-vi.mock('../../src/lib/clients/imap-client.js', () => ({
+vi.mock('../../src/lib/clients/imap.client.js', () => ({
   newClient,
   safeLogout: imap => imap.logout(),
 }));
 
 vi.mock('fs/promises', () => ({ default: { writeFile } }));
 
-vi.mock('../../src/lib/state-manager.js', () => ({
+vi.mock('../../src/lib/clients/state-manager.client.js', () => ({
   readMapState,
   writeMapState: vi.fn(),
 }));
 
-vi.mock('../../src/lib/utils/config.js', () => ({
+vi.mock('../../src/lib/config/config.js', () => ({
   config: {
     STATE_KEY_WHITELIST_MAP: 'rspamd-whitelist-map',
     STATE_KEY_BLACKLIST_MAP: 'rspamd-blacklist-map',
@@ -156,7 +156,7 @@ describe('export-list', () => {
     const exported = stdoutSpy.mock.calls[0][0];
 
     const { parseAddressList } = await import(
-      '../../src/lib/utils/sender-lists.js'
+      '../../src/lib/services/sender-lists.service.js'
     );
     const reimported = parseAddressList(exported, 'json');
 

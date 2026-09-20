@@ -1,5 +1,5 @@
-import { runScan as scanInbox } from './lib/workflows/scan-workflow.js';
-import { newClient, safeLogout } from './lib/clients/imap-client.js';
+import { runScan as scanInbox } from './lib/controllers/workflows/scan.controller.js';
+import { newClient, safeLogout } from './lib/clients/imap.client.js';
 
 const imap = newClient();
 

@@ -199,23 +199,23 @@ for (let i = 0; i < uids.length; i += batchSize) {
 
 ## Module-Specific Notes
 
-### lib/imap-client.js
-- Handles all IMAP connection and mailbox operations
-- Provides high-level abstractions over node-imap
-- Manages connection lifecycle
+### src/lib/clients/imap.client.js
+- Handles all IMAP connection and mailbox operations (via ImapFlow)
+- Manages connection lifecycle; reads `config.js` directly, not `ctx`
 
-### lib/spamassassin.js
-- Integrates with spamc/spamd processes
-- Parses SpamAssassin output
-- Handles training operations
+### src/lib/clients/rspamd.client.js, src/lib/clients/ai.client.js
+- Integrate with Rspamd's HTTP API and an OpenAI-compatible chat-completions API respectively
+- Impure I/O boundary - 0% unit mandate, mocked freely in controller tests
 
-### lib/state-manager.js
-- Persists scanner state to IMAP mailbox
+### src/lib/clients/state-manager.client.js
+- Persists scanner state and whitelist/blacklist maps to the IMAP mailbox
 - Provides state read/write/reset operations
-- Handles state validation
 
-### Utility Modules
-- Keep pure functions without side effects when possible
-- Export focused, reusable functionality
-- Document non-obvious behavior
-- Include unit tests
+### src/lib/services/ and src/lib/utils/ (pure layers)
+- `*.service.js` (domain rules) and `*.util.js` (generic helpers) stay pure, no side effects
+- Never take `ctx` as a parameter - a controller extracts the specific value they need
+- 100% unit tested, zero mocks
+
+### src/lib/controllers/workflows/ and src/lib/controllers/activities/
+- Orchestration only, no embedded business logic - call clients + services, take `ctx` as a trailing parameter defaulted to `createDefaultContext()`
+- Controller tests mock only the `*.client.js` modules they need (transitively) and build `ctx` via `test/support/fixtures.js`'s `fixtureContext()`

@@ -8,8 +8,8 @@ const LOG_FILTER_EXCLUDES = process.env.LOG_FILTER_EXCLUDES || '';
 
 // Validate log level
 const VALID_LOG_LEVELS = ['trace', 'debug', 'info', 'warn', 'error', 'fatal'];
-const logLevel = VALID_LOG_LEVELS.includes(LOG_LEVEL.toLowerCase()) 
-  ? LOG_LEVEL.toLowerCase() 
+const logLevel = VALID_LOG_LEVELS.includes(LOG_LEVEL.toLowerCase())
+  ? LOG_LEVEL.toLowerCase()
   : 'info';
 
 if (LOG_LEVEL && !VALID_LOG_LEVELS.includes(LOG_LEVEL.toLowerCase())) {
@@ -18,8 +18,8 @@ if (LOG_LEVEL && !VALID_LOG_LEVELS.includes(LOG_LEVEL.toLowerCase())) {
 
 // Validate log format
 const VALID_LOG_FORMATS = ['json', 'jsonl', 'pretty'];
-const logFormat = VALID_LOG_FORMATS.includes(LOG_FORMAT.toLowerCase()) 
-  ? LOG_FORMAT.toLowerCase() 
+const logFormat = VALID_LOG_FORMATS.includes(LOG_FORMAT.toLowerCase())
+  ? LOG_FORMAT.toLowerCase()
   : 'json';
 
 if (LOG_FORMAT && !VALID_LOG_FORMATS.includes(LOG_FORMAT.toLowerCase())) {
@@ -28,10 +28,14 @@ if (LOG_FORMAT && !VALID_LOG_FORMATS.includes(LOG_FORMAT.toLowerCase())) {
 
 // Parse component filters
 const filterIncludesComponents = LOG_FILTER_INCLUDES
-  ? LOG_FILTER_INCLUDES.split(',').map(c => c.trim()).filter(c => c.length > 0)
+  ? LOG_FILTER_INCLUDES.split(',')
+      .map(c => c.trim())
+      .filter(c => c.length > 0)
   : [];
 const filterExcludesComponents = LOG_FILTER_EXCLUDES
-  ? LOG_FILTER_EXCLUDES.split(',').map(c => c.trim()).filter(c => c.length > 0)
+  ? LOG_FILTER_EXCLUDES.split(',')
+      .map(c => c.trim())
+      .filter(c => c.length > 0)
   : [];
 
 /**
@@ -46,14 +50,14 @@ function shouldLogComponent(component) {
       return false;
     }
   }
-  
+
   // If excludes filter is set, component must not be in the list
   if (filterExcludesComponents.length > 0) {
     if (filterExcludesComponents.includes(component)) {
       return false;
     }
   }
-  
+
   return true;
 }
 
@@ -62,7 +66,7 @@ const options = {
   level: logLevel,
   base: null, // Remove default pid and hostname fields
   formatters: {
-    level: (label) => ({ level: label })
+    level: label => ({ level: label }),
   },
   timestamp: pino.stdTimeFunctions.isoTime,
   // Secrets must never reach logs, even at LOG_LEVEL=debug (which is exactly
@@ -93,11 +97,13 @@ if (logFormat === 'pretty') {
       options: {
         colorize: true,
         translateTime: 'SYS:standard',
-        ignore: 'pid,hostname'
-      }
+        ignore: 'pid,hostname',
+      },
     };
   } catch (err) {
-    console.error('Failed to load pino-pretty. Install with: npm install --save-dev pino-pretty');
+    console.error(
+      'Failed to load pino-pretty. Install with: npm install --save-dev pino-pretty'
+    );
     console.error('Falling back to JSON format');
   }
 }
@@ -120,7 +126,7 @@ function createNoOpLogger() {
     fatal: noOp,
     child: () => noOpLogger,
     forComponent: () => noOpLogger,
-    forMessage: () => noOpLogger
+    forMessage: () => noOpLogger,
   };
   return noOpLogger;
 }
@@ -136,26 +142,26 @@ function attachForComponent(logger) {
    * @param {string} component - Component name (e.g., 'rspamd', 'imap', 'config')
    * @returns {Object} - Child logger with component context and forMessage method
    */
-  logger.forComponent = function(component) {
+  logger.forComponent = function (component) {
     // Check if this component should be logged
     if (!shouldLogComponent(component)) {
       return createNoOpLogger();
     }
-    
+
     const componentLogger = this.child({ component });
-    
+
     /**
      * Creates a message-scoped child logger with UID correlation
      * @param {number} uid - Email UID for correlation
      * @returns {Object} - Child logger with both component and uid context
      */
-    componentLogger.forMessage = function(uid) {
+    componentLogger.forMessage = function (uid) {
       return this.child({ uid });
     };
-    
+
     return componentLogger;
   };
-  
+
   return logger;
 }
 
