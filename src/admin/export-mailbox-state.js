@@ -7,13 +7,15 @@ import {
   readScannerState,
   readMapState,
 } from '../lib/clients/state-manager.client.js';
-import { config } from '../lib/core/config.js';
+import { config, assertRequiredConfig } from '../lib/core/config.js';
 
 // Full mailbox state backup/migration tool (see the `sender-lists`
 // capability): bundles scanner state, whitelist, and blacklist into one
 // JSON file, so all three can move together - a full backup, or a move to
 // a different mailbox/account. For a single list only, use
 // `export-list.js`; for scanner state only, `read-state.js`.
+
+assertRequiredConfig();
 
 const logger = rootLogger.forComponent('export-mailbox-state');
 

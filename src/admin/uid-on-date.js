@@ -5,6 +5,9 @@ import {
 } from '../lib/clients/imap.client.js';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import { assertRequiredConfig } from '../lib/core/config.js';
+
+assertRequiredConfig();
 
 const argv = yargs(hideBin(process.argv))
   .usage('Usage: $0 <folder> [--since YYYY-MM-DD]')

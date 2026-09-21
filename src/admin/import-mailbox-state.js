@@ -5,13 +5,15 @@ import { newClient, safeLogout } from '../lib/clients/imap.client.js';
 import { rootLogger } from '../lib/core/logger.js';
 import { writeScannerState } from '../lib/clients/state-manager.client.js';
 import { updateListState } from '../lib/controllers/steps/list-update.step.js';
-import { config } from '../lib/core/config.js';
+import { config, assertRequiredConfig } from '../lib/core/config.js';
 
 // Full mailbox state restore/migration tool (see the `sender-lists`
 // capability): the reverse of `export-mailbox-state.js` - restores scanner
 // state, whitelist, and blacklist from one bundle file, into this mailbox
 // or a different one. Only the keys present in the file are restored, so a
 // partial (e.g. lists-only) bundle is valid input.
+
+assertRequiredConfig();
 
 const logger = rootLogger.forComponent('import-mailbox-state');
 

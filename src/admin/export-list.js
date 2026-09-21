@@ -2,7 +2,7 @@ import fs from 'fs/promises';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { newClient, safeLogout } from '../lib/clients/imap.client.js';
-import { config } from '../lib/core/config.js';
+import { config, assertRequiredConfig } from '../lib/core/config.js';
 import { rootLogger } from '../lib/core/logger.js';
 import { readMapState } from '../lib/clients/state-manager.client.js';
 import { serializeAddressList } from '../lib/services/sender-lists.service.js';
@@ -11,6 +11,8 @@ import { serializeAddressList } from '../lib/services/sender-lists.service.js';
 // mailbox's IMAP-backed whitelist/blacklist as `txt` (legacy map format) or
 // `json` (round-trips through `import-list.js --format json`, and doubles
 // as a byte-for-byte backup of the raw list state).
+
+assertRequiredConfig();
 
 const logger = rootLogger.forComponent('export-list');
 

@@ -3,10 +3,12 @@ import {
   processMessage,
   safeLogout,
 } from '../lib/clients/imap.client.js';
-import { config } from '../lib/core/config.js';
+import { config, assertRequiredConfig } from '../lib/core/config.js';
 import { rootLogger } from '../lib/core/logger.js';
 import path from 'path';
 import fs from 'fs/promises';
+
+assertRequiredConfig();
 
 const HOME = config.HOME;
 const mailbox = config.FOLDER_INBOX;

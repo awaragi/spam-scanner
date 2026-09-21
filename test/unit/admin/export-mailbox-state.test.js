@@ -30,6 +30,7 @@ vi.mock('../../../src/lib/core/config.js', () => ({
     STATE_KEY_WHITELIST_MAP: 'rspamd-whitelist-map',
     STATE_KEY_BLACKLIST_MAP: 'rspamd-blacklist-map',
   },
+  assertRequiredConfig: vi.fn(),
 }));
 
 vi.mock('../../../src/lib/core/logger.js', () => ({

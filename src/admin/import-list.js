@@ -2,7 +2,7 @@ import fs from 'fs/promises';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { newClient, safeLogout } from '../lib/clients/imap.client.js';
-import { config } from '../lib/core/config.js';
+import { config, assertRequiredConfig } from '../lib/core/config.js';
 import { rootLogger } from '../lib/core/logger.js';
 import { updateListState } from '../lib/controllers/steps/list-update.step.js';
 import { parseAddressList } from '../lib/services/sender-lists.service.js';
@@ -12,6 +12,8 @@ import { parseAddressList } from '../lib/services/sender-lists.service.js';
 // into the mailbox's IMAP-backed whitelist/blacklist. The source file is a
 // plain CLI argument, not derived from any config/env map path or Docker
 // mount - the app no longer has either.
+
+assertRequiredConfig();
 
 const logger = rootLogger.forComponent('import-list');
 

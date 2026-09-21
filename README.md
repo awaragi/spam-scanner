@@ -106,6 +106,14 @@ IMAP_TLS=true
 
 `IMAP_TLS` defaults to `true`; set it to `false` explicitly only for a server that doesn't support TLS.
 
+Every environment variable is validated once at startup against a declarative schema: a
+non-numeric value for a numeric field, an invalid `SPAM_PROCESSING_MODE`, inverted AI
+escalation thresholds, or `AI_ENABLED=true` with no `AI_API_KEY` against the default OpenAI
+endpoint all fail immediately with a clear, complete list of every problem found - rather
+than misbehaving silently or failing later at first use. `IMAP_HOST`/`IMAP_USER`/
+`IMAP_PASSWORD` have no default and must be set - every command-line entry point checks
+this and fails fast, listing anything missing, before connecting to IMAP.
+
 ### Optional (with defaults)
 
 ```env

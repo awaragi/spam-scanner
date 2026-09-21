@@ -39,9 +39,10 @@ describe('config', () => {
     );
   });
 
-  test('does not throw when AI_ENABLED=true and AI_MODEL is set', async () => {
+  test('does not throw when AI_ENABLED=true and AI_MODEL/AI_API_KEY are set', async () => {
     process.env.AI_MODEL = 'gpt-4o-mini';
     process.env.AI_ENABLED = 'true';
+    process.env.AI_API_KEY = 'sk-test';
 
     const { config } = await import('../../../src/lib/core/config.js');
 
@@ -91,5 +92,141 @@ describe('config', () => {
     const { config } = await import('../../../src/lib/core/config.js');
 
     expect(config.IMAP_TLS).toBe(false);
+  });
+
+  test('throws naming the field when SCAN_INTERVAL is not numeric', async () => {
+    process.env.SCAN_INTERVAL = '5m';
+    process.env.AI_ENABLED = 'false';
+
+    await expect(import('../../../src/lib/core/config.js')).rejects.toThrow(
+      /SCAN_INTERVAL/
+    );
+  });
+
+  test('SCAN_INTERVAL defaults to -1 (single-run) when unset', async () => {
+    delete process.env.SCAN_INTERVAL;
+    process.env.AI_ENABLED = 'false';
+
+    const { config } = await import('../../../src/lib/core/config.js');
+
+    expect(config.SCAN_INTERVAL).toBe(-1);
+  });
+
+  test('throws naming the field when SPAM_PROCESSING_MODE is invalid', async () => {
+    process.env.SPAM_PROCESSING_MODE = 'delete';
+    process.env.AI_ENABLED = 'false';
+
+    await expect(import('../../../src/lib/core/config.js')).rejects.toThrow(
+      /SPAM_PROCESSING_MODE/
+    );
+  });
+
+  test('throws naming AI_API_KEY when AI_ENABLED=true with no key against the default endpoint', async () => {
+    process.env.AI_ENABLED = 'true';
+    process.env.AI_MODEL = 'gpt-4o-mini';
+    delete process.env.AI_API_KEY;
+    delete process.env.AI_BASE_URL;
+
+    await expect(import('../../../src/lib/core/config.js')).rejects.toThrow(
+      /AI_API_KEY/
+    );
+  });
+
+  test('does not require AI_API_KEY when AI_BASE_URL is non-default', async () => {
+    process.env.AI_ENABLED = 'true';
+    process.env.AI_MODEL = 'gpt-4o-mini';
+    delete process.env.AI_API_KEY;
+    process.env.AI_BASE_URL = 'http://localhost:11434/v1';
+
+    const { config } = await import('../../../src/lib/core/config.js');
+
+    expect(config.AI_BASE_URL).toBe('http://localhost:11434/v1');
+  });
+
+  test('throws naming both fields when AI escalation thresholds are inverted', async () => {
+    process.env.AI_ENABLED = 'true';
+    process.env.AI_MODEL = 'gpt-4o-mini';
+    process.env.AI_API_KEY = 'sk-test';
+    process.env.AI_ESCALATE_TO_LOW_THRESHOLD = '90';
+    process.env.AI_ESCALATE_TO_HIGH_THRESHOLD = '80';
+
+    await expect(import('../../../src/lib/core/config.js')).rejects.toThrow(
+      /AI_ESCALATE_TO_LOW_THRESHOLD.*AI_ESCALATE_TO_HIGH_THRESHOLD/s
+    );
+  });
+
+  test('reports every simultaneous load-time problem in one error, not just the first', async () => {
+    process.env.SCAN_INTERVAL = 'not-a-number';
+    process.env.SPAM_PROCESSING_MODE = 'delete';
+    process.env.AI_ENABLED = 'false';
+
+    let thrown;
+    try {
+      await import('../../../src/lib/core/config.js');
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(thrown).toBeDefined();
+    expect(thrown.message).toMatch(/SCAN_INTERVAL/);
+    expect(thrown.message).toMatch(/SPAM_PROCESSING_MODE/);
+  });
+
+  test('importing config never throws merely because IMAP credentials are unset', async () => {
+    delete process.env.IMAP_HOST;
+    delete process.env.IMAP_USER;
+    delete process.env.IMAP_PASSWORD;
+    process.env.AI_ENABLED = 'false';
+
+    await expect(
+      import('../../../src/lib/core/config.js')
+    ).resolves.toBeDefined();
+  });
+});
+
+describe('assertRequiredConfig', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    process.env = { ...ORIGINAL_ENV };
+  });
+
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+  });
+
+  test('throws naming every missing required field', async () => {
+    delete process.env.IMAP_HOST;
+    delete process.env.IMAP_USER;
+    delete process.env.IMAP_PASSWORD;
+    process.env.AI_ENABLED = 'false';
+
+    const { assertRequiredConfig } = await import(
+      '../../../src/lib/core/config.js'
+    );
+
+    let thrown;
+    try {
+      assertRequiredConfig();
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(thrown).toBeDefined();
+    expect(thrown.message).toMatch(/IMAP_HOST/);
+    expect(thrown.message).toMatch(/IMAP_USER/);
+    expect(thrown.message).toMatch(/IMAP_PASSWORD/);
+  });
+
+  test('does not throw when all required fields are set', async () => {
+    process.env.IMAP_HOST = 'imap.example.com';
+    process.env.IMAP_USER = 'user@example.com';
+    process.env.IMAP_PASSWORD = 'secret';
+    process.env.AI_ENABLED = 'false';
+
+    const { assertRequiredConfig } = await import(
+      '../../../src/lib/core/config.js'
+    );
+
+    expect(() => assertRequiredConfig()).not.toThrow();
   });
 });

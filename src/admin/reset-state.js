@@ -1,5 +1,8 @@
 import { newClient, safeLogout } from '../lib/clients/imap.client.js';
 import { writeScannerState } from '../lib/clients/state-manager.client.js';
+import { assertRequiredConfig } from '../lib/core/config.js';
+
+assertRequiredConfig();
 
 const now = new Date();
 

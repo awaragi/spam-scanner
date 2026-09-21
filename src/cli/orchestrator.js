@@ -11,7 +11,7 @@ import {
 import { runScan } from '../lib/controllers/workflows/scan.controller.js';
 import { runIdle } from '../lib/controllers/workflows/idle.controller.js';
 import { newClient, safeLogout } from '../lib/clients/imap.client.js';
-import { config } from '../lib/core/config.js';
+import { config, assertRequiredConfig } from '../lib/core/config.js';
 import { rootLogger } from '../lib/core/logger.js';
 import { createDefaultContext } from '../lib/core/context.js';
 
@@ -51,13 +51,10 @@ async function interruptibleSleep(ms) {
   }
 }
 
-if (!config.IMAP_HOST) {
-  logger.error('IMAP_HOST environment variable is not set');
-  process.exit(1);
-}
-
-if (!config.IMAP_USER) {
-  logger.error('IMAP_USER environment variable is not set');
+try {
+  assertRequiredConfig();
+} catch (err) {
+  logger.error({ error: err.message }, 'Invalid configuration');
   process.exit(1);
 }
 
@@ -87,13 +84,11 @@ async function runStep(workflowFn, ...args) {
   return result;
 }
 
-const scanInterval = parseInt(process.env.SCAN_INTERVAL || '-1', 10);
-
 logger.info(
   {
     host: config.IMAP_HOST,
     user: config.IMAP_USER,
-    intervalSeconds: scanInterval,
+    intervalSeconds: config.SCAN_INTERVAL,
   },
   'Starting orchestrator'
 );
@@ -150,11 +145,11 @@ while (!stopping) {
     if (stopping) break;
 
     // Wait condition depends on mode
-    if (scanInterval < 0) {
+    if (config.SCAN_INTERVAL < 0) {
       // Single-run: exit after one cycle
       logger.info('Cycle complete, single-run mode');
       break;
-    } else if (scanInterval === 0) {
+    } else if (config.SCAN_INTERVAL === 0) {
       // IDLE mode: wait for IMAP EXISTS notification
       logger.info('Waiting for new messages (IDLE)');
       await runStep(
@@ -167,10 +162,10 @@ while (!stopping) {
     } else {
       // Poll mode: wait for next interval
       logger.info(
-        { intervalSeconds: scanInterval },
+        { intervalSeconds: config.SCAN_INTERVAL },
         'Cycle complete, waiting for next poll'
       );
-      await interruptibleSleep(scanInterval * 1000);
+      await interruptibleSleep(config.SCAN_INTERVAL * 1000);
       if (stopping) break;
     }
 

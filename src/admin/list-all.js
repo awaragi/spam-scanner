@@ -1,6 +1,8 @@
 import { newClient, safeLogout } from '../lib/clients/imap.client.js';
-import { config } from '../lib/core/config.js';
+import { config, assertRequiredConfig } from '../lib/core/config.js';
 import { rootLogger } from '../lib/core/logger.js';
+
+assertRequiredConfig();
 
 const mailbox = config.FOLDER_INBOX;
 
