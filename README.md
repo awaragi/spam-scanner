@@ -527,11 +527,19 @@ The orchestrator runs the following steps in order on each cycle:
 
 There is no dedicated backup/restore tooling yet. The state that matters:
 
-- **`${SPAM_SCANNER_DATA}`** (Rspamd Bayes data, Rspamd logs, Redis persistence) - a plain host directory, back it up with `tar` after stopping the stack (or use `redis-cli BGSAVE` first for a consistent Redis snapshot while running):
+- **`${SPAM_SCANNER_DATA}`** (Rspamd Bayes data, Rspamd logs, Redis persistence) - a plain host directory, back it up with `tar`. Stopping the stack first is the simplest way to get a consistent snapshot:
   ```bash
   docker compose down
   tar czf spam-scanner-data-backup.tar.gz -C "$(dirname "$SPAM_SCANNER_DATA")" "$(basename "$SPAM_SCANNER_DATA")"
   docker compose up -d
+  ```
+  To back up without downtime, trigger a Redis snapshot and **wait for it to finish** before tarring - starting the tar while `BGSAVE` is still writing can capture a half-written RDB file:
+  ```bash
+  docker compose exec redis redis-cli BGSAVE
+  until docker compose exec redis redis-cli INFO persistence | grep -q 'rdb_bgsave_in_progress:0'; do
+    sleep 1
+  done
+  tar czf spam-scanner-data-backup.tar.gz -C "$(dirname "$SPAM_SCANNER_DATA")" "$(basename "$SPAM_SCANNER_DATA")"
   ```
   Restore by extracting the archive back to the same path and starting the stack.
 - **Scanner state, and the whitelist/blacklist** (all stored as messages inside your mailbox's state folder, `FOLDER_STATE`) - covered by whatever backs up the mailbox itself (e.g. your IMAP provider's own backups); each can also be dumped/restored directly:
@@ -549,6 +557,26 @@ There is no dedicated backup/restore tooling yet. The state that matters:
   ```
 
 - **`.env`** and any local edits to `rspamd/config/` - back these up yourself (they're not covered by `${SPAM_SCANNER_DATA}`).
+
+---
+
+## Upgrading
+
+Back up first (see [Backup & Restore](#backup--restore) above) - an upgrade that goes wrong is much easier to recover from with a recent `${SPAM_SCANNER_DATA}`/`.env` snapshot in hand.
+
+- **Rspamd / Redis** - both are version-pinned in `docker-compose.base.yml` (`rspamd/rspamd:3.14`, `redis:8-alpine`). Before bumping either, check that project's own release notes for breaking changes - a major Rspamd version can change Bayes classifier config compatibility (`rspamd/config/classifier-bayes.conf` and friends), and a major Redis version can change its persistence format. Bump the tag, then:
+  ```bash
+  docker compose pull
+  docker compose up -d
+  ```
+- **spam-scanner itself** - no published image or version tag exists yet (see the roadmap), so upgrading means pulling the latest source and rebuilding:
+  ```bash
+  git pull
+  docker compose up -d --build
+  ```
+- **Unbound** - pinned by image digest (see the comment in `docker-compose.base.yml`), not a tag; upgrading it means deliberately picking a new digest from [the image's releases](https://github.com/klutchell/unbound-docker) and updating that line.
+
+If anything looks wrong after upgrading, restore the backup taken beforehand and `docker compose up -d` to roll back.
 
 ---
 
