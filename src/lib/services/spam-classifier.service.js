@@ -140,22 +140,22 @@ export function applyAiEscalation(categorized, aiResults, thresholds = {}) {
  * apply, now computed here since rspamd is a stateless content scorer with
  * no list awareness (see `sender-lists` capability). The full -20 discount
  * only applies when rspamd also found a passing DKIM/DMARC symbol for the
- * message (`isSenderAuthenticated`); an unauthenticated whitelist match
+ * message (`senderAuthenticated`); an unauthenticated whitelist match
  * (address matched, but nothing proves the message actually came from it -
  * the most common phishing pattern) gets a smaller -5 discount instead, so a
  * spoofed "trusted" sender's spammy content can still reach `confirmed`.
  * @param {number} rawScore
  * @param {boolean} isWhitelisted
- * @param {boolean} [isSenderAuthenticated]
+ * @param {boolean} [senderAuthenticated]
  * @returns {number}
  */
 export function applyWhitelistAdjustment(
   rawScore,
   isWhitelisted,
-  isSenderAuthenticated = false
+  senderAuthenticated = false
 ) {
   if (!isWhitelisted) return rawScore;
-  return isSenderAuthenticated ? rawScore - 20 : rawScore - 5;
+  return senderAuthenticated ? rawScore - 20 : rawScore - 5;
 }
 
 /**
@@ -164,10 +164,10 @@ export function applyWhitelistAdjustment(
  * `spamInfo`, and counts how many were whitelisted. This is where
  * `rspamd-check.step.js` used to do per-message whitelist lookup/adjustment
  * before attaching `spamInfo` - now split out since rspamd itself has no
- * list awareness (see `sender-lists` capability). `isSenderAuthenticated` is
+ * list awareness (see `sender-lists` capability). `senderAuthenticated` is
  * read from `spamInfo` (set by `rspamd-check.step.js` from rspamd's own
  * DKIM/DMARC symbols) and passed through unchanged - it's not computed here.
- * @param {Array} messages - already-checked messages (spamInfo.score/required/isSenderAuthenticated set)
+ * @param {Array} messages - already-checked messages (spamInfo.score/required/senderAuthenticated set)
  * @param {Set<string>} whitelistSet - normalized whitelist addresses
  * @returns {{messages: Array, whitelistedTotal: number}}
  */
@@ -175,9 +175,7 @@ export function applyWhitelistAdjustments(messages, whitelistSet) {
   let whitelistedTotal = 0;
   const adjusted = messages.map(message => {
     const isWhitelisted = whitelistSet.has(senderAddressOf(message));
-    const isSenderAuthenticated = Boolean(
-      message.spamInfo.isSenderAuthenticated
-    );
+    const senderAuthenticated = Boolean(message.spamInfo.senderAuthenticated);
     if (isWhitelisted) whitelistedTotal++;
     return {
       ...message,
@@ -187,7 +185,7 @@ export function applyWhitelistAdjustments(messages, whitelistSet) {
         score: applyWhitelistAdjustment(
           message.spamInfo.score,
           isWhitelisted,
-          isSenderAuthenticated
+          senderAuthenticated
         ),
       },
     };
@@ -198,7 +196,7 @@ export function applyWhitelistAdjustments(messages, whitelistSet) {
 /**
  * Splits a list of already-categorized messages by whether their sender was
  * both whitelisted AND authenticated (`spamInfo.isWhitelisted` and
- * `spamInfo.isSenderAuthenticated`, set by `applyWhitelistAdjustments`).
+ * `spamInfo.senderAuthenticated`, set by `applyWhitelistAdjustments`).
  * Used only to decide AI eligibility - it never changes which tier a
  * message is in. An unauthenticated whitelist match (address matched, but
  * rspamd found no passing DKIM/DMARC symbol) does NOT skip AI - it's
@@ -213,8 +211,7 @@ export function partitionByWhitelistFlag(messages) {
   const rest = [];
   for (const message of messages) {
     const isTrustedMatch =
-      message.spamInfo?.isWhitelisted &&
-      message.spamInfo?.isSenderAuthenticated;
+      message.spamInfo?.isWhitelisted && message.spamInfo?.senderAuthenticated;
     (isTrustedMatch ? whitelisted : rest).push(message);
   }
   return { whitelisted, rest };

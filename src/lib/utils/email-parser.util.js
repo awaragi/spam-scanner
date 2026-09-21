@@ -92,7 +92,7 @@ const AUTHENTICATING_SYMBOLS = ['R_DKIM_ALLOW', 'DMARC_POLICY_ALLOW'];
  * awareness into rspamd, since it's a content-scoring signal rspamd computes
  * for every message regardless of any list.
  * @param {Object} response - JSON response object from Rspamd /checkv2 endpoint
- * @returns {{score: number, required: number, isSenderAuthenticated: boolean}} - Rspamd's content score, its add-header threshold, and whether it found a passing DKIM/DMARC symbol
+ * @returns {{score: number, required: number, senderAuthenticated: boolean}} - Rspamd's content score, its add-header threshold, and whether it found a passing DKIM/DMARC symbol
  */
 export function parseRspamdOutput(response) {
   if (!response || typeof response !== 'object') {
@@ -104,14 +104,14 @@ export function parseRspamdOutput(response) {
   const score = response.score || 0;
   const required = response.required_score || 0;
   const symbols = response.symbols || {};
-  const isSenderAuthenticated = AUTHENTICATING_SYMBOLS.some(
+  const senderAuthenticated = AUTHENTICATING_SYMBOLS.some(
     symbol => symbol in symbols
   );
 
   return {
     score,
     required,
-    isSenderAuthenticated,
+    senderAuthenticated,
   };
 }
 

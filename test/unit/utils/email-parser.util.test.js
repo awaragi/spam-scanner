@@ -135,7 +135,7 @@ describe('parseRspamdOutput', () => {
     expect(result).toEqual({
       score: 15.0,
       required: 10.0,
-      isSenderAuthenticated: false,
+      senderAuthenticated: false,
     });
   });
 
@@ -146,7 +146,7 @@ describe('parseRspamdOutput', () => {
     expect(result).toEqual({
       score: 0,
       required: 0,
-      isSenderAuthenticated: false,
+      senderAuthenticated: false,
     });
   });
 
@@ -157,7 +157,7 @@ describe('parseRspamdOutput', () => {
       symbols: { R_DKIM_ALLOW: { score: -0.2 } },
     };
 
-    expect(parseRspamdOutput(response).isSenderAuthenticated).toBe(true);
+    expect(parseRspamdOutput(response).senderAuthenticated).toBe(true);
   });
 
   test('should mark authenticated when DMARC_POLICY_ALLOW is present', () => {
@@ -167,7 +167,7 @@ describe('parseRspamdOutput', () => {
       symbols: { DMARC_POLICY_ALLOW: { score: -0.5 } },
     };
 
-    expect(parseRspamdOutput(response).isSenderAuthenticated).toBe(true);
+    expect(parseRspamdOutput(response).senderAuthenticated).toBe(true);
   });
 
   test('should mark authenticated when both DKIM and DMARC symbols are present', () => {
@@ -180,7 +180,7 @@ describe('parseRspamdOutput', () => {
       },
     };
 
-    expect(parseRspamdOutput(response).isSenderAuthenticated).toBe(true);
+    expect(parseRspamdOutput(response).senderAuthenticated).toBe(true);
   });
 
   test('should NOT mark authenticated for DMARC_POLICY_ALLOW_WITH_FAILURES alone', () => {
@@ -190,7 +190,7 @@ describe('parseRspamdOutput', () => {
       symbols: { DMARC_POLICY_ALLOW_WITH_FAILURES: { score: -0.5 } },
     };
 
-    expect(parseRspamdOutput(response).isSenderAuthenticated).toBe(false);
+    expect(parseRspamdOutput(response).senderAuthenticated).toBe(false);
   });
 
   test('should not mark authenticated when neither DKIM nor DMARC symbols are present', () => {
@@ -200,7 +200,7 @@ describe('parseRspamdOutput', () => {
       symbols: { R_SPF_ALLOW: { score: -0.2 } },
     };
 
-    expect(parseRspamdOutput(response).isSenderAuthenticated).toBe(false);
+    expect(parseRspamdOutput(response).senderAuthenticated).toBe(false);
   });
 
   test('should throw error for non-object response', () => {

@@ -32,11 +32,10 @@ async function processOneMessage(message) {
       'Rspamd check completed'
     );
 
-    const { score, required, isSenderAuthenticated } =
-      parseRspamdOutput(result);
+    const { score, required, senderAuthenticated } = parseRspamdOutput(result);
 
     messageLogger.debug(
-      { score, required, isSenderAuthenticated, date, subject },
+      { score, required, senderAuthenticated, date, subject },
       'Rspamd scan results'
     );
 
@@ -46,7 +45,7 @@ async function processOneMessage(message) {
       spamInfo: {
         score,
         required,
-        isSenderAuthenticated,
+        senderAuthenticated,
         subject,
         date,
       },

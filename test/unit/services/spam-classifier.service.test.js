@@ -433,12 +433,12 @@ describe('applyWhitelistAdjustments', () => {
     address,
     score = 30,
     required = 15,
-    isSenderAuthenticated = false
+    senderAuthenticated = false
   ) {
     return {
       uid,
       envelope: { from: [{ address }] },
-      spamInfo: { score, required, isSenderAuthenticated },
+      spamInfo: { score, required, senderAuthenticated },
     };
   }
 
@@ -453,7 +453,7 @@ describe('applyWhitelistAdjustments', () => {
     expect(result[0].spamInfo).toMatchObject({
       score: 10,
       isWhitelisted: true,
-      isSenderAuthenticated: true,
+      senderAuthenticated: true,
     });
     expect(whitelistedTotal).toBe(1);
   });
@@ -469,7 +469,7 @@ describe('applyWhitelistAdjustments', () => {
     expect(result[0].spamInfo).toMatchObject({
       score: 25,
       isWhitelisted: true,
-      isSenderAuthenticated: false,
+      senderAuthenticated: false,
     });
     expect(whitelistedTotal).toBe(1);
   });
@@ -507,19 +507,19 @@ describe('applyWhitelistAdjustments', () => {
 });
 
 describe('partitionByWhitelistFlag', () => {
-  test('splits messages by isWhitelisted AND isSenderAuthenticated together', () => {
+  test('splits messages by isWhitelisted AND senderAuthenticated together', () => {
     const messages = [
       {
         uid: 1,
-        spamInfo: { isWhitelisted: true, isSenderAuthenticated: true },
+        spamInfo: { isWhitelisted: true, senderAuthenticated: true },
       },
       {
         uid: 2,
-        spamInfo: { isWhitelisted: false, isSenderAuthenticated: false },
+        spamInfo: { isWhitelisted: false, senderAuthenticated: false },
       },
       {
         uid: 3,
-        spamInfo: { isWhitelisted: true, isSenderAuthenticated: true },
+        spamInfo: { isWhitelisted: true, senderAuthenticated: true },
       },
     ];
 
@@ -533,7 +533,7 @@ describe('partitionByWhitelistFlag', () => {
     const messages = [
       {
         uid: 1,
-        spamInfo: { isWhitelisted: true, isSenderAuthenticated: false },
+        spamInfo: { isWhitelisted: true, senderAuthenticated: false },
       },
     ];
 

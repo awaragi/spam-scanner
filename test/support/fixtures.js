@@ -20,7 +20,7 @@ export function fixtureMessage({ from, envelope, ...overrides } = {}) {
 /**
  * A rspamd `/checkv2` response fixture. `authenticated: true` adds the
  * `R_DKIM_ALLOW` symbol, so `parseRspamdOutput` reports
- * `isSenderAuthenticated: true` - the signal `applyWhitelistAdjustment`/
+ * `senderAuthenticated: true` - the signal `applyWhitelistAdjustment`/
  * `partitionByWhitelistFlag` gate the full whitelist discount and AI-skip
  * on (see the `sender-lists` capability).
  */

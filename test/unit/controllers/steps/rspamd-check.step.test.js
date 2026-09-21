@@ -54,7 +54,7 @@ describe('processWithRspamd', () => {
     expect(result[0].spamInfo).not.toHaveProperty('isWhitelisted');
   });
 
-  test('threads isSenderAuthenticated from rspamd symbols onto spamInfo', async () => {
+  test('threads senderAuthenticated from rspamd symbols onto spamInfo', async () => {
     const messages = [makeMessage(1)];
     fakeRspamdClient.checkEmail.mockResolvedValue({
       score: 1,
@@ -64,7 +64,7 @@ describe('processWithRspamd', () => {
 
     const result = await processWithRspamd(messages);
 
-    expect(result[0].spamInfo.isSenderAuthenticated).toBe(true);
+    expect(result[0].spamInfo.senderAuthenticated).toBe(true);
   });
 
   test('one permanent failure, one success: permanent one skipped, success kept, no throw', async () => {
