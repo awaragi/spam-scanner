@@ -7,10 +7,14 @@ const RSPAMD_URL = config.RSPAMD_URL;
 const RSPAMD_PASSWORD = config.RSPAMD_PASSWORD;
 
 /**
- * Builds headers for Rspamd HTTP requests
- * @returns {Object} - Headers object with optional password
+ * Builds headers for Rspamd HTTP requests. `envelope` fields are only
+ * meaningful for `/checkv2` (they let Rspamd evaluate SPF and IP-based
+ * DNSBL checks against the real sending relay); learn endpoints don't score,
+ * so callers never pass one.
+ * @param {{ip?: string, helo?: string, from?: string, rcpt?: string}} [envelope]
+ * @returns {Object} - Headers object with optional password and envelope data
  */
-function buildHeaders() {
+function buildHeaders(envelope = {}) {
   const headers = {
     'Content-Type': 'text/plain',
   };
@@ -18,6 +22,11 @@ function buildHeaders() {
   if (RSPAMD_PASSWORD) {
     headers['Password'] = RSPAMD_PASSWORD;
   }
+
+  if (envelope.ip) headers['IP'] = envelope.ip;
+  if (envelope.helo) headers['Helo'] = envelope.helo;
+  if (envelope.from) headers['From'] = envelope.from;
+  if (envelope.rcpt) headers['Rcpt'] = envelope.rcpt;
 
   return headers;
 }
@@ -46,10 +55,15 @@ async function parseRspamdJson(response) {
 /**
  * Checks email for spam using Rspamd /checkv2 endpoint
  * @param {string} emailContent - Raw email content including headers
+ * @param {{ip?: string, helo?: string, from?: string, rcpt?: string}} [envelope] -
+ *   Envelope data (connecting IP/HELO, envelope-from, recipient) so Rspamd
+ *   can evaluate SPF and IP-based DNSBL checks against the real sending
+ *   relay - see the `rspamd-envelope-data` capability. Any field may be
+ *   omitted; only the ones present are sent.
  * @returns {Promise<Object>} - Parsed JSON response from Rspamd
  * @throws {Error} - If the request fails or Rspamd returns an error
  */
-export async function checkEmail(emailContent) {
+export async function checkEmail(emailContent, envelope = {}) {
   if (!emailContent) {
     throw new Error('Email content is required');
   }
@@ -57,7 +71,7 @@ export async function checkEmail(emailContent) {
   try {
     const response = await fetch(`${RSPAMD_URL}/checkv2`, {
       method: 'POST',
-      headers: buildHeaders(),
+      headers: buildHeaders(envelope),
       body: emailContent,
       signal: AbortSignal.timeout(config.RSPAMD_TIMEOUT_MS),
     });

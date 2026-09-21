@@ -3,6 +3,8 @@ import {
   parseRspamdOutput,
   parseAiClassificationOutput,
   stripSpamHeaders,
+  parseReceivedHeader,
+  resolveConnectingHop,
 } from '../../../src/lib/utils/email-parser.util.js';
 
 describe('stripSpamHeaders', () => {
@@ -117,6 +119,87 @@ This is a test email.`;
       headers: {},
       body: 'This is not a valid email',
     });
+  });
+});
+
+describe('parseReceivedHeader', () => {
+  test('extracts HELO and IP from a standard Postfix-style header', () => {
+    const value =
+      'from mail.example.com (unknown [203.0.113.5]) by mx.provider.com (Postfix) with ESMTPS id ABC123';
+
+    expect(parseReceivedHeader(value)).toEqual({
+      ip: '203.0.113.5',
+      helo: 'mail.example.com',
+    });
+  });
+
+  test('extracts an IPv6 address', () => {
+    const value =
+      'from mail.example.com (unknown [2001:db8::1]) by mx.provider.com';
+
+    expect(parseReceivedHeader(value)).toEqual({
+      ip: '2001:db8::1',
+      helo: 'mail.example.com',
+    });
+  });
+
+  test('returns helo with a null ip when no bracketed address is present', () => {
+    const value = 'from mail.example.com by mx.provider.com';
+
+    expect(parseReceivedHeader(value)).toEqual({
+      ip: null,
+      helo: 'mail.example.com',
+    });
+  });
+
+  test('returns null for a value with no recognizable "from" clause', () => {
+    expect(parseReceivedHeader('by mx.provider.com with ESMTP')).toBeNull();
+  });
+
+  test('returns null for an empty value', () => {
+    expect(parseReceivedHeader('')).toBeNull();
+    expect(parseReceivedHeader(null)).toBeNull();
+  });
+});
+
+describe('resolveConnectingHop', () => {
+  // As returned by mailparser's `headers.get('received')`, normalized to an
+  // array - topmost (most recent) first.
+  const receivedHeaders = [
+    'from internal-relay.example.com (internal-relay.example.com [10.0.0.5]) by store.example.com (Dovecot) with LMTP id XYZ',
+    'from sender.attacker.example (unknown [203.0.113.9]) by internal-relay.example.com (Postfix) with ESMTPS id ABC123',
+  ];
+
+  test('reads the topmost Received header at trustedHops=0', () => {
+    expect(resolveConnectingHop(receivedHeaders, 0)).toEqual({
+      ip: '10.0.0.5',
+      helo: 'internal-relay.example.com',
+    });
+  });
+
+  test('skips internal hops when trustedHops is set', () => {
+    expect(resolveConnectingHop(receivedHeaders, 1)).toEqual({
+      ip: '203.0.113.9',
+      helo: 'sender.attacker.example',
+    });
+  });
+
+  test('defaults trustedHops to 0 when omitted', () => {
+    expect(resolveConnectingHop(receivedHeaders)).toEqual(
+      resolveConnectingHop(receivedHeaders, 0)
+    );
+  });
+
+  test('returns null when trustedHops exceeds the number of Received headers', () => {
+    expect(resolveConnectingHop(receivedHeaders, 5)).toBeNull();
+  });
+
+  test('returns null when there are no Received headers at all', () => {
+    expect(resolveConnectingHop([], 0)).toBeNull();
+  });
+
+  test('returns null when passed null/undefined', () => {
+    expect(resolveConnectingHop(undefined, 0)).toBeNull();
   });
 });
 

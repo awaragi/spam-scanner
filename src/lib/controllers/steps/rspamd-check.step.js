@@ -1,11 +1,63 @@
+import { simpleParser } from 'mailparser';
 import { rootLogger } from '../../core/logger.js';
 import { checkEmail } from '../../clients/rspamd.client.js';
-import { parseRspamdOutput } from '../../utils/email-parser.util.js';
+import {
+  parseRspamdOutput,
+  resolveConnectingHop,
+} from '../../utils/email-parser.util.js';
 import { dateToString } from '../../utils/email.util.js';
 import { isPermanentError } from '../../services/error-classifier.service.js';
 import { createDefaultContext } from '../../core/context.js';
 
 const logger = rootLogger.forComponent('rspamd-check');
+
+/**
+ * Builds the envelope data (connecting IP/HELO, envelope-from, recipient)
+ * Rspamd needs to evaluate SPF and IP-based DNSBL checks against the real
+ * sending relay - see the `rspamd-envelope-data` capability. `rcpt` is only
+ * sent when `IMAP_USER` looks like an address, since it isn't always one
+ * (e.g. a bare login on self-hosted Dovecot). Header parsing goes through
+ * `mailparser` (already a dependency) rather than hand-rolled header
+ * splitting, since it already handles repeated headers (`Received:`) and
+ * `Return-Path:` address parsing correctly - a failure here never blocks
+ * the Rspamd check itself, it just means less envelope data is sent.
+ * @param {string} raw - Raw email content
+ * @param {Object} cfg - `ctx.config`
+ * @param {Object} messageLogger
+ * @returns {Promise<{ip: string|null, helo: string|null, from: string|null, rcpt: string|null}>}
+ */
+async function buildEnvelope(raw, cfg, messageLogger) {
+  const rcpt = cfg.IMAP_USER?.includes('@') ? cfg.IMAP_USER : null;
+
+  try {
+    const parsed = await simpleParser(raw, {
+      skipHtmlToText: true,
+      skipTextToHtml: true,
+      skipImageLinks: true,
+    });
+    // mailparser returns a bare string instead of a 1-element array when a
+    // header occurs exactly once - normalize before indexing.
+    const receivedHeaders = [].concat(parsed.headers.get('received') || []);
+    const hop = resolveConnectingHop(
+      receivedHeaders,
+      cfg.RSPAMD_ENVELOPE_TRUSTED_HOPS
+    );
+    const returnPath = parsed.headers.get('return-path');
+
+    return {
+      ip: hop?.ip ?? null,
+      helo: hop?.helo ?? null,
+      from: returnPath?.value?.[0]?.address || null,
+      rcpt,
+    };
+  } catch (err) {
+    messageLogger.debug(
+      { error: err.message },
+      'Could not resolve Rspamd envelope data from message headers - continuing without it'
+    );
+    return { ip: null, helo: null, from: null, rcpt };
+  }
+}
 
 /**
  * Process a single message with Rspamd, returning the message with spamInfo
@@ -15,7 +67,7 @@ const logger = rootLogger.forComponent('rspamd-check');
  * - A transient error (network, 5xx, timeout) rejects, so the caller can fail
  *   the whole batch for retry.
  */
-async function processOneMessage(message) {
+async function processOneMessage(message, cfg) {
   const { uid, envelope, raw } = message;
   const messageLogger = logger.forMessage(uid);
   const subject = envelope.subject;
@@ -24,8 +76,12 @@ async function processOneMessage(message) {
   messageLogger.debug({ date, subject }, 'Starting Rspamd check');
 
   try {
-    messageLogger.debug('Checking email with Rspamd');
-    const result = await checkEmail(raw);
+    const rspamdEnvelope = await buildEnvelope(raw, cfg, messageLogger);
+    messageLogger.debug(
+      { ip: rspamdEnvelope.ip, helo: rspamdEnvelope.helo },
+      'Checking email with Rspamd'
+    );
+    const result = await checkEmail(raw, rspamdEnvelope);
 
     messageLogger.debug(
       { subject, action: result.action, score: result.score },
@@ -73,19 +129,19 @@ async function processOneMessage(message) {
  * score/required; see `spam-classifier.service.js`'s `applyWhitelistAdjustments`
  * for the score adjustment.
  * @param {Array} messages - Array of message objects with uid, envelope, raw
- * @param {Object} [ctx] - unused today; present for interface consistency across steps
+ * @param {Object} [ctx]
  * @returns {Promise<Array>} - Array of messages with spamInfo attached
  */
 export async function processWithRspamd(
   messages,
-  ctx = createDefaultContext() // eslint-disable-line no-unused-vars
+  ctx = createDefaultContext()
 ) {
   if (messages.length === 0) {
     return [];
   }
 
   const settled = await Promise.allSettled(
-    messages.map(message => processOneMessage(message))
+    messages.map(message => processOneMessage(message, ctx.config))
   );
 
   const processedMessages = [];

@@ -86,8 +86,6 @@ The main risks still open are concentrated in two places:
    (5.22).
 2. **Maintainability & operability** — gaps in IMAP-facing test coverage and no
    end-to-end smoke test (5.16), and no heartbeat/health signal for monitoring (5.23).
-   Rspamd still receives no envelope data (IP/HELO/MAIL FROM), weakening SPF and IP-based
-   DNSBL checks (4.10, verify).
 
 **Top actions by value/effort**
 
@@ -108,25 +106,6 @@ None open.
 ---
 
 ## 3. High findings
-
-### 4.10 Rspamd receives no envelope data (IP / HELO / MAIL FROM) (verify)
-
-- **Area:** RSP · **Complexity:** M
-- **Where:** `src/lib/clients/rspamd.client.js`; `src/lib/utils/email-parser.util.js`
-
-**Problem.** Messages are posted to `/checkv2` as raw bytes with no `IP`, `Helo`, `From`,
-`Rcpt` or `Hostname` headers. Rspamd therefore can't evaluate SPF properly, can't run
-IP-based RBL/DNSBL checks against the real sending relay, and DMARC evaluation is weakened
-— a large portion of rspamd's accuracy. It also reduces the value of the authenticated
-whitelist requirement already in place: DKIM/DMARC still work without envelope data, but
-SPF does not. (verify by inspecting symbols in rspamd history for a scanned message: expect
-`R_SPF_NA`/missing IP-based symbols.)
-
-**Recommendation.** Parse the first `Received:` header added by the mailbox provider's MX
-(configurable trusted hop count or trusted hostnames) to obtain the connecting IP and HELO;
-pass them as `IP` / `Helo` request headers, plus `From` (Return-Path) and `Rcpt` (IMAP
-user). Alternatively configure rspamd's `external_relay` module to extract it server-side.
-Add fixtures to tests.
 
 ### 4.15 No pre-built image and no guided installer
 
@@ -542,8 +521,9 @@ biggest structural change this proposal originally called for is already done.
 ### 7.2 Rspamd configuration simplification proposal
 
 Current `rspamd/config/` has several one-line or tiny files with no comments; the link to
-`.env`, ports and data dirs lives only in Compose. (The controller-password linkage and
-loopback-only port binding this proposal originally called for are already done.)
+`.env`, ports and data dirs lives only in Compose. (The controller-password linkage,
+loopback-only port binding, and envelope data to `/checkv2` this proposal originally called
+for are already done.)
 
 | #     | Recommendation                                                                                                                                                                                                  | Complexity |
 | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
@@ -551,7 +531,6 @@ loopback-only port binding this proposal originally called for are already done.
 | 7.2.2 | Add `rspamd/config/README.md` explaining: `local.d` override model, which file does what, how to view effective config (`rspamadm configdump`), how to test a message (`check-eml`).                            | S          |
 | 7.2.4 | `classifier-bayes.conf`: explicit `min_learns`, `autolearn = false` (training is user-driven), comment on Redis backend.                                                                                        | XS         |
 | 7.2.5 | Explicit `actions.conf` (`reject`, `add_header`, `greylist` thresholds) so the scanner's low/high thresholds can be reasoned about next to them.                                                                | XS         |
-| 7.2.6 | Pass envelope data (4.10) or configure `external_relay`.                                                                                                                                                        | M          |
 | 7.2.7 | Provide `spam-scanner status` using `/stat` (Bayes counts, uptime, scanned) and `spam-scanner check <file.eml>` replacing `check-eml.sh`.                                                                       | S          |
 | 7.2.8 | Consider mounting individual config files instead of the whole `local.d` directory so image-provided `local.d` defaults (if any) aren't hidden. (verify contents of `/etc/rspamd/local.d` in the pinned image.) | XS         |
 
@@ -650,7 +629,7 @@ Doc hygiene: add a CI check that every env var read in `config.js` appears in
 | **DOC** Documentation            | 5.19, 5.20, 5.22, 7.4                                  |
 | **DEP** Build / deploy / install | 4.15, 5.7, 5.8, 5.22, 5.27, 5.29, 6.14, 7.3            |
 | **MAP** Whitelist / blacklist    | 5.2, 6.11, 7.1                                         |
-| **RSP** Rspamd setup             | 4.10, 5.20, 7.2                                        |
+| **RSP** Rspamd setup             | 5.20, 7.2                                              |
 | **SEC** Security & privacy       | 5.8, 5.19                                              |
 | **REL** Reliability              | 5.3, 5.7, 6.5, 6.8, 6.9                                |
 | **CFG** Configuration            | 5.28, 6.14, 6.16                                       |
@@ -694,7 +673,6 @@ fully complete.
 | 5.16    | IMAP-facing test coverage gaps; e2e Compose test                                                | L   |
 | 7.1     | Lists v2: domain entries, removal folder/command                                                | M   |
 | 5.3     | Ham-trained AI re-escalation loop (tagging attempt reverted - needs a design with an undo path) | S   |
-| 4.10    | Envelope/IP extraction for rspamd                                                               | M   |
 | 5.23    | Heartbeat, generalized notifier, digest                                                         | M   |
 | 6.21    | Release automation & changelog                                                                  | S   |
 | 5.22    | OAuth2 (Gmail / Microsoft)                                                                      | XL  |

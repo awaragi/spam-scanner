@@ -180,11 +180,25 @@ RSPAMD_URL=http://localhost:11334
 RSPAMD_PASSWORD=
 # RSPAMD_TIMEOUT_MS: abort a stalled rspamd HTTP call (check/learn) after this many ms
 RSPAMD_TIMEOUT_MS=30000
+# RSPAMD_ENVELOPE_TRUSTED_HOPS: Received: headers to skip from the top (most
+# recent) before reading the connecting IP/HELO for rspamd's SPF/DNSBL
+# checks - see Envelope data below
+RSPAMD_ENVELOPE_TRUSTED_HOPS=0
 
 LOG_LEVEL=info
 LOG_FORMAT=json
 # LOG_FILTER_INCLUDES / LOG_FILTER_EXCLUDES: comma-delimited component name filters, both empty by default
 ```
+
+### Envelope data sent to Rspamd
+
+Every `/checkv2` request includes envelope data, resolved from the message itself rather than a live SMTP session, so Rspamd can evaluate SPF and IP-based DNSBL checks against the real sending relay (without it, Rspamd only sees DKIM/DMARC-derived signals):
+
+- **IP / Helo** - the connecting IP and claimed HELO/EHLO name, read from the `Received:` header at position `RSPAMD_ENVELOPE_TRUSTED_HOPS` (counting from the top/most recent). The default, `0`, reads the topmost `Received:` header - correct for a single-MX setup where your mailbox provider's own server is the first hop to see the sender. If your provider forwards through an internal relay before final delivery, that relay adds its own `Received:` header above the one you actually want; increase `RSPAMD_ENVELOPE_TRUSTED_HOPS` to skip it.
+- **From** - the envelope sender, read from `Return-Path:` (falls back to nothing if absent, never the message's own `From:` header).
+- **Rcpt** - `IMAP_USER`, only when it looks like an email address (some self-hosted setups use a bare login instead).
+
+Any field that can't be resolved is simply omitted from the request rather than guessed - Rspamd falls back to its DKIM/DMARC-only behavior for that field. The resolved `IP`/`Helo` are logged at `debug` level for troubleshooting; `From`/`Rcpt` and the message content are not.
 
 ### AI classification (optional safety-net escalation layer)
 

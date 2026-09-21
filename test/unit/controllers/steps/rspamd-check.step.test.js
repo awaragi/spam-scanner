@@ -1,4 +1,5 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { fixtureContext } from '../../../support/fixtures.js';
 
 const { fakeRspamdClient } = vi.hoisted(() => {
   return { fakeRspamdClient: { checkEmail: vi.fn() } };
@@ -65,6 +66,75 @@ describe('processWithRspamd', () => {
     const result = await processWithRspamd(messages);
 
     expect(result[0].spamInfo.senderAuthenticated).toBe(true);
+  });
+
+  test('resolves envelope data from the raw message and passes it to checkEmail', async () => {
+    const raw = `Received: from mail.example.com (unknown [203.0.113.5])\n\tby mx.provider.com (Postfix) with ESMTPS id ABC123\nReturn-Path: <sender@example.com>\nSubject: subject-1\n\nBody`;
+    const message = {
+      uid: 1,
+      envelope: { subject: 'subject-1', date: new Date() },
+      raw,
+    };
+    fakeRspamdClient.checkEmail.mockResolvedValue({
+      score: 1,
+      required_score: 15,
+    });
+
+    await processWithRspamd(
+      [message],
+      fixtureContext({ config: { IMAP_USER: 'owner@example.com' } })
+    );
+
+    expect(fakeRspamdClient.checkEmail).toHaveBeenCalledWith(raw, {
+      ip: '203.0.113.5',
+      helo: 'mail.example.com',
+      from: 'sender@example.com',
+      rcpt: 'owner@example.com',
+    });
+  });
+
+  test('omits Rcpt when IMAP_USER is not an email address', async () => {
+    const message = makeMessage(1);
+    fakeRspamdClient.checkEmail.mockResolvedValue({
+      score: 1,
+      required_score: 15,
+    });
+
+    await processWithRspamd(
+      [message],
+      fixtureContext({ config: { IMAP_USER: 'pierre' } })
+    );
+
+    expect(fakeRspamdClient.checkEmail).toHaveBeenCalledWith(
+      message.raw,
+      expect.objectContaining({ rcpt: null })
+    );
+  });
+
+  test('honors RSPAMD_ENVELOPE_TRUSTED_HOPS to skip internal hops', async () => {
+    const raw = `Received: from internal-relay.example.com (internal-relay.example.com [10.0.0.5])\n\tby store.example.com\nReceived: from sender.attacker.example (unknown [203.0.113.9])\n\tby internal-relay.example.com\nSubject: subject-1\n\nBody`;
+    const message = {
+      uid: 1,
+      envelope: { subject: 'subject-1', date: new Date() },
+      raw,
+    };
+    fakeRspamdClient.checkEmail.mockResolvedValue({
+      score: 1,
+      required_score: 15,
+    });
+
+    await processWithRspamd(
+      [message],
+      fixtureContext({ config: { RSPAMD_ENVELOPE_TRUSTED_HOPS: 1 } })
+    );
+
+    expect(fakeRspamdClient.checkEmail).toHaveBeenCalledWith(
+      raw,
+      expect.objectContaining({
+        ip: '203.0.113.9',
+        helo: 'sender.attacker.example',
+      })
+    );
   });
 
   test('one permanent failure, one success: permanent one skipped, success kept, no throw', async () => {

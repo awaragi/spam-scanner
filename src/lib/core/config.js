@@ -97,6 +97,13 @@ const ConfigSchema = z
     RSPAMD_URL: z.string().default('http://localhost:11334'),
     RSPAMD_PASSWORD: z.string().default(''),
     RSPAMD_TIMEOUT_MS: intField(30000),
+    // Number of `Received:` headers, counted from the top (most recent),
+    // added by the mailbox provider's own internal infrastructure after
+    // accepting the message from the outside world - skipped when resolving
+    // the connecting IP/HELO for Rspamd's envelope data. 0 fits most
+    // single-MX setups; increase it if an inbound relay sits in front of
+    // the final IMAP store.
+    RSPAMD_ENVELOPE_TRUSTED_HOPS: intField(0),
 
     SPAM_CLEAN_THRESHOLD: intField(30),
     SPAM_LOW_THRESHOLD: intField(60),

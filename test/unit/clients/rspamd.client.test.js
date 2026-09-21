@@ -124,6 +124,54 @@ describe('rspamd-client', () => {
 
       await expect(checkEmail(emailContent)).rejects.toThrow('Network error');
     });
+
+    test('should send envelope data as IP/Helo/From/Rcpt headers when provided', async () => {
+      const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ action: 'no action', score: 0 }),
+      });
+
+      await checkEmail(emailContent, {
+        ip: '203.0.113.5',
+        helo: 'mail.example.com',
+        from: 'sender@example.com',
+        rcpt: 'owner@example.com',
+      });
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/checkv2'),
+        expect.objectContaining({
+          headers: {
+            'Content-Type': 'text/plain',
+            IP: '203.0.113.5',
+            Helo: 'mail.example.com',
+            From: 'sender@example.com',
+            Rcpt: 'owner@example.com',
+          },
+        })
+      );
+    });
+
+    test('should omit envelope headers that are absent, null, or not provided at all', async () => {
+      const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ action: 'no action', score: 0 }),
+      });
+
+      await checkEmail(emailContent, { ip: null, helo: 'mail.example.com' });
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/checkv2'),
+        expect.objectContaining({
+          headers: {
+            'Content-Type': 'text/plain',
+            Helo: 'mail.example.com',
+          },
+        })
+      );
+    });
   });
 
   describe('learnHam', () => {

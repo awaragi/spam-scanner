@@ -43,6 +43,59 @@ export function stripSpamHeaders(emailContent) {
   return filteredLines.join('\n');
 }
 
+const RECEIVED_FROM_RE = /^from\s+(\S+)(?:\s*\(([^)]*)\))?/i;
+const IP_IN_BRACKETS_RE = /\[([0-9a-fA-F:.]+)]/;
+
+/**
+ * Parses one `Received:` header value for the claimed HELO/EHLO name and the
+ * connecting IP address, as written by the MTA that accepted the connection
+ * (e.g. `from mail.example.com (unknown [203.0.113.5]) by ...`). Either field
+ * may be unavailable depending on the MTA's format.
+ * @param {string} value - A single unfolded `Received:` header value
+ * @returns {{ip: string|null, helo: string|null}|null} - null if the value
+ *   doesn't start with a recognizable `from ...` clause
+ */
+export function parseReceivedHeader(value) {
+  if (!value) return null;
+
+  const match = value.replace(/\s+/g, ' ').trim().match(RECEIVED_FROM_RE);
+  if (!match) return null;
+
+  const helo = match[1] || null;
+  const ipMatch = (match[2] || '').match(IP_IN_BRACKETS_RE);
+  const ip = ipMatch ? ipMatch[1] : null;
+
+  if (!ip && !helo) return null;
+  return { ip, helo };
+}
+
+/**
+ * Resolves the IP/HELO of the boundary hop that handed this message to the
+ * mailbox provider's own infrastructure, for passing to Rspamd's `IP`/`Helo`
+ * request headers so it can evaluate SPF and IP-based DNSBL checks against
+ * the real sending relay (see the `rspamd-envelope-data` capability).
+ *
+ * `Received:` headers are prepended by each hop, so the topmost one is the
+ * most recent (closest to final delivery) and the bottommost is the
+ * earliest (closest to the original sender). `trustedHops` skips that many
+ * headers from the top - internal hops the mailbox provider's own
+ * infrastructure added after accepting the message - before reading the
+ * boundary hop. Most single-MX setups need `trustedHops: 0`; a setup with an
+ * inbound relay in front of the final IMAP store needs a larger value.
+ * @param {string[]} receivedHeaders - Raw `Received:` header values, topmost
+ *   (most recent) first - e.g. mailparser's `headers.get('received')`,
+ *   normalized to an array (it returns a bare string when there's exactly
+ *   one occurrence).
+ * @param {number} [trustedHops] - Received headers to skip from the top
+ * @returns {{ip: string|null, helo: string|null}|null} - null if there's no
+ *   `Received:` header at that position, or it couldn't be parsed
+ */
+export function resolveConnectingHop(receivedHeaders, trustedHops = 0) {
+  const boundary = receivedHeaders?.[trustedHops];
+  if (!boundary) return null;
+  return parseReceivedHeader(boundary);
+}
+
 /**
  * Parses raw email content into headers and body.
  * @param {string} rawEmail - Full raw email content (headers + body)

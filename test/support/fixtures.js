@@ -72,6 +72,7 @@ export function fixtureContext(overrides = {}) {
       SPAM_CONFIRMED_THRESHOLD: 200,
       SPAM_PROCESSING_MODE: 'label',
       IMAP_USER: 'owner@example.com',
+      RSPAMD_ENVELOPE_TRUSTED_HOPS: 0,
       AI_ENABLED: false,
       AI_CONCURRENCY: 5,
       AI_MAX_INPUT_TOKENS: 6000,
