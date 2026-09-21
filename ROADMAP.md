@@ -95,16 +95,16 @@ The main risks still open are concentrated in three places:
 
 **Top actions by value/effort**
 
-| #   | Action                                                                  | Findings   | Complexity |
-| --- | -------------------------------------------------------------------------- | ---------- | ---------- |
-| 1   | Require an authenticated-sender symbol before trusting a whitelist hit    | 4.1, 7.1   | S          |
-| 2   | Config schema + validation (single source of truth)                       | 5.10       | M          |
-| 3   | GitHub Actions CI (lint, format:check, test, docker build); Renovate      | 5.17       | S          |
-| 4   | `doctor` command (config/IMAP/rspamd connectivity checks)                 | 5.10, 7.3  | M          |
-| 5   | Publish multi-arch image to GHCR + `install.sh` wizard                    | 4.15, 7.3  | L          |
-| 6   | Single `spam-scanner` CLI binary with subcommands                         | 5.14       | M          |
-| 7   | Fill IMAP-facing test coverage gaps; add an e2e smoke test                 | 5.16       | L          |
-| 8   | Heartbeat file + generalized failure notifier                             | 5.23       | M          |
+| #   | Action                                                                 | Findings  | Complexity |
+| --- | ---------------------------------------------------------------------- | --------- | ---------- |
+| 1   | Require an authenticated-sender symbol before trusting a whitelist hit | 4.1, 7.1  | S          |
+| 2   | Config schema + validation (single source of truth)                    | 5.10      | M          |
+| 3   | GitHub Actions CI (lint, format:check, test, docker build); Renovate   | 5.17      | S          |
+| 4   | `doctor` command (config/IMAP/rspamd connectivity checks)              | 5.10, 7.3 | M          |
+| 5   | Publish multi-arch image to GHCR + `install.sh` wizard                 | 4.15, 7.3 | L          |
+| 6   | Single `spam-scanner` CLI binary with subcommands                      | 5.14      | M          |
+| 7   | Fill IMAP-facing test coverage gaps; add an e2e smoke test             | 5.16      | L          |
+| 8   | Heartbeat file + generalized failure notifier                          | 5.23      | M          |
 
 ---
 
@@ -653,13 +653,13 @@ biggest structural change this proposal originally called for is already done.
 
 **Still open:**
 
-| #     | Change                                                                                                                                                                   | Complexity |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
-| 7.1.2 | **Authenticated whitelist.** Require a DKIM/DMARC pass symbol from rspamd's response before trusting a hit (4.1); lower the weight for unauthenticated hits.             | S          |
+| #     | Change                                                                                                                                                                    | Complexity |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 7.1.2 | **Authenticated whitelist.** Require a DKIM/DMARC pass symbol from rspamd's response before trusting a hit (4.1); lower the weight for unauthenticated hits.              | S          |
 | 7.1.3 | **Domain entries.** Support `@example.com`-style entries alongside exact addresses.                                                                                       | S          |
 | 7.1.4 | **Extract one address, from `From:` only** (authenticated one when available). Drop `Reply-To`/`Sender` for blacklist.                                                    | XS         |
 | 7.1.5 | **Removal folder** `scanner.train.unlist`: senders of messages dropped there are removed from both lists; message moved back to INBOX.                                    | S          |
-| 7.1.6 | **Blacklist also trains Bayes as spam** (single user action does both).                                                                                                    | XS         |
+| 7.1.6 | **Blacklist also trains Bayes as spam** (single user action does both).                                                                                                   | XS         |
 | 7.1.7 | **Feedback**: tag processed messages with a keyword (`$ScannerWhitelisted`, `$ScannerNoSender`) and/or post a short weekly digest of list changes.                        | S          |
 | 7.1.8 | **CLI**: `maps list / add / remove / export / import` for power users; comments allowed (`# added 2026-09-17 from msg <id>`).                                             | S          |
 | 7.1.9 | **Simplify folder names**: `Scanner/Always allow`, `Scanner/Always block`, `Scanner/Not spam`, `Scanner/Is spam`, `Scanner/Remove from lists`. Helps non-technical users. | S          |
@@ -671,10 +671,10 @@ Current `rspamd/config/` has several one-line or tiny files with no comments; th
 loopback-only port binding this proposal originally called for are already done.)
 
 | #     | Recommendation                                                                                                                                                                                                  | Complexity |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| 7.2.1 | Add a header comment to each file: purpose, what may be changed, related env/compose settings.                                                                                                                 | XS         |
-| 7.2.2 | Add `rspamd/config/README.md` explaining: `local.d` override model, which file does what, how to view effective config (`rspamadm configdump`), how to test a message (`check-eml`).                          | S          |
-| 7.2.3 | `options.inc`: `dns { nameserver = ["unbound:53"]; }` (5.6).                                                                                                                                                     | XS         |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 7.2.1 | Add a header comment to each file: purpose, what may be changed, related env/compose settings.                                                                                                                  | XS         |
+| 7.2.2 | Add `rspamd/config/README.md` explaining: `local.d` override model, which file does what, how to view effective config (`rspamadm configdump`), how to test a message (`check-eml`).                            | S          |
+| 7.2.3 | `options.inc`: `dns { nameserver = ["unbound:53"]; }` (5.6).                                                                                                                                                    | XS         |
 | 7.2.4 | `classifier-bayes.conf`: explicit `min_learns`, `autolearn = false` (training is user-driven), comment on Redis backend.                                                                                        | XS         |
 | 7.2.5 | Explicit `actions.conf` (`reject`, `add_header`, `greylist` thresholds) so the scanner's low/high thresholds can be reasoned about next to them.                                                                | XS         |
 | 7.2.6 | Pass envelope data (4.10) or configure `external_relay`.                                                                                                                                                        | M          |
@@ -749,18 +749,18 @@ Checks and prints ✅/❌ with a fix hint for each:
 `README.md` was already rewritten to match the current code; the split below is still
 open.
 
-| File                            | Audience    | Content                                                                                                    | Complexity |
-| -------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------ | ---------- |
-| `docs/INSTALL.md`               | users       | Installer walkthrough, manual Docker install, provider matrix (5.22), troubleshooting table                | M          |
-| `docs/CONFIGURATION.md`         | users       | Generated table of every env var (name, default, description, example) from schema (5.10); modes explained | S          |
-| `docs/USING.md`                 | users       | Training (spam/ham, how many), allow/block lists, removing entries, what labels/folders mean, AI net, FAQ  | S          |
-| `docs/OPERATIONS.md`            | users       | Logs, health, backup/restore, upgrade, rspamd UI access via SSH tunnel, uninstall                          | S          |
-| `docs/PRIVACY.md`               | users       | Data flows (IMAP → rspamd local; optional AI third party), logging of PII                                  | XS         |
-| `docs/ARCHITECTURE.md`          | developers  | Components (mermaid), scan cycle sequence, state model, processors, AI escalation rules, failure handling  | M          |
-| `docs/DEVELOPMENT.md`           | developers  | Local setup, tests (unit/integration/e2e), formatting/lint, openspec workflow, release process             | S          |
-| `rspamd/config/README.md`       | both        | See 7.2.2                                                                                                    | S          |
-| `CHANGELOG.md`                  | both        | Generated (6.21)                                                                                             | XS         |
-| `CONTRIBUTING.md` / `AGENTS.md` | developers  | Conventions, commit style, openspec as process (6.19)                                                       | XS         |
+| File                            | Audience   | Content                                                                                                    | Complexity |
+| ------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------- | ---------- |
+| `docs/INSTALL.md`               | users      | Installer walkthrough, manual Docker install, provider matrix (5.22), troubleshooting table                | M          |
+| `docs/CONFIGURATION.md`         | users      | Generated table of every env var (name, default, description, example) from schema (5.10); modes explained | S          |
+| `docs/USING.md`                 | users      | Training (spam/ham, how many), allow/block lists, removing entries, what labels/folders mean, AI net, FAQ  | S          |
+| `docs/OPERATIONS.md`            | users      | Logs, health, backup/restore, upgrade, rspamd UI access via SSH tunnel, uninstall                          | S          |
+| `docs/PRIVACY.md`               | users      | Data flows (IMAP → rspamd local; optional AI third party), logging of PII                                  | XS         |
+| `docs/ARCHITECTURE.md`          | developers | Components (mermaid), scan cycle sequence, state model, processors, AI escalation rules, failure handling  | M          |
+| `docs/DEVELOPMENT.md`           | developers | Local setup, tests (unit/integration/e2e), formatting/lint, openspec workflow, release process             | S          |
+| `rspamd/config/README.md`       | both       | See 7.2.2                                                                                                  | S          |
+| `CHANGELOG.md`                  | both       | Generated (6.21)                                                                                           | XS         |
+| `CONTRIBUTING.md` / `AGENTS.md` | developers | Conventions, commit style, openspec as process (6.19)                                                      | XS         |
 
 Doc hygiene: add a CI check that every env var read in `config.js` appears in
 `CONFIGURATION.md` and `.env.example`.
@@ -769,23 +769,23 @@ Doc hygiene: add a CI check that every env var read in `config.js` appears in
 
 ## 7. Index of findings by area
 
-| Area                             | Findings                                                    |
-| --------------------------------- | ------------------------------------------------------------ |
-| **REF** Refactoring & modularity | 5.10, 5.14, 5.28, 6.11                                       |
-| **CLN** Clean-up / dead code     | 5.14, 6.6, 6.7                                               |
-| **DOC** Documentation            | 5.19, 5.20, 5.21, 5.22, 7.4                                  |
-| **DEP** Build / deploy / install | 4.15, 5.7, 5.8, 5.22, 5.27, 5.29, 6.14, 7.3                  |
-| **MAP** Whitelist / blacklist    | 4.1, 5.2, 6.11, 7.1                                          |
-| **RSP** Rspamd setup             | 4.1, 4.10, 5.6, 5.20, 7.2                                    |
-| **SEC** Security & privacy       | 4.1, 5.8, 5.18, 5.19                                         |
-| **REL** Reliability              | 5.3, 5.7, 5.13, 6.5, 6.8, 6.9                                |
-| **CFG** Configuration            | 5.10, 5.18, 5.28, 6.14, 6.16                                 |
-| **TST** Testing                  | 5.16, 5.29                                                   |
-| **TLG** Dependencies & tooling   | 5.17                                                         |
-| **OPS** Operability              | 5.2, 5.7, 5.21, 5.23, 5.29, 6.21                             |
-| **HYG** Repo hygiene             | 5.17, 6.18, 6.19                                             |
-| **UX** End-user workflow         | 5.2, 5.3, 5.14, 5.20, 5.22, 5.27, 5.28, 6.6, 6.10, 7.1        |
-| **LIC** Licensing & metadata     | 6.20, 6.21, 6.22                                             |
+| Area                             | Findings                                               |
+| -------------------------------- | ------------------------------------------------------ |
+| **REF** Refactoring & modularity | 5.10, 5.14, 5.28, 6.11                                 |
+| **CLN** Clean-up / dead code     | 5.14, 6.6, 6.7                                         |
+| **DOC** Documentation            | 5.19, 5.20, 5.21, 5.22, 7.4                            |
+| **DEP** Build / deploy / install | 4.15, 5.7, 5.8, 5.22, 5.27, 5.29, 6.14, 7.3            |
+| **MAP** Whitelist / blacklist    | 4.1, 5.2, 6.11, 7.1                                    |
+| **RSP** Rspamd setup             | 4.1, 4.10, 5.6, 5.20, 7.2                              |
+| **SEC** Security & privacy       | 4.1, 5.8, 5.18, 5.19                                   |
+| **REL** Reliability              | 5.3, 5.7, 5.13, 6.5, 6.8, 6.9                          |
+| **CFG** Configuration            | 5.10, 5.18, 5.28, 6.14, 6.16                           |
+| **TST** Testing                  | 5.16, 5.29                                             |
+| **TLG** Dependencies & tooling   | 5.17                                                   |
+| **OPS** Operability              | 5.2, 5.7, 5.21, 5.23, 5.29, 6.21                       |
+| **HYG** Repo hygiene             | 5.17, 6.18, 6.19                                       |
+| **UX** End-user workflow         | 5.2, 5.3, 5.14, 5.20, 5.22, 5.27, 5.28, 6.6, 6.10, 7.1 |
+| **LIC** Licensing & metadata     | 6.20, 6.21, 6.22                                       |
 
 ---
 
@@ -796,41 +796,41 @@ fully complete — see the [Resolved log](#resolved-log).
 
 ### Phase 1 — Hardening & hygiene (remaining)
 
-| Finding   | Item                                                          | Cx  |
-| --------- | -------------------------------------------------------------- | --- |
-| 5.17      | GitHub Actions CI; one-time Prettier commit; Renovate         | S   |
-| 4.1, 5.6  | Authenticated whitelist; wire unbound                          | S   |
-| 5.10      | Config schema + validation                                     | M   |
-| 5.7, 5.8  | Compose de-dup; scanner heartbeat healthcheck; PUID/PGID       | S   |
-| —         | `CONTRIBUTING.md` documenting openspec as the process           | XS  |
+| Finding  | Item                                                     | Cx  |
+| -------- | -------------------------------------------------------- | --- |
+| 5.17     | GitHub Actions CI; one-time Prettier commit; Renovate    | S   |
+| 4.1, 5.6 | Authenticated whitelist; wire unbound                    | S   |
+| 5.10     | Config schema + validation                               | M   |
+| 5.7, 5.8 | Compose de-dup; scanner heartbeat healthcheck; PUID/PGID | S   |
+| —        | `CONTRIBUTING.md` documenting openspec as the process    | XS  |
 
 ### Phase 2 — Install experience & docs
 
-| Finding        | Item                                                | Cx  |
-| ---------------- | ------------------------------------------------------ | --- |
-| 5.14             | Unified CLI                                             | M   |
-| 7.3.4            | `doctor` + `status` commands                           | M   |
-| 7.2              | Commented rspamd config; `spam-scanner status`/`check`  | S   |
-| 7.3.1–7.3.2      | GHCR multi-arch images, release bundle                  | M   |
-| 7.3.3, 7.3.5     | `install.sh` wizard + update/backup/restore scripts     | L   |
-| 7.4              | Documentation split (INSTALL/CONFIGURATION/USING/etc.)  | M   |
-| 5.19, 5.20, 5.21, 5.22 | Privacy, Bayes, backup, provider docs             | S   |
-| 5.27             | `bin/setup-env.sh` `.env` bootstrap script              | S   |
-| 5.29             | Automated fresh-install end-to-end validation           | M   |
+| Finding                | Item                                                   | Cx  |
+| ---------------------- | ------------------------------------------------------ | --- |
+| 5.14                   | Unified CLI                                            | M   |
+| 7.3.4                  | `doctor` + `status` commands                           | M   |
+| 7.2                    | Commented rspamd config; `spam-scanner status`/`check` | S   |
+| 7.3.1–7.3.2            | GHCR multi-arch images, release bundle                 | M   |
+| 7.3.3, 7.3.5           | `install.sh` wizard + update/backup/restore scripts    | L   |
+| 7.4                    | Documentation split (INSTALL/CONFIGURATION/USING/etc.) | M   |
+| 5.19, 5.20, 5.21, 5.22 | Privacy, Bayes, backup, provider docs                  | S   |
+| 5.27                   | `bin/setup-env.sh` `.env` bootstrap script             | S   |
+| 5.29                   | Automated fresh-install end-to-end validation          | M   |
 
 ### Phase 3 — Structure & features (ongoing)
 
-| Finding | Item                                                              | Cx  |
-| ------- | -------------------------------------------------------------------- | --- |
-| 5.16    | IMAP-facing test coverage gaps; e2e Compose test                     | L   |
-| 7.1     | Lists v2: domain entries, removal folder/command                     | M   |
-| 5.3     | Ham-trained keyword to prevent re-escalation                         | S   |
-| 4.10    | Envelope/IP extraction for rspamd                                    | M   |
-| 5.13    | Streaming/batched training fetch                                     | S   |
-| 5.23    | Heartbeat, generalized notifier, digest                              | M   |
-| 6.21    | Release automation & changelog                                       | S   |
-| 5.22    | OAuth2 (Gmail / Microsoft)                                           | XL  |
-| 5.28    | Multi-account-in-one-deployment (multi-instance already unblocked)   | L   |
+| Finding | Item                                                               | Cx  |
+| ------- | ------------------------------------------------------------------ | --- |
+| 5.16    | IMAP-facing test coverage gaps; e2e Compose test                   | L   |
+| 7.1     | Lists v2: domain entries, removal folder/command                   | M   |
+| 5.3     | Ham-trained keyword to prevent re-escalation                       | S   |
+| 4.10    | Envelope/IP extraction for rspamd                                  | M   |
+| 5.13    | Streaming/batched training fetch                                   | S   |
+| 5.23    | Heartbeat, generalized notifier, digest                            | M   |
+| 6.21    | Release automation & changelog                                     | S   |
+| 5.22    | OAuth2 (Gmail / Microsoft)                                         | XL  |
+| 5.28    | Multi-account-in-one-deployment (multi-instance already unblocked) | L   |
 
 ---
 
@@ -839,40 +839,40 @@ fully complete — see the [Resolved log](#resolved-log).
 One line per resolved finding — see `git log -p -- ROADMAP.md` for the full write-up that
 used to live here (dates/commits/openspec changes for each).
 
-| Finding | Outcome |
-| ------- | ------- |
-| 3.1  | Append-then-delete state writes; safe `UIDNEXT - 1` default when no state exists. |
-| 3.2  | Rspamd controller bound to loopback only; committed password hash removed. |
-| 4.2  | Folder paths resolved once at init against the server's real delimiter. |
-| 4.3  | `FOLDER_SPAM` now always created by `runInit`. |
-| 4.4  | Per-message failure isolation (`Promise.allSettled`) for scan + training. |
-| 4.5  | IDLE now handles `close`, has a watchdog, and does a pre-IDLE catch-up check. |
-| 4.6  | `RSPAMD_TIMEOUT_MS` added; all rspamd `fetch()` calls now time out. |
-| 4.7  | Secrets redacted from all pino log output via the `redact` option. |
-| 4.8  | Three stale/red unit tests fixed to match intended behavior. |
-| 4.9  | Node 24 base image; `imapflow` bumped; `npm audit` clean of high-severity issues. |
-| 4.11 | README rewritten to match current code. |
-| 4.12 | Defaults aligned across `config.js`/`.env.example`/README. |
-| 4.13 | `bin/local/hash-rspamd-password.sh` links `RSPAMD_PASSWORD` to the controller hash. |
-| 4.14 | `SPAM_SCANNER_DATA` now required via Compose `:?` guard. |
-| 5.1  | Map-training messages always moved on, even with no extractable sender. |
-| 5.4  | `UIDVALIDITY` tracked in scanner state; safe reset to `UIDNEXT - 1` on mismatch. |
-| 5.5  | `readScannerState` bug fixes (max UID, dead-code order); formatters unified. |
-| 5.9  | `LOG_FORMAT=pretty` no longer crashes in Docker; falls back to JSON with a warning. |
-| 5.11 | Classification thresholds now configurable env vars. |
-| 5.12 | Graceful `SIGTERM`/`SIGINT` shutdown. |
-| 5.15 | `src/lib` relayered into `core/utils/services/clients/controllers`. |
-| 5.24 | `bin/local/build.sh` deleted (won't-fix, moot). |
-| 5.25 | `docs/features` deleted; openspec specs synced and validated. |
-| 5.26 | Compose container names/network are project-scoped; parallel stacks supported. |
-| 5.30 | Whitelist/blacklist matching moved into app code, IMAP-backed. |
-| 6.1  | Dead SpamAssassin-era parsers removed. |
-| 6.2  | Redundant `src/idle.js` deleted. |
-| 6.3  | `ColorProcessor` stub removed. |
-| 6.4  | Unused dependencies removed. |
-| 6.12 | `.bin/` no longer exists (moot). |
-| 6.13 | `bin/local/sort-maps.sh` deleted (maps no longer local files). |
-| 6.15 | `check-eml.sh` usage text fixed. |
-| 6.17 | `validateState` allows additive optional fields. |
-| 6.23 | `.github/` Copilot/openspec docs replaced by `CLAUDE.md`. |
-| 7.5  | Original target-module-structure deep dive — done; see `CLAUDE.md` for the actual layout. |
+| Finding | Outcome                                                                                   |
+| ------- | ----------------------------------------------------------------------------------------- |
+| 3.1     | Append-then-delete state writes; safe `UIDNEXT - 1` default when no state exists.         |
+| 3.2     | Rspamd controller bound to loopback only; committed password hash removed.                |
+| 4.2     | Folder paths resolved once at init against the server's real delimiter.                   |
+| 4.3     | `FOLDER_SPAM` now always created by `runInit`.                                            |
+| 4.4     | Per-message failure isolation (`Promise.allSettled`) for scan + training.                 |
+| 4.5     | IDLE now handles `close`, has a watchdog, and does a pre-IDLE catch-up check.             |
+| 4.6     | `RSPAMD_TIMEOUT_MS` added; all rspamd `fetch()` calls now time out.                       |
+| 4.7     | Secrets redacted from all pino log output via the `redact` option.                        |
+| 4.8     | Three stale/red unit tests fixed to match intended behavior.                              |
+| 4.9     | Node 24 base image; `imapflow` bumped; `npm audit` clean of high-severity issues.         |
+| 4.11    | README rewritten to match current code.                                                   |
+| 4.12    | Defaults aligned across `config.js`/`.env.example`/README.                                |
+| 4.13    | `bin/local/hash-rspamd-password.sh` links `RSPAMD_PASSWORD` to the controller hash.       |
+| 4.14    | `SPAM_SCANNER_DATA` now required via Compose `:?` guard.                                  |
+| 5.1     | Map-training messages always moved on, even with no extractable sender.                   |
+| 5.4     | `UIDVALIDITY` tracked in scanner state; safe reset to `UIDNEXT - 1` on mismatch.          |
+| 5.5     | `readScannerState` bug fixes (max UID, dead-code order); formatters unified.              |
+| 5.9     | `LOG_FORMAT=pretty` no longer crashes in Docker; falls back to JSON with a warning.       |
+| 5.11    | Classification thresholds now configurable env vars.                                      |
+| 5.12    | Graceful `SIGTERM`/`SIGINT` shutdown.                                                     |
+| 5.15    | `src/lib` relayered into `core/utils/services/clients/controllers`.                       |
+| 5.24    | `bin/local/build.sh` deleted (won't-fix, moot).                                           |
+| 5.25    | `docs/features` deleted; openspec specs synced and validated.                             |
+| 5.26    | Compose container names/network are project-scoped; parallel stacks supported.            |
+| 5.30    | Whitelist/blacklist matching moved into app code, IMAP-backed.                            |
+| 6.1     | Dead SpamAssassin-era parsers removed.                                                    |
+| 6.2     | Redundant `src/idle.js` deleted.                                                          |
+| 6.3     | `ColorProcessor` stub removed.                                                            |
+| 6.4     | Unused dependencies removed.                                                              |
+| 6.12    | `.bin/` no longer exists (moot).                                                          |
+| 6.13    | `bin/local/sort-maps.sh` deleted (maps no longer local files).                            |
+| 6.15    | `check-eml.sh` usage text fixed.                                                          |
+| 6.17    | `validateState` allows additive optional fields.                                          |
+| 6.23    | `.github/` Copilot/openspec docs replaced by `CLAUDE.md`.                                 |
+| 7.5     | Original target-module-structure deep dive — done; see `CLAUDE.md` for the actual layout. |

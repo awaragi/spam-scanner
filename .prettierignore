@@ -27,3 +27,14 @@ docker-compose*.yml
 # Documentation that should preserve formatting
 CHANGELOG.md
 LICENSE
+
+# openspec-managed content: specs/changes are generated/edited by the
+# openspec tooling with its own formatting conventions, not Prettier's
+openspec/
+
+# Claude Code's own project-local skill/command definitions, not project source
+.claude/
+
+# Rspamd's UCL config syntax isn't a format Prettier understands - it mangles
+# comments and directives rather than leaving the file alone
+rspamd/config/*.inc
