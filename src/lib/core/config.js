@@ -54,6 +54,9 @@ const ConfigSchema = z
     IMAP_USER: z.string().optional(),
     IMAP_PASSWORD: z.string().optional(),
     IMAP_TLS: boolField(true),
+    // Disabling direct TLS also requires this explicit second opt-in (checked
+    // below) - see the `imap-transport-security` capability.
+    IMAP_ALLOW_INSECURE: boolField(false),
 
     FOLDER_INBOX: z.string().default('INBOX'),
     FOLDER_SPAM: z.string().default('INBOX.spam'),
@@ -147,6 +150,16 @@ const ConfigSchema = z
         message: `AI_ESCALATE_TO_LOW_THRESHOLD (${data.AI_ESCALATE_TO_LOW_THRESHOLD}) must not exceed AI_ESCALATE_TO_HIGH_THRESHOLD (${data.AI_ESCALATE_TO_HIGH_THRESHOLD})`,
       });
     }
+    // Disabling transport encryption's direct-TLS wrapper must be a deliberate
+    // second opt-in, not a bare IMAP_TLS=false - see `imap-transport-security`.
+    if (!data.IMAP_TLS && !data.IMAP_ALLOW_INSECURE) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['IMAP_ALLOW_INSECURE'],
+        message:
+          'IMAP_ALLOW_INSECURE=true is required alongside IMAP_TLS=false - disabling IMAP transport encryption must be an explicit, deliberate choice',
+      });
+    }
   });
 
 /**
@@ -180,6 +193,11 @@ function buildAndValidate() {
 export const config = (() => {
   const c = buildAndValidate();
   logger.debug(c, 'Loading configuration');
+  if (!c.IMAP_TLS) {
+    logger.warn(
+      'IMAP_TLS=false - direct-TLS wrapper for the IMAP connection is disabled; STARTTLS is enforced instead (see imap-transport-security)'
+    );
+  }
   return c;
 })();
 

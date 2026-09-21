@@ -104,7 +104,11 @@ IMAP_PASSWORD=yourpassword
 IMAP_TLS=true
 ```
 
-`IMAP_TLS` defaults to `true`; set it to `false` explicitly only for a server that doesn't support TLS.
+`IMAP_TLS` defaults to `true`; set it to `false` explicitly only for a server that doesn't
+support TLS. Disabling it also requires `IMAP_ALLOW_INSECURE=true` as a second, deliberate
+opt-in (configuration fails to load with `IMAP_TLS=false` alone) - and even then, STARTTLS
+is enforced rather than merely attempted, so the connection fails outright if the server
+doesn't support it, rather than silently falling back to a fully unencrypted connection.
 
 Every environment variable is validated once at startup against a declarative schema: a
 non-numeric value for a numeric field, an invalid `SPAM_PROCESSING_MODE`, inverted AI

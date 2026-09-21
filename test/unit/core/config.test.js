@@ -87,11 +87,43 @@ describe('config', () => {
 
   test('IMAP_TLS is false only when explicitly set to "false"', async () => {
     process.env.IMAP_TLS = 'false';
+    process.env.IMAP_ALLOW_INSECURE = 'true';
     process.env.AI_ENABLED = 'false';
 
     const { config } = await import('../../../src/lib/core/config.js');
 
     expect(config.IMAP_TLS).toBe(false);
+  });
+
+  test('throws naming IMAP_ALLOW_INSECURE when IMAP_TLS=false and IMAP_ALLOW_INSECURE is unset', async () => {
+    process.env.IMAP_TLS = 'false';
+    delete process.env.IMAP_ALLOW_INSECURE;
+    process.env.AI_ENABLED = 'false';
+
+    await expect(import('../../../src/lib/core/config.js')).rejects.toThrow(
+      /IMAP_ALLOW_INSECURE/
+    );
+  });
+
+  test('does not throw when IMAP_TLS=false and IMAP_ALLOW_INSECURE=true', async () => {
+    process.env.IMAP_TLS = 'false';
+    process.env.IMAP_ALLOW_INSECURE = 'true';
+    process.env.AI_ENABLED = 'false';
+
+    const { config } = await import('../../../src/lib/core/config.js');
+
+    expect(config.IMAP_ALLOW_INSECURE).toBe(true);
+  });
+
+  test('IMAP_ALLOW_INSECURE is not required when IMAP_TLS is at its default (true)', async () => {
+    delete process.env.IMAP_TLS;
+    delete process.env.IMAP_ALLOW_INSECURE;
+    process.env.AI_ENABLED = 'false';
+
+    const { config } = await import('../../../src/lib/core/config.js');
+
+    expect(config.IMAP_TLS).toBe(true);
+    expect(config.IMAP_ALLOW_INSECURE).toBe(false);
   });
 
   test('throws naming the field when SCAN_INTERVAL is not numeric', async () => {

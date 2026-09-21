@@ -1,12 +1,18 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../../../src/lib/core/config.js', () => ({ config: {} }));
+const { fakeConfig, fakeImapFlow } = vi.hoisted(() => ({
+  fakeConfig: {},
+  fakeImapFlow: vi.fn(),
+}));
+vi.mock('../../../src/lib/core/config.js', () => ({ config: fakeConfig }));
 vi.mock('../../../src/lib/core/logger.js', () => {
   const noOpLogger = {
     debug: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
+    fatal: vi.fn(),
+    trace: vi.fn(),
   };
   noOpLogger.forMessage = () => noOpLogger;
   return {
@@ -15,13 +21,41 @@ vi.mock('../../../src/lib/core/logger.js', () => {
     },
   };
 });
+vi.mock('imapflow', () => ({ ImapFlow: fakeImapFlow }));
 
 import {
+  newClient,
   safeLogout,
   waitForNewMail,
   processMessageHeaders,
   fetchMessageHeadersByUIDs,
 } from '../../../src/lib/clients/imap.client.js';
+
+describe('newClient', () => {
+  beforeEach(() => {
+    fakeImapFlow.mockClear();
+  });
+
+  test('sets doSTARTTLS: true when IMAP_TLS is false', () => {
+    Object.assign(fakeConfig, { IMAP_TLS: false });
+
+    newClient();
+
+    expect(fakeImapFlow).toHaveBeenCalledWith(
+      expect.objectContaining({ secure: false, doSTARTTLS: true })
+    );
+  });
+
+  test('leaves doSTARTTLS unset when IMAP_TLS is true', () => {
+    Object.assign(fakeConfig, { IMAP_TLS: true });
+
+    newClient();
+
+    expect(fakeImapFlow).toHaveBeenCalledWith(
+      expect.objectContaining({ secure: true, doSTARTTLS: undefined })
+    );
+  });
+});
 
 describe('processMessageHeaders', () => {
   test('parses headers from a header buffer that already ends in a blank line', () => {

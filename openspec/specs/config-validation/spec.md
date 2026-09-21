@@ -27,7 +27,8 @@ requiredness is conditional on another field that itself has a safe default, suc
 field parses as a real integer (not `NaN`); `SPAM_PROCESSING_MODE` is one of its allowed
 values; `AI_API_KEY` is present when `AI_ENABLED=true` and `AI_BASE_URL` is still the
 default OpenAI endpoint; `AI_ESCALATE_TO_LOW_THRESHOLD` does not exceed
-`AI_ESCALATE_TO_HIGH_THRESHOLD`.
+`AI_ESCALATE_TO_HIGH_THRESHOLD`; `IMAP_TLS=false` is accompanied by
+`IMAP_ALLOW_INSECURE=true`.
 
 #### Scenario: A non-numeric value for a numeric field is rejected
 
@@ -53,6 +54,16 @@ default OpenAI endpoint; `AI_ESCALATE_TO_LOW_THRESHOLD` does not exceed
 
 - **WHEN** `AI_ESCALATE_TO_LOW_THRESHOLD` is set higher than `AI_ESCALATE_TO_HIGH_THRESHOLD`
 - **THEN** loading configuration SHALL fail with an error identifying both values
+
+#### Scenario: IMAP_TLS disabled without the insecure opt-in is rejected
+
+- **WHEN** `IMAP_TLS` is set to `false` and `IMAP_ALLOW_INSECURE` is unset or not `true`
+- **THEN** loading configuration SHALL fail with an error naming `IMAP_ALLOW_INSECURE`
+
+#### Scenario: IMAP_TLS disabled with the insecure opt-in succeeds
+
+- **WHEN** `IMAP_TLS` is set to `false` and `IMAP_ALLOW_INSECURE` is set to `true`
+- **THEN** loading configuration SHALL succeed (assuming no other load-time check fails)
 
 ### Requirement: Load-time validation reports every problem found, not just the first
 

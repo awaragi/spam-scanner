@@ -14,6 +14,11 @@ export function newClient() {
     host: config.IMAP_HOST,
     port: config.IMAP_PORT,
     secure: config.IMAP_TLS === true,
+    // Only set when secure=false (secure=true + doSTARTTLS=true is invalid):
+    // without this, ImapFlow attempts STARTTLS opportunistically and silently
+    // continues in plaintext if it's unavailable - a downgrade-attack risk.
+    // See the `imap-transport-security` capability.
+    doSTARTTLS: config.IMAP_TLS ? undefined : true,
     auth: {
       user: config.IMAP_USER,
       pass: config.IMAP_PASSWORD,
