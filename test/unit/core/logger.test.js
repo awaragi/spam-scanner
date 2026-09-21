@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Writable } from 'stream';
 import pino from 'pino';
-import { rootLogger, pinoOptions } from '../../../src/lib/core/logger.js';
+import {
+  rootLogger,
+  pinoOptions,
+  canLoadPinoPretty,
+} from '../../../src/lib/core/logger.js';
 
 describe('Logger Factory', () => {
   let originalEnv;
@@ -182,6 +186,22 @@ describe('Logger secret redaction', () => {
     expect(output).not.toContain('super-secret-ai');
     expect(output).toContain('SAFE_FIELD');
     expect(output).toContain('[REDACTED]');
+  });
+});
+
+describe('canLoadPinoPretty', () => {
+  it('returns true when the resolver succeeds', () => {
+    expect(
+      canLoadPinoPretty(() => 'file:///node_modules/pino-pretty/index.js')
+    ).toBe(true);
+  });
+
+  it('returns false when the resolver throws (e.g. module not installed)', () => {
+    expect(
+      canLoadPinoPretty(() => {
+        throw new Error('Cannot find package "pino-pretty"');
+      })
+    ).toBe(false);
   });
 });
 

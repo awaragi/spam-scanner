@@ -44,7 +44,6 @@ import {
   readMapState,
 } from '../../../src/lib/clients/state-manager.client.js';
 import {
-  open,
   search,
   fetchMessagesByUIDs,
 } from '../../../src/lib/clients/imap.client.js';

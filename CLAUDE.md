@@ -62,8 +62,12 @@ that mailbox's own IMAP state folder, not a local file or database.
 ## Commands
 
 - `npm test` — run unit tests (vitest)
+- `npm run test:coverage` — run unit tests with coverage (v8 provider); writes
+  `coverage/index.html` (gitignored)
 - `npm run test:integration` — run integration tests against a real AI provider
 - `npm run format` / `npm run format:check` — Prettier write/check
+- `npm run lint` — ESLint (`eslint.config.js`, flat config); reports only, not
+  wired into a `--fix` script or CI yet
 - `bin/local/start.sh <env-file> [script]` — run a script locally with `.env` loaded
   (defaults to `src/cli/orchestrator.js`)
 

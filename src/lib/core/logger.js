@@ -89,9 +89,31 @@ const options = {
   },
 };
 
-// Add pino-pretty transport if pretty format requested
-if (logFormat === 'pretty') {
+/**
+ * Whether `pino-pretty` can be resolved from this module - it's a
+ * devDependency, so it's absent in the production Docker image
+ * (`npm ci --omit=dev`). `resolveFn` is injectable so this is unit-testable
+ * without needing to actually uninstall the package.
+ * @param {(specifier: string) => string} resolveFn
+ * @returns {boolean}
+ */
+export function canLoadPinoPretty(
+  resolveFn = specifier => import.meta.resolve(specifier)
+) {
   try {
+    resolveFn('pino-pretty');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Add pino-pretty transport if pretty format requested and available. Pino
+// resolves `transport.target` lazily inside `pino(options)` below - a
+// try/catch around building this options object can't catch a missing
+// module, so availability has to be checked explicitly first.
+if (logFormat === 'pretty') {
+  if (canLoadPinoPretty()) {
     options.transport = {
       target: 'pino-pretty',
       options: {
@@ -100,11 +122,10 @@ if (logFormat === 'pretty') {
         ignore: 'pid,hostname',
       },
     };
-  } catch (err) {
-    console.error(
-      'Failed to load pino-pretty. Install with: npm install --save-dev pino-pretty'
+  } else {
+    console.warn(
+      'LOG_FORMAT=pretty requested but pino-pretty is not installed (expected in the production Docker image, which only installs dependencies) - falling back to JSON'
     );
-    console.error('Falling back to JSON format');
   }
 }
 

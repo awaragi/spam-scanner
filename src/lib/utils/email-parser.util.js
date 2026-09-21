@@ -118,7 +118,9 @@ export function parseAiClassificationOutput(content) {
   try {
     parsed = JSON.parse(jsonText);
   } catch (err) {
-    throw new Error(`AI response is not valid JSON: ${err.message}`);
+    throw new Error(`AI response is not valid JSON: ${err.message}`, {
+      cause: err,
+    });
   }
 
   if (typeof parsed.score !== 'number' || Number.isNaN(parsed.score)) {

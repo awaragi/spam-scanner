@@ -197,6 +197,20 @@ See `.env.example` for the full, commented list of every setting, including exac
 
 **Privacy**: when `AI_ENABLED=true`, full plain-text bodies (up to the `AI_MAX_INPUT_TOKENS` budget) plus From/To/Subject of every non-whitelisted, non-spam message are sent to whichever provider `AI_BASE_URL` points to. Use a local model (e.g. Ollama) for sensitive mailboxes if you'd rather not send content to a third party.
 
+### Tuning the AI prompt offline
+
+`src/cli/eval-prompt.js` scores a labeled `.eml` dataset with the current AI classifier prompt/config and writes a report, so prompt changes can be measured before they reach production instead of discovered later as false positives:
+
+```bash
+npx env-cmd -f .env node src/cli/eval-prompt.js \
+  --reports .temp/reports \
+  --ham .temp/messages/ham \
+  --marketing .temp/messages/marketing \
+  --spam .temp/messages/spam
+```
+
+`--reports` is mandatory - it's where the timestamped report file is written. `--ham`/`--marketing`/`--spam` each point at a folder of `.eml` files for that bucket; give whichever ones you have data for (at least one is required). There's no fixed folder convention - by habit this project keeps its dataset at `.temp/messages/{ham,marketing,spam}/` (gitignored, not checked in), but any folder path works. Each run writes a new timestamped report under `--reports` rather than overwriting the previous one, so a "before" and "after" report can be compared once the prompt in `buildSystemPrompt()` (`src/lib/clients/ai.client.js`) is edited. No new environment variables are involved - it reads the same `AI_*` settings as production. The `prompt-engineer` Claude Code skill (`.claude/skills/prompt-engineer/`) reads these reports and proposes prompt edits.
+
 ---
 
 ## Setup
@@ -253,8 +267,11 @@ node src/cli/init-folders.js
 
 ```bash
 npm test                 # unit tests (vitest)
+npm run test:coverage    # unit tests with coverage; writes coverage/index.html
 npm run test:integration # hits a real AI provider, loads .env via env-cmd
 ```
+
+`test:coverage` covers `src/**` with the v8 provider. `src/cli/`/`src/admin/` scripts show as uncovered by design - they're thin `newClient()` → `connect()` → run → `safeLogout()` wrappers with no logic of their own; the workflow/step logic they call is what's under `src/lib/` and is what the coverage numbers there reflect. The `coverage/` directory is gitignored - open `coverage/index.html` locally to browse the report.
 
 ### Formatting
 
@@ -262,6 +279,14 @@ npm run test:integration # hits a real AI provider, loads .env via env-cmd
 npm run format       # Prettier, writes changes
 npm run format:check # Prettier, check only (no changes)
 ```
+
+### Linting
+
+```bash
+npm run lint # ESLint (flat config, eslint.config.js) - reports only, no --fix wired up
+```
+
+Not yet enforced in CI (there is no CI yet). `eslint-config-prettier` is applied last so style rules Prettier already owns aren't duplicated - lint findings are about code correctness (unused vars, a caught error re-thrown without `cause`, etc.), not formatting.
 
 ### Testing Rspamd Directly
 

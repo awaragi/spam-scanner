@@ -37,7 +37,9 @@ async function parseRspamdJson(response) {
   try {
     return JSON.parse(text);
   } catch (err) {
-    throw new Error(`Rspamd response parse failed: ${err.message}`);
+    throw new Error(`Rspamd response parse failed: ${err.message}`, {
+      cause: err,
+    });
   }
 }
 
@@ -105,7 +107,7 @@ export async function learnHam(emailContent) {
       let parsed;
       try {
         parsed = JSON.parse(error);
-      } catch (_) {
+      } catch {
         parsed = null;
       }
       if (response.status === 404 && isAlreadyLearned(parsed)) {
@@ -171,7 +173,7 @@ export async function learnSpam(emailContent) {
       let parsed;
       try {
         parsed = JSON.parse(error);
-      } catch (_) {
+      } catch {
         parsed = null;
       }
       if (response.status === 404 && isAlreadyLearned(parsed)) {

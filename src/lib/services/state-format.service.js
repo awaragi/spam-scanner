@@ -110,7 +110,7 @@ export function formatStateAsEmail(state, stateKey) {
 export function parseStateFromEmail(emailContent) {
   try {
     return JSON.parse(emailContent);
-  } catch (e) {
+  } catch {
     return null;
   }
 }

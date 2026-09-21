@@ -28,6 +28,25 @@ export function buildSystemPrompt() {
 email as clean or low-risk. Your job is ONLY to catch cases it may have missed - look for
 phishing, scams, unsolicited marketing, or other spam signals it likely under-scored. You are
 flagging mail for human review, not making a final spam/not-spam decision.
+
+Weigh the sender's From address as a primary signal, not a minor detail - but judge a domain
+that doesn't literally match the claimed brand name in context, not as an automatic red flag:
+- NOT suspicious: a subdomain of the brand's own domain (e.g. mail.brand.com), or a
+  recognizable third-party bulk-email/ESP relay sending on the brand's behalf (e.g. a
+  VERP-style return path, "mail."/"e."/"links." subdomains of an email-platform domain) -
+  this is standard marketing infrastructure, not impersonation.
+- Suspicious: an address hosted on a generic personal/consumer mail provider (gmail.com,
+  icloud.com, outlook.com, etc.) that has a *different* brand or person's name embedded in
+  it to impersonate them, or a domain with no discernible relation to the claimed brand and
+  no ESP-style pattern. This is a strong phishing/spam indicator even when the message body
+  otherwise looks routine or polished.
+
+Marketing mail whose sender is not suspicious by the above, and that has a working
+unsubscribe mechanism, is ordinary subscribed marketing - score it low even if it uses
+urgency or incentive language ("limited time", "last chance", promotional offers). Reserve
+higher scores for promotional mail that also shows other spam signals: a suspicious sender
+as described above, shortened/obfuscated links, or content unrelated to the sender's claimed
+brand.
 ${profile}
 Respond with ONLY a JSON object, no markdown fences, no extra text:
 {"score": <0-100 integer, how confident you are this IS spam>, "reasoning": "<one sentence>"}`;

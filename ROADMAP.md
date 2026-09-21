@@ -3,13 +3,33 @@
 - **Date:** 2026-09-17
 - **Scope:** entire repository — `src/`, `test/`, `rspamd/config/`, `bin/`, `.bin/`, Docker files, `README.md`, `.env.example`, `docs/`, `openspec/`, `.github/`, `package.json`
 - **Type:** analysis only — no code was changed
-- **Last progress update:** 2026-09-18 — see [Progress since this review](#progress-since-this-review)
+- **Last progress update:** 2026-09-21 — see [Progress since this review](#progress-since-this-review)
 
 ---
 
 ## Progress since this review
 
-23 of the findings below are resolved — 6 via the `harden-scan-reliability-and-docs` OpenSpec change (archived as `openspec/changes/archive/2026-09-17-harden-scan-reliability-and-docs/`), 1 via the `project-scoped-compose` OpenSpec change (`openspec/changes/project-scoped-compose/`), 2 (5.30, 6.13) via the `imap-backed-allow-deny-lists` OpenSpec change (archived as `openspec/changes/archive/2026-09-20-imap-backed-allow-deny-lists/`), and 14 more (4.3, 4.6, 5.5, 3.2, 4.13, 4.7, 4.14, 5.1, 5.18, 4.9, 4.5, 5.12, 5.4, 6.17) as direct follow-up fixes, not tracked through an OpenSpec change. Each resolved finding is marked **✅ Resolved** inline; 5.2 is marked **⚠️ Partially resolved** (as a byproduct of the same `imap-backed-allow-deny-lists` change) rather than counted above. Two specific sub-items — the `\Junk` special-use default in 4.3, and the `HEADER` substring-match nuance in 5.5 — were deliberately decided **will not fix** rather than left open; see their inline notes. The first batch closed out the rest of **Phase 0**; the second batch (4.5, 5.12, 5.4, 6.17) is the first slice of **Phase 1** — IDLE reliability, graceful shutdown, and UIDVALIDITY tracking (see [§9](#9-suggested-roadmap)); 5.26 (project-scoped Compose naming/networking) is a standalone Phase 1 item unblocking multi-instance deployments (5.28); 5.30 (whitelist/blacklist as an app-owned, IMAP-backed capability) is a further slice of Phase 1, removing the rspamd-side statefulness that blocked 5.28's multi-mailbox goal. Nothing else in this document has been re-verified against the current code — treat every other finding as still open.
+23 of the findings below are resolved — 6 via the `harden-scan-reliability-and-docs` OpenSpec change (archived as `openspec/changes/archive/2026-09-17-harden-scan-reliability-and-docs/`), 1 via the `project-scoped-compose` OpenSpec change (`openspec/changes/project-scoped-compose/`), 2 (5.30, 6.13) via the `imap-backed-allow-deny-lists` OpenSpec change (archived as `openspec/changes/archive/2026-09-20-imap-backed-allow-deny-lists/`), and 14 more (4.3, 4.6, 5.5, 3.2, 4.13, 4.7, 4.14, 5.1, 5.18, 4.9, 4.5, 5.12, 5.4, 6.17) as direct follow-up fixes, not tracked through an OpenSpec change. Each resolved finding is marked **✅ Resolved** inline; 5.2 is marked **⚠️ Partially resolved** (as a byproduct of the same `imap-backed-allow-deny-lists` change) rather than counted above. Two specific sub-items — the `\Junk` special-use default in 4.3, and the `HEADER` substring-match nuance in 5.5 — were deliberately decided **will not fix** rather than left open; see their inline notes. The first batch closed out the rest of **Phase 0**; the second batch (4.5, 5.12, 5.4, 6.17) is the first slice of **Phase 1** — IDLE reliability, graceful shutdown, and UIDVALIDITY tracking (see [§9](#9-suggested-roadmap)); 5.26 (project-scoped Compose naming/networking) is a standalone Phase 1 item unblocking multi-instance deployments (5.28); 5.30 (whitelist/blacklist as an app-owned, IMAP-backed capability) is a further slice of Phase 1, removing the rspamd-side statefulness that blocked 5.28's multi-mailbox goal. Nothing else in this document had been re-verified against the current code as of 2026-09-18 — treat every other finding from that point as still open, **except** the items resolved in the 2026-09-20 update below.
+
+**2026-09-20 update** (not tied to a single OpenSpec change — a sequence of direct refactor commits: `8d6f11d`, `361cefb`, `8f39a7d`, `86046bb`): the codebase was relayered into `src/lib/{core,utils,services,clients,controllers/{workflows,steps}}` per the target structure in [§7.5](#75-target-module-structure), top-level scripts moved to `src/cli/`, and `test/unit/` was rebuilt to mirror `src/lib/`'s structure 1:1. As a direct result:
+
+- **5.15** (module structure/global singletons) — ✅ **Resolved**. The layering described in 7.5 is now the actual structure; `ctx` is threaded through `controllers/workflows/*.controller.js` per `test/support/fixtures.js`'s `fixtureContext()`, unblocking the test-coverage work below.
+- **5.16** (test coverage gaps) — ⚠️ **Partially resolved**. Every module under `src/lib/` now has a corresponding `test/unit/` file (47 test files, 412 tests, `npm test` green) — the specific "no tests at all" modules the finding listed (`state-manager`, `imap-client`, `train-workflow`, `map-workflow`, `init-workflow`, `training-service`, `message-service`, `orchestrator`, `config`) no longer exist as bare gaps; their `.controller.js`/`.client.js`/`.service.js` successors are all tested, mocking only `*.client.js` per `CLAUDE.md`'s testing convention. `test/support/fake-clients.js` is the in-memory fake IMAP client the original recommendation asked for. `@vitest/coverage-v8` and a `test:coverage` script were added 2026-09-20 (`npm run test:coverage` → `coverage/index.html`, gitignored) — `src/lib/` is at or near 100% across most layers (see the finding body for the current breakdown); still open: no CI to run it automatically or enforce a threshold (blocked on 5.17), and the end-to-end smoke test against a real IMAP server (GreenMail/Dovecot) + rspamd in Compose was never built — `test/integration/` still contains only the live-AI-provider test.
+- **5.11** (hard-coded classification thresholds) — ✅ **Resolved**, ahead of this batch but not previously marked: `SPAM_CLEAN_THRESHOLD`/`SPAM_LOW_THRESHOLD`/`SPAM_CONFIRMED_THRESHOLD` are now configurable env vars (`src/lib/core/config.js`), documented in the README.
+- **5.14** (entry-point boilerplate → single CLI) — still **open**, but partially addressed: scripts were consolidated under `src/cli/`/`src/admin/` with consistent `newClient()` → `connect()` → run → `safeLogout()` structure, closing the "inconsistent error handling" half of the finding. No unified `spam-scanner` CLI binary with subcommands exists yet.
+- **4.1** (whitelist trusts the spoofable `From:` header) — still **open**, but its **Where** has moved: the rspamd `multimap.conf` this finding originally pointed at no longer exists (removed by 5.30 — whitelist/blacklist matching is now entirely app code). The same unauthenticated-address risk now lives in `src/lib/services/sender-lists.service.js`'s `senderAddressOf()`, which reads the IMAP envelope `From` with no DKIM/DMARC/SPF check. The recommendation (require an authenticated-sender symbol before trusting a whitelist hit) still applies, just against rspamd's check response in the AI-classification/rspamd-check step rather than a multimap rule.
+
+Also new since the original review, not tracked as a finding: an offline AI-prompt-tuning workflow (`src/cli/eval-prompt.js`, `prompt-eval.controller.js`, the `ai-prompt-eval`/`ai-prompt-engineer` openspec capabilities, and the `prompt-engineer` Claude Code skill) — lets a labeled `.eml` dataset be scored against the current AI classifier prompt and compared before/after a prompt edit. This is currently staged on the `refactor/testability-context` branch, not yet on `master`.
+
+**2026-09-21 update** (three separate asks in one session: coverage tooling, ESLint, and Docker hardening — no OpenSpec change, direct commits on `refactor/testability-context`):
+
+- **5.16**'s coverage-tooling gap — ✅ **closed** (the rest of 5.16, the real e2e IMAP test, is still open — see the finding). `@vitest/coverage-v8` + `npm run test:coverage` added; verified by actually running it (`coverage/index.html` generated, gitignored). README/CLAUDE.md document it.
+- **5.17** (no linter) — ⚠️ **partially resolved**. ESLint (flat config) added with `npm run lint`; a first run reported 9 problems (3 errors, 6 warnings), deliberately left unfixed at first per explicit instruction, then fixed in a separate follow-up pass the same day (see the finding body) — `npm run lint` is now clean (0 problems), `npm test` still green (414/414). CI, the one-time Prettier-formatting commit, and Renovate/Dependabot are still open.
+- **5.7** (unpinned images, no healthchecks/ordering) — ✅ **mostly resolved**. Both compose files: pinned `rspamd/rspamd:3.14` and `redis:8-alpine` (versions confirmed by actually running the previously-`:latest` images before pinning), `klutchell/unbound` pinned by digest (no semver tags exist upstream); healthchecks added for `rspamd` and `redis` (both verified against live throwaway containers, not just written and assumed correct); `unbound` deliberately left without one (verified `unbound-control status` fails against the image's default config — see the finding for why); `depends_on` now uses `condition: service_healthy` where a healthcheck exists.
+- **5.8** (container runs as root) — ✅ **mostly resolved**. `Dockerfile` now runs as `USER node`; verified with `docker run --entrypoint whoami/id` against an actual build. The map-file-ownership half of the original problem is moot now (5.30 removed local map files).
+- **5.9** (`LOG_FORMAT=pretty` crashes in Docker) — ✅ **resolved**. The crash was reproduced first (built the image, ran it with `LOG_FORMAT=pretty`, watched it die), then fixed with an availability check (`canLoadPinoPretty`, unit-tested) before setting up the pino-pretty transport, falling back to JSON with a warning instead. Reproduced-then-fixed, then re-verified against a fresh build that it no longer crashes. `Dockerfile`'s deprecated `npm ci --only=production` was also switched to `--omit=dev`.
+
+All five Docker/compose changes above were validated with `docker compose config` (both files) and, for the pieces that could be tested without the full IMAP/AI stack, actual container runs — not just written and assumed correct.
 
 | Finding | Item                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -240,16 +260,22 @@ The main risks are concentrated in four places:
 ### 4.1 Whitelist trusts the spoofable `From:` header, scores −20 and bypasses AI
 
 - **Area:** MAP, SEC, RSP · **Complexity:** S (auth requirement) / M (full redesign, see 7.1)
-- **Where:** `rspamd/config/multimap.conf:1-8`; `src/lib/utils/spam-classifier.js:32-37`; `src/lib/workflows/scan-workflow.js:120-141`
+- **Where (current, 2026-09-20):** `src/lib/services/sender-lists.service.js` (`senderAddressOf`); `src/lib/services/spam-classifier.service.js`; `src/lib/controllers/steps/sender-list-lookup.step.js`, `ai-classification.step.js`
+- **Where (original, now obsolete — 5.30 removed rspamd-side multimap entirely):** ~~`rspamd/config/multimap.conf:1-8`~~; ~~`src/lib/utils/spam-classifier.js:32-37`~~; ~~`src/lib/workflows/scan-workflow.js:120-141`~~
+- **Status:** still **open**. The mechanism moved (whitelist/blacklist matching is now entirely app code, per 5.30), but the risk is unchanged: `senderAddressOf()` reads the IMAP envelope `From` address with no DKIM/DMARC/SPF check before it's used for the −20 score adjustment and the AI-bypass.
 
-**Problem.** `whitelisted_email` matches the MIME `From` / envelope sender (`extract_from = "both"`) with no authentication requirement, and applies **−20**. The scanner additionally treats `WHITELIST_EMAIL` as "trusted": whitelisted mail skips all low/high bucketing and the AI safety net. Phishing that forges the `From:` of a whitelisted contact (bank, employer, family member) — the most common phishing pattern — therefore lands clean with no AI check. The blacklist has the mirror problem: a spam that forged a legitimate address gets that innocent address blacklisted at +20.
+**Problem (as it exists today).** The app-code whitelist/blacklist match on the message's envelope `From` address with no authentication requirement, and a whitelist hit applies **−20** to rspamd's score and skips the AI safety net (see README's [Whitelist & Blacklist](#whitelist--blacklist) section). Phishing that forges the `From:` of a whitelisted contact (bank, employer, family member) — the most common phishing pattern — still lands with a discounted score and no AI check. The blacklist has the mirror problem: a spam that forged a legitimate address gets that innocent address blacklisted.
 
-**Recommendation.**
+**Original problem (rspamd multimap, no longer applicable).** `whitelisted_email` matched the MIME `From` / envelope sender (`extract_from = "both"`) with no authentication requirement, and applied **−20**. The scanner additionally treated `WHITELIST_EMAIL` as "trusted": whitelisted mail skipped all low/high bucketing and the AI safety net.
 
-1. Add `require_symbols = "DMARC_POLICY_ALLOW | R_DKIM_ALLOW";` (or equivalent) to the whitelist rule so it only fires for authenticated senders. (verify exact expression syntax against the rspamd version in use.)
-2. Reduce the weight (e.g. −8) so a strongly spammy message can still reach `reject`.
-3. Keep the AI bypass only for authenticated whitelist hits (the symbol will only exist when authenticated after step 1).
-4. For blacklist extraction, prefer the authenticated `From` domain / `Return-Path` and don't add addresses from `Reply-To` (commonly a victim's or a free-mail address in scams). See 7.1.
+**Recommendation (updated for the app-code implementation).**
+
+1. Before trusting a whitelist hit, require an authenticated-sender symbol from rspamd's own check response (e.g. `DMARC_POLICY_ALLOW` / `R_DKIM_ALLOW` in the `/checkv2` result already fetched by `rspamd-check.step.js`) rather than only the raw envelope `From`.
+2. Keep the whitelist's −20 adjustment only for authenticated hits; for an unauthenticated match, apply a smaller adjustment (or none) so a strongly spammy spoofed message can still reach `confirmed`.
+3. Keep the AI bypass only for authenticated whitelist hits.
+4. For blacklist extraction (`train.blacklist` folder), prefer the authenticated `From` domain / `Return-Path` and don't add addresses from `Reply-To` (commonly a victim's or a free-mail address in scams). See 7.1.
+
+*(Original recommendation, written against the now-removed rspamd multimap rule, for history: add `require_symbols = "DMARC_POLICY_ALLOW | R_DKIM_ALLOW"` to the `multimap.conf` whitelist rule and reduce its weight to e.g. −8. No longer applicable since that file doesn't exist — kept only so old links/discussion referencing this finding still make sense.)*
 
 ### 4.2 Folder paths hard-code `.` as the hierarchy delimiter
 
@@ -517,6 +543,11 @@ A user who deletes a line from `.env` gets a _different_ behaviour than the docu
 
 - **Area:** DEP, OPS, REL · **Complexity:** S
 - **Where:** `docker-compose.yml`, `bin/local/docker-compose.yml`
+- **Status:** ⚠️ **Mostly resolved**, 2026-09-21, in both compose files identically.
+  - **Pinning:** `rspamd/rspamd:latest` → `rspamd/rspamd:3.14` (verified against the actual running version, 3.14.3); `redis:alpine` → `redis:8-alpine` (was resolving to 8.6.0 already; now pinned to that major). `klutchell/unbound:latest` → pinned **by digest** (`@sha256:cb9a...`) rather than a tag — that image publishes no semver tags at all, only `:latest`, so digest pinning was the only real option; documented inline with a link to the image's repo.
+  - **Healthchecks:** added for `rspamd` (`rspamc -h 127.0.0.1:11334 uptime` — an unauthenticated control command, verified against a throwaway container; `start_period: 30s` to cover TLD-suffix compilation on cold start, observed ~8s) and `redis` (`redis-cli ping`, both verified working). **`unbound` has no healthcheck** — verified `unbound-control status` fails out of the box (`control-enable is 'no'` in the image's default config), and wiring that up needs a custom `unbound.conf` mount, which is out of scope here; see 5.6 (still open) for the larger "is unbound even used" question.
+  - **Startup ordering:** `depends_on` now uses `condition: service_healthy` for `redis` (before `rspamd`) and for `rspamd` (before `spam-scanner`, root compose only); `unbound` uses `condition: service_started` (the default) since it has no healthcheck to condition on.
+  - **Not done:** de-duplicating the two compose files via a base + override, and the scanner's own heartbeat-based healthcheck (blocked on 5.23, which is still open — there's no heartbeat file to check yet).
 
 **Problem.** `rspamd/rspamd:latest`, `klutchell/unbound:latest`, `redis:alpine` float — a `docker compose pull` can bring a breaking rspamd major (config syntax, Bayes schema) without warning. `depends_on` has no `condition: service_healthy`, so the scanner can start before rspamd is ready and burn retries. No `healthcheck` on any service, so `docker ps` shows "Up" for a stuck scanner.
 
@@ -526,6 +557,7 @@ A user who deletes a line from `.env` gets a _different_ behaviour than the docu
 
 - **Area:** SEC, DEP · **Complexity:** S
 - **Where:** `Dockerfile`; `docker-compose.yml:9-10`
+- **Status:** ⚠️ **Mostly resolved**, 2026-09-21. `Dockerfile` now runs the spam-scanner process as `USER node` (the official `node:24-alpine` image's built-in non-root user, uid 1000) — verified via `docker run --entrypoint whoami`/`id` that the built image actually runs as `node`, not root. All `COPY` steps use `--chown=node:node` so the app's own files are owned by that user, not root. The map-file-ownership half of the original problem is now **moot**, not fixed: 5.30 removed local map files entirely (whitelist/blacklist live in IMAP state now), so there's nothing under `${SPAM_SCANNER_DATA}` for the spam-scanner container to write and root-own anymore. Rspamd/Redis's own bind-mount ownership (their images running as their own internal users against host-created directories) was **not** re-verified here — out of scope for this pass, since it's about the upstream images' behavior, not this project's `Dockerfile`. No `PUID`/`PGID` override support was added (not needed now that spam-scanner itself writes nothing to the host).
 
 **Problem.** The Node process runs as root. Map files it writes into `${SPAM_SCANNER_DATA}/rspamd/maps` become root-owned on the host, so the user can't edit them without `sudo` (relevant to 5.2). Rspamd (uid `_rspamd`) and Redis also need write access to their bind-mounted directories; `rspamd.sh init` creates them with the host user's ownership, which may not be writable by those uids (verify on Linux; Docker Desktop on macOS masks this). The design doc `docs/features/20260219-share-rspamd-host-storage-design.md` mentions ownership handling but no implementation exists.
 
@@ -534,7 +566,8 @@ A user who deletes a line from `.env` gets a _different_ behaviour than the docu
 ### 5.9 `LOG_FORMAT=pretty` crashes inside the Docker image (verify)
 
 - **Area:** DEP, OPS · **Complexity:** XS
-- **Where:** `src/lib/utils/logger.js:71-85`; `package.json` (`pino-pretty` is a devDependency); `Dockerfile:8` (`--only=production`)
+- **Where:** `src/lib/core/logger.js` (`canLoadPinoPretty`); `Dockerfile` (`npm ci --omit=dev`)
+- **Status:** ✅ **Resolved**, 2026-09-21. The "verify" was confirmed first: built the production image as-is and ran it with `LOG_FORMAT=pretty` — it crashed at startup exactly as this finding predicted. Fix implemented exactly per the recommendation's second option: `logger.js` now has an exported `canLoadPinoPretty(resolveFn = ... => import.meta.resolve(...))` helper (unit-tested with an injected resolver, since actually uninstalling the package isn't practical in a test) that's checked *before* building `options.transport`, since the old `try/catch` wrapped the wrong thing (the transport is resolved lazily inside `pino(options)`, not while building the options object). When `pino-pretty` can't be resolved, it now logs one `console.warn` and falls back to JSON instead of throwing — verified by rebuilding the production image and running `LOG_FORMAT=pretty` again: warns and emits valid JSON, no crash. `Dockerfile`'s `npm ci --only=production` (deprecated) was also changed to `npm ci --omit=dev` per the recommendation's second half.
 
 **Problem.** The image installs production deps only, so `pino-pretty` is absent. The `try/catch` around the transport config can't catch the failure — the transport is resolved later inside `pino(options)` — so the process throws at start-up. The README explicitly suggests `pretty` for debugging Docker. (verify with `docker run -e LOG_FORMAT=pretty …`.)
 
@@ -560,7 +593,8 @@ A user who deletes a line from `.env` gets a _different_ behaviour than the docu
 ### 5.11 Classification thresholds (30 % / 60 %) are hard-coded
 
 - **Area:** CFG, RSP · **Complexity:** S
-- **Where:** `src/lib/utils/spam-classifier.js:13-18`; call site `scan-workflow.js:117`
+- **Where:** `src/lib/services/spam-classifier.service.js`; call site `src/lib/controllers/steps/rspamd-check.step.js`
+- **Status:** ✅ **Resolved**. `SPAM_CLEAN_THRESHOLD` / `SPAM_LOW_THRESHOLD` / `SPAM_CONFIRMED_THRESHOLD` are configurable env vars (`src/lib/core/config.js`, defaults 30/60/200), documented in the README with the score-percentage formula spelled out.
 
 **Problem.** The rspamd score → low/high mapping uses `score / required_score * 100` with thresholds 30/60, not configurable. `required_score` is rspamd's _reject_ threshold (15 by default), so "low" = score > 4.5, "high" = score ≥ 9. These are important tuning knobs users will ask about, and they interact with the ±20 map scores. The `highProbableThreshold = 100` branch is redundant (both branches push to high).
 
@@ -588,7 +622,8 @@ A user who deletes a line from `.env` gets a _different_ behaviour than the docu
 ### 5.14 Entry-point boilerplate ×12 → single CLI
 
 - **Area:** REF, CLN, UX · **Complexity:** M
-- **Where:** `src/*.js`, `src/admin/*.js`
+- **Where:** `src/cli/*.js`, `src/admin/*.js`
+- **Status:** partially addressed, still **open**. Scripts were consolidated into `src/cli/` (top-level workflows) and `src/admin/` (maintenance), each now consistently following `newClient()` → `connect()` → run → `safeLogout()` in a `finally` block (per `CLAUDE.md`'s documented convention) — the "inconsistent error handling" half of the problem is fixed. No unified `spam-scanner` binary with subcommands (`doctor`, `state`, `maps`, etc.) exists yet; each script is still invoked individually via `node src/cli/....js`.
 
 **Problem.** Twelve scripts repeat `newClient → connect → run → logout`, with inconsistent error handling (some `process.exit(1)`, some unhandled rejection; `read-state.js:13` passes the error as a second argument pino ignores). None are exposed via `package.json` scripts or `bin`. In Docker, running an admin task requires knowing `docker compose exec spam-scanner node src/admin/…`. `read-email.js` requires editing hard-coded constants (6.6).
 
@@ -598,6 +633,7 @@ A user who deletes a line from `.env` gets a _different_ behaviour than the docu
 
 - **Area:** REF · **Complexity:** L
 - **Where:** throughout `src/lib`
+- **Status:** ✅ **Resolved**, via a sequence of direct refactor commits (`8d6f11d`, `361cefb`, `8f39a7d`), not an OpenSpec change. `src/lib` is now layered exactly per the target structure in [§7.5](#75-target-module-structure): `core/` (config, context, logger), `utils/` (pure, no `ctx`), `services/` (pure domain rules, no `ctx`), `clients/` (the I/O boundary, reads `config` directly), `controllers/workflows/*.controller.js` (take `ctx`, orchestrate) and `controllers/steps/*.step.js` (one thing against one external system). `scan-workflow.js`'s alert-templating was extracted to `alert-email.service.js`; `email-parser` was split per-concern; `training-service`'s duplicate `trainSpam`/`trainHam` were unified; `state-manager.js` moved into `clients/`. Layer-dependency direction (`controllers → services/clients → utils/core`) is documented as an explicit invariant in `CLAUDE.md`. Not part of this pass: one-IMAP-connection-per-cycle (still opens a new connection per step) — that's a separate reliability/perf concern, not a structural one, and wasn't re-evaluated here.
 
 **Observations.**
 
@@ -617,38 +653,56 @@ A user who deletes a line from `.env` gets a _different_ behaviour than the docu
 ### 5.16 Test coverage gaps on IMAP-facing code
 
 - **Area:** TST · **Complexity:** M–L
+- **Status:** ⚠️ **Partially resolved**, via the same 2026-09-20 layering refactor as 5.15 (which is what made this practical — controllers now take an injectable `ctx` and mocked `*.client.js` modules instead of module-level singletons).
 
-| Module                                 | Unit tests                   |
-| -------------------------------------- | ---------------------------- |
-| `state-manager.js`                     | **none**                     |
-| `clients/imap-client.js`               | **none**                     |
-| `workflows/train-workflow.js`          | **none**                     |
-| `workflows/map-workflow.js`            | **none**                     |
-| `workflows/init-workflow.js`           | **none**                     |
-| `services/training-service.js`         | **none**                     |
-| `services/message-service.js`          | **none**                     |
-| `processors/label-*`, `folder-*`       | **none** (only base factory) |
-| `orchestrator.js` (mode loop, retries) | **none**                     |
-| `utils/config.js`                      | **none**                     |
-| AI modules, classifier, parsers, maps  | good                         |
+**Original gap table (2026-09-17 review) — now stale:**
 
-Critical logic (3.1, 4.4, 4.5, 5.1, 5.4) lives in the untested modules.
+| Module (old name)                      | Unit tests (then) | Current successor & status                                                                                                                                        |
+| --------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `state-manager.js`                     | **none**           | `clients/state-manager.client.js` — tested                                                                                                                        |
+| `clients/imap-client.js`               | **none**           | `clients/imap.client.js` — tested                                                                                                                                 |
+| `workflows/train-workflow.js`          | **none**           | `controllers/workflows/train.controller.js` — tested                                                                                                              |
+| `workflows/map-workflow.js`            | **none**           | `controllers/workflows/sender-list-training.controller.js` — tested                                                                                               |
+| `workflows/init-workflow.js`           | **none**           | `controllers/workflows/init.controller.js` — tested                                                                                                               |
+| `services/training-service.js`         | **none**           | folded into `controllers/steps/rspamd-training.step.js` — tested                                                                                                  |
+| `services/message-service.js`          | **none**           | folded into `controllers/steps/rspamd-check.step.js` — tested                                                                                                     |
+| `orchestrator.js` (mode loop, retries) | **none**           | `src/cli/orchestrator.js` + `controllers/workflows/idle.controller.js` — `idle.controller` is tested; the orchestrator's own mode/retry loop still has no test (see below) |
+| `utils/config.js`                      | **none**           | `core/config.js` — tested                                                                                                                                         |
 
-**Recommendation.**
+Every file under `src/lib/` now has a matching `test/unit/` file — `npm test` runs **47 test files / 412 tests**, all green. `test/support/fake-clients.js` provides the in-memory fake client(s) the original recommendation asked for; `test/support/fixtures.js`'s `fixtureContext()` builds `ctx` as a plain object, per `CLAUDE.md`'s testing convention. `@vitest/coverage-v8` and `npm run test:coverage` (writes `coverage/index.html`, gitignored) were added 2026-09-20, confirming the mirror is real: `lib/utils` and `controllers/steps` report 100% line coverage, `lib/services` ~99.5%, `lib/controllers/workflows` ~97%, `lib/clients` ~71% (pulled down by `imap.client.js`'s IDLE/reconnect branches and the newer `eml-dataset.client.js`, both light on edge-case tests), `lib/core` ~82% (`logger.js`'s redaction/format branches). `src/cli/`/`src/admin/` scripts report ~0%, by design — they're untested thin wrappers; the logic they call is what's measured above.
 
-- Add `@vitest/coverage-v8` and a coverage script; set a modest threshold and ratchet up.
-- Build a small in-memory fake IMAP client (search/fetch/move/append/delete over arrays) for workflow tests.
-- Add an end-to-end smoke test using a real Dovecot/GreenMail container + rspamd in Compose, run in CI nightly or on demand: create mailbox, drop fixtures, run one cycle, assert folders/labels/state.
-- Keep the live AI integration test opt-in (current approach is right).
+**Still open:**
+
+- No CI to run `test:coverage` automatically or gate a threshold on it (blocked on 5.17).
+- No end-to-end smoke test against a real IMAP server — `test/integration/` contains only `ai-live-classification.test.js` (hits a real AI provider, per `CLAUDE.md`). The original recommendation's GreenMail/Dovecot + rspamd-in-Compose smoke test (create mailbox, drop fixtures, run one cycle, assert folders/labels/state) was never built.
+- `src/cli/orchestrator.js` itself — the mode loop (single-run/poll/IDLE selection), `MAX_RETRIES` backoff, and `SIGTERM`/`SIGINT` handling — has no dedicated unit test; the pieces it calls are each tested in isolation, but the loop wiring them together isn't.
+- `imap.client.js`'s coverage gap (55–71% depending on how it's sliced) is the largest untested surface left in `src/lib/` — worth a closer look before treating this finding as fully closed.
+
+**Recommendation (narrowed to what's left).**
+
+- Once CI exists (5.17), run `test:coverage` in it and gate on a threshold.
+- Add the GreenMail/Dovecot + rspamd Compose smoke test, run on demand or nightly (not on every push — it's slow).
+- Add a focused unit test for `src/cli/orchestrator.js`'s loop/retry/shutdown logic, injecting fake workflow controllers via `ctx`.
+- Fill in `imap.client.js`'s IDLE/reconnect branch coverage.
 
 ### 5.17 No CI, no linter, Prettier not applied (41 files non-conformant)
 
 - **Area:** TLG, HYG · **Complexity:** S
-- **Where:** `.github/`, `package.json`, `.prettierrc.json`
+- **Where:** `.github/`, `package.json`, `.prettierrc.json`, `eslint.config.js`
+- **Status:** ⚠️ **Partially resolved**, 2026-09-21. ESLint added: `eslint`, `@eslint/js`, `globals`, `eslint-config-prettier` as devDependencies; `eslint.config.js` (flat config) uses `js.configs.recommended` plus Node globals for `src/`, vitest's implicit globals (`describe`/`it`/`expect`/etc. — the `globals` package has no vitest set) for `test/`, and `eslint-config-prettier` last so lint doesn't fight Prettier over style. `npm run lint` added. A first run surfaced 9 problems (3 errors, 6 warnings), deliberately left unfixed at first per user decision (so lint-driven changes didn't get bundled with the tooling-addition commit), then fixed in a same-day follow-up once the user confirmed - all were mechanical, no logic changes:
+  - `preserve-caught-error` (error, ×3, fixed): `src/lib/clients/eml-dataset.client.js:35`, `src/lib/clients/rspamd.client.js:40`, `src/lib/utils/email-parser.util.js:121` — each re-threw inside a `catch` without attaching `{ cause: err }`, losing the original stack/reason. Fixed by adding `{ cause: err }` to each `new Error(...)`.
+  - `no-unused-vars` (warning, ×6, fixed): `src/lib/clients/rspamd.client.js:108,174` (unused `_` catch binding → optional catch binding, `catch { ... }`), `src/lib/controllers/steps/folder-move.step.js:4` (a stray `import { count } from 'console'` — dead, and unrelated to the `{ count: ... }` object-literal keys elsewhere in the file; deleted), `src/lib/services/state-format.service.js:113` (unused `catch (e)` → optional catch binding), `test/unit/clients/rspamd.client.test.js:77` (same), `test/unit/clients/state-manager.client.test.js:47` (unused `open` import removed).
+
+  `npm run lint` now reports 0 problems; `npm test` stayed green throughout (414/414). Still open: no CI to run `lint`/`format:check`/`test`/`test:coverage` automatically, the one-time Prettier-formatting commit for the ~41 non-conformant files (this doc itself, `ROADMAP.md`, is one of them - its wide markdown tables aren't Prettier-clean), and Dependabot/Renovate for npm + Docker image versions.
 
 **Problem.** Formatting varies (2- vs 4-space indents, `{a}` vs `{ a }`, single vs double quotes). No ESLint to catch unused imports, unused variables (e.g. `runScan as runScan`, unused `Ham` params), floating promises. No automated test run — hence 4.8.
 
-**Recommendation.** One-time `npm run format` commit (isolated, no logic changes); add ESLint (flat config, `eslint:recommended` + `n` plugin); GitHub Actions workflow: install → lint → format:check → test → docker build; Dependabot or Renovate for npm, Docker base images and Compose images.
+**Recommendation.**
+
+- ~~One-time `npm run format` commit (isolated, no logic changes)~~ — still open.
+- ~~Add ESLint (flat config, `eslint:recommended` + `n` plugin)~~ — done, without the `n` (eslint-plugin-n) plugin; `js.configs.recommended` alone was enough to surface real issues (see Status), so the extra plugin was skipped rather than added speculatively. Revisit if Node-specific rules (e.g. floating promises via `n/no-unsupported-features`) turn out to matter later.
+- GitHub Actions workflow: install → lint → format:check → test → docker build — still open.
+- Dependabot or Renovate for npm, Docker base images and Compose images — still open.
 
 ### 5.18 `IMAP_TLS` defaults to `false`
 
@@ -1154,14 +1208,14 @@ Complexity totals are rough, for a single developer.
 
 | Finding            | Item                                                         | Cx  | Status                                                                    |
 | ------------------ | ------------------------------------------------------------ | --- | ------------------------------------------------------------------------- |
-| 5.17               | Prettier commit, ESLint, GitHub Actions CI, Renovate         | S   | open                                                                      |
+| 5.17               | Prettier commit, ESLint, GitHub Actions CI, Renovate         | S   | ⚠️ partial — ESLint added, 9 findings reported then fixed (clean now); Prettier commit, CI, Renovate still open |
 | 4.4                | Per-message failure isolation (scan + training)              | M   | ✅ done, refined the same round                                           |
 | 4.5                | IDLE close/watchdog, pre-IDLE catch-up, training polling     | M   | ✅ done (training polling via watchdog recycle, not a separate poller)    |
 | 5.12               | Graceful shutdown                                            | S   | ✅ done                                                                   |
 | 5.10, 4.12         | Config schema + validation; align all defaults               | M   | 4.12 ✅ done (hand-aligned, not schema-generated), 5.10 open              |
 | 4.2                | Delimiter/namespace/special-use folder resolution            | M   | delimiter ✅ done, namespace/special-use still open                       |
 | 5.4, 6.17          | UIDVALIDITY in versioned state                               | S   | ✅ done                                                                   |
-| 5.7, 5.8, 5.9      | Pin images, healthchecks, non-root, pretty-log fallback      | S   | open                                                                      |
+| 5.7, 5.8, 5.9      | Pin images, healthchecks, non-root, pretty-log fallback      | S   | ✅ done (5.7 unbound healthcheck intentionally skipped, see finding; 5.8 compose-file de-dup and PUID/PGID not done) |
 | 4.1, 5.6           | Authenticated whitelist; wire unbound                        | S   | open                                                                      |
 | 6.1–6.4, 6.12–6.15 | Dead code & script clean-up                                  | S   | ✅ done (6.1, 6.2, 6.3, 6.4, 6.12, 6.15); 6.14 still open (not dead code) |
 | 5.25               | Archive/sync openspec change; remove `docs/features`         | S   | ✅ done; `CONTRIBUTING.md` still open (see 5.25 for detail)               |
@@ -1171,7 +1225,7 @@ Complexity totals are rough, for a single developer.
 
 | Finding                | Item                                                | Cx  | Status                               |
 | ---------------------- | --------------------------------------------------- | --- | ------------------------------------ |
-| 5.14                   | Unified CLI                                         | M   | open                                 |
+| 5.14                   | Unified CLI                                         | M   | ⚠️ partial — scripts reorganized into `src/cli`/`src/admin`; no single binary yet |
 | 7.3.4                  | `doctor` + `status` commands                        | M   | open                                 |
 | 4.13, 7.2              | Generated rspamd password; commented rspamd config  | S   | open                                 |
 | 7.3.1–7.3.2            | GHCR multi-arch images, release bundle              | M   | open                                 |
@@ -1183,20 +1237,20 @@ Complexity totals are rough, for a single developer.
 
 ### Phase 3 — Structure & features (ongoing)
 
-| Finding   | Item                                                                 | Cx  |
-| --------- | -------------------------------------------------------------------- | --- |
-| 5.15, 7.5 | Incremental module restructure                                       | L   |
-| 5.16      | IMAP fake, workflow tests, e2e Compose test                          | L   |
-| 7.1       | Lists v2: mailbox source of truth, domain entries, removal           | M   |
-| 5.3       | Ham-trained keyword to prevent re-escalation                         | S   |
-| 4.10      | Envelope/IP extraction for rspamd                                    | M   |
-| 5.11      | Configurable absolute-score thresholds                               | S   |
-| 5.13      | Streaming/batched training fetch                                     | S   |
-| 5.23      | Heartbeat, generalized notifier, digest                              | M   |
-| 6.21      | Release automation & changelog                                       | S   |
-| 5.22      | OAuth2 (Gmail / Microsoft)                                           | XL  |
-| 5.28      | Multi-mailbox support (multi-instance now, multi-account later)      | M/L |
-| 5.30      | Move whitelist/blacklist matching from rspamd multimap into app code | S   |
+| Finding   | Item                                                                 | Cx  | Status                                                                            |
+| --------- | -------------------------------------------------------------------- | --- | ---------------------------------------------------------------------------------- |
+| 5.15, 7.5 | Incremental module restructure                                       | L   | ✅ done                                                                            |
+| 5.16      | IMAP fake, workflow tests, e2e Compose test                          | L   | ⚠️ partial — unit coverage + fake client done; coverage tool + e2e still open      |
+| 7.1       | Lists v2: mailbox source of truth, domain entries, removal           | M   | mailbox-as-source-of-truth ✅ done via 5.30; domain entries/removal UX still open |
+| 5.3       | Ham-trained keyword to prevent re-escalation                         | S   | open                                                                              |
+| 4.10      | Envelope/IP extraction for rspamd                                    | M   | open                                                                              |
+| 5.11      | Configurable absolute-score thresholds                               | S   | ✅ done                                                                            |
+| 5.13      | Streaming/batched training fetch                                     | S   | open                                                                              |
+| 5.23      | Heartbeat, generalized notifier, digest                              | M   | AI-failure alert email ✅ done (narrower than this finding); heartbeat/digest open |
+| 6.21      | Release automation & changelog                                       | S   | open                                                                              |
+| 5.22      | OAuth2 (Gmail / Microsoft)                                           | XL  | open                                                                              |
+| 5.28      | Multi-mailbox support (multi-instance now, multi-account later)      | M/L | multi-instance ✅ unblocked by 5.26/5.30; multi-account-in-one-deployment open    |
+| 5.30      | Move whitelist/blacklist matching from rspamd multimap into app code | S   | ✅ done                                                                            |
 
 ---
 

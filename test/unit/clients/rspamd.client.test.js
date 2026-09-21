@@ -74,7 +74,7 @@ describe('rspamd-client', () => {
       try {
         await checkEmail(emailContent);
         expect(global.fetch).toHaveBeenCalled();
-      } catch (e) {
+      } catch {
         // Expected if no password is configured
       }
     });
