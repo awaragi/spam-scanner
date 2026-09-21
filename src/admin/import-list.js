@@ -1,11 +1,11 @@
 import fs from 'fs/promises';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import { newClient, safeLogout } from '../lib/clients/imap-client.js';
-import { config } from '../lib/utils/config.js';
-import { rootLogger } from '../lib/utils/logger.js';
-import { updateListState } from '../lib/services/map-service.js';
-import { parseAddressList } from '../lib/utils/sender-lists.js';
+import { newClient, safeLogout } from '../lib/clients/imap.client.js';
+import { config } from '../lib/core/config.js';
+import { rootLogger } from '../lib/core/logger.js';
+import { updateListState } from '../lib/controllers/steps/list-update.step.js';
+import { parseAddressList } from '../lib/services/sender-lists.service.js';
 
 // Migration/restore tool (see the `sender-lists` capability): loads a local
 // file - a legacy rspamd map file, or a JSON export from `export-list.js` -

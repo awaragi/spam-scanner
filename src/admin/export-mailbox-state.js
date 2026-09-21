@@ -1,10 +1,13 @@
 import fs from 'fs/promises';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import { newClient, safeLogout } from '../lib/clients/imap-client.js';
-import { rootLogger } from '../lib/utils/logger.js';
-import { readScannerState, readMapState } from '../lib/state-manager.js';
-import { config } from '../lib/utils/config.js';
+import { newClient, safeLogout } from '../lib/clients/imap.client.js';
+import { rootLogger } from '../lib/core/logger.js';
+import {
+  readScannerState,
+  readMapState,
+} from '../lib/clients/state-manager.client.js';
+import { config } from '../lib/core/config.js';
 
 // Full mailbox state backup/migration tool (see the `sender-lists`
 // capability): bundles scanner state, whitelist, and blacklist into one

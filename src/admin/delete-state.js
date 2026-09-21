@@ -1,5 +1,5 @@
-import { deleteScannerState } from '../lib/state-manager.js';
-import { newClient, safeLogout } from '../lib/clients/imap-client.js';
+import { deleteScannerState } from '../lib/clients/state-manager.client.js';
+import { newClient, safeLogout } from '../lib/clients/imap.client.js';
 
 const imap = newClient();
 

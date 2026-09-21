@@ -7,7 +7,7 @@ if [ -z "$1" ]; then
 fi
 
 ENV_FILE="$1"
-SCRIPT="${2:-src/orchestrator.js}"
+SCRIPT="${2:-src/cli/orchestrator.js}"
 
 if [ ! -f "$ENV_FILE" ]; then
     echo "Error: $ENV_FILE file not found!"

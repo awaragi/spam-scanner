@@ -82,7 +82,7 @@ Folder names are configured as dot-separated paths and are automatically transla
 Use the initialization step to auto-create the application folders:
 
 ```bash
-node src/init-folders.js
+node src/cli/init-folders.js
 ```
 
 Training folders, the state folder, and (when `SPAM_PROCESSING_MODE=folder`) the low/high spam folders are created automatically. `FOLDER_SPAM` itself (the destination for rspamd's own confident "reject" verdict) is **not** auto-created as of this writing - create it manually, or point `FOLDER_SPAM` at your server's existing Junk folder.
@@ -122,7 +122,9 @@ FOLDER_STATE=INBOX.scanner.state
 #   >0  = poll mode: repeat every N seconds
 SCAN_INTERVAL=-1
 SCAN_BATCH_SIZE=200
-SCAN_READ=true
+# SCAN_READ: when false, the scan query is restricted to unseen (\Seen-unset)
+# messages only; true also rescans messages already marked read.
+SCAN_READ=false
 PROCESS_BATCH_SIZE=10
 
 # SCAN_INITIAL_STATE: only matters the very first run against a mailbox with no
@@ -160,6 +162,8 @@ SPAM_CONFIRMED_THRESHOLD=200
 
 RSPAMD_URL=http://localhost:11334
 RSPAMD_PASSWORD=
+# RSPAMD_TIMEOUT_MS: abort a stalled rspamd HTTP call (check/learn) after this many ms
+RSPAMD_TIMEOUT_MS=30000
 
 LOG_LEVEL=info
 LOG_FORMAT=json
@@ -192,6 +196,20 @@ AI_FAILURE_ALERT_THRESHOLD=3
 See `.env.example` for the full, commented list of every setting, including exact defaults.
 
 **Privacy**: when `AI_ENABLED=true`, full plain-text bodies (up to the `AI_MAX_INPUT_TOKENS` budget) plus From/To/Subject of every non-whitelisted, non-spam message are sent to whichever provider `AI_BASE_URL` points to. Use a local model (e.g. Ollama) for sensitive mailboxes if you'd rather not send content to a third party.
+
+### Tuning the AI prompt offline
+
+`src/cli/eval-prompt.js` scores a labeled `.eml` dataset with the current AI classifier prompt/config and writes a report, so prompt changes can be measured before they reach production instead of discovered later as false positives:
+
+```bash
+npx env-cmd -f .env node src/cli/eval-prompt.js \
+  --reports .temp/reports \
+  --ham .temp/messages/ham \
+  --marketing .temp/messages/marketing \
+  --spam .temp/messages/spam
+```
+
+`--reports` is mandatory - it's where the timestamped report file is written. `--ham`/`--marketing`/`--spam` each point at a folder of `.eml` files for that bucket; give whichever ones you have data for (at least one is required). There's no fixed folder convention - by habit this project keeps its dataset at `.temp/messages/{ham,marketing,spam}/` (gitignored, not checked in), but any folder path works. Each run writes a new timestamped report under `--reports` rather than overwriting the previous one, so a "before" and "after" report can be compared once the prompt in `buildSystemPrompt()` (`src/lib/clients/ai.client.js`) is edited. No new environment variables are involved - it reads the same `AI_*` settings as production. The `prompt-engineer` Claude Code skill (`.claude/skills/prompt-engineer/`) reads these reports and proposes prompt edits.
 
 ---
 
@@ -242,7 +260,41 @@ bin/local/rspamd.sh down
 #### 5. Initialize Folders (one-time)
 
 ```bash
-node src/init-folders.js
+node src/cli/init-folders.js
+```
+
+### Running Tests
+
+```bash
+npm test                 # unit tests (vitest)
+npm run test:coverage    # unit tests with coverage; writes coverage/index.html
+npm run test:integration # hits a real AI provider, loads .env via env-cmd
+```
+
+`test:coverage` covers `src/**` with the v8 provider. `src/cli/`/`src/admin/` scripts show as uncovered by design - they're thin `newClient()` → `connect()` → run → `safeLogout()` wrappers with no logic of their own; the workflow/step logic they call is what's under `src/lib/` and is what the coverage numbers there reflect. The `coverage/` directory is gitignored - open `coverage/index.html` locally to browse the report.
+
+### Formatting
+
+```bash
+npm run format       # Prettier, writes changes
+npm run format:check # Prettier, check only (no changes)
+```
+
+### Linting
+
+```bash
+npm run lint # ESLint (flat config, eslint.config.js) - reports only, no --fix wired up
+```
+
+Not yet enforced in CI (there is no CI yet). `eslint-config-prettier` is applied last so style rules Prettier already owns aren't duplicated - lint findings are about code correctness (unused vars, a caught error re-thrown without `cause`, etc.), not formatting.
+
+### Testing Rspamd Directly
+
+`bin/local/check-eml.sh` POSTs a `.eml` file straight to a running Rspamd instance's `/checkv2` endpoint and prints the score/action (or the full JSON with `--verbose`) - useful for checking Rspamd's own verdict on a message without going through the scanner at all. Reads `RSPAMD_URL`/`RSPAMD_PASSWORD` from the environment, falling back to `.env`. Requires `curl` and `jq`.
+
+```bash
+bin/local/check-eml.sh path/to/message.eml
+bin/local/check-eml.sh --verbose path/to/message.eml
 ```
 
 ---
@@ -410,26 +462,26 @@ Each project name gets its own containers (`<project>-<service>-1`) and its own 
 ### One-shot Mode (Manual Run, Individual Scripts)
 
 ```bash
-node src/train-spam.js
-node src/train-ham.js
-node src/train-whitelist.js
-node src/train-blacklist.js
-node src/scan-inbox.js
+node src/cli/train-spam.js
+node src/cli/train-ham.js
+node src/cli/train-whitelist.js
+node src/cli/train-blacklist.js
+node src/cli/scan-inbox.js
 ```
 
 ### Orchestrator (Recommended)
 
-`src/orchestrator.js` runs the full cycle - init (once), then training (spam/ham/whitelist/blacklist), then scan - according to `SCAN_INTERVAL`:
+`src/cli/orchestrator.js` runs the full cycle - init (once), then training (spam/ham/whitelist/blacklist), then scan - according to `SCAN_INTERVAL`:
 
 ```bash
 # Single-run mode (default, SCAN_INTERVAL=-1): one full cycle then exit
-node src/orchestrator.js
+node src/cli/orchestrator.js
 
 # Poll mode: repeat every N seconds
-SCAN_INTERVAL=300 node src/orchestrator.js
+SCAN_INTERVAL=300 node src/cli/orchestrator.js
 
 # IDLE mode: event-driven, waits for IMAP EXISTS notifications instead of polling
-SCAN_INTERVAL=0 node src/orchestrator.js
+SCAN_INTERVAL=0 node src/cli/orchestrator.js
 ```
 
 Single-run mode is useful for scheduled execution via cron or an external scheduler. Poll and IDLE mode keep the process running.
@@ -509,16 +561,16 @@ Admin/maintenance scripts live under `src/admin/`:
 - `src/admin/write-state.js` - accepts JSON from stdin and updates the IMAP state
 - `src/admin/delete-state.js` - deletes scanner state from IMAP
 - `src/admin/reset-state.js` - resets the IMAP state to `last_uid=0`
-- `src/admin/uid-on-date.js FOLDER [--since date] [--write]` - finds the first UID on/after a date
+- `src/admin/uid-on-date.js FOLDER [--since date]` - finds the first UID on/after a date
 - `src/admin/list-all.js` - lists all messages in a folder
 - `src/admin/read-email.js` - reads and saves a specific email (edit the `UID`/`MESSAGE_ID` constants at the top of the script)
 
 Top-level operational scripts live in `src/`:
 
-- `src/init-folders.js` - creates the application's IMAP folders
-- `src/train-spam.js`, `src/train-ham.js`, `src/train-whitelist.js`, `src/train-blacklist.js` - run one training step
-- `src/scan-inbox.js` - run one scan step
-- `src/orchestrator.js` - run the full cycle (see [Usage](#usage))
+- `src/cli/init-folders.js` - creates the application's IMAP folders
+- `src/cli/train-spam.js`, `src/cli/train-ham.js`, `src/cli/train-whitelist.js`, `src/cli/train-blacklist.js` - run one training step
+- `src/cli/scan-inbox.js` - run one scan step
+- `src/cli/orchestrator.js` - run the full cycle (see [Usage](#usage))
 
 ---
 
@@ -543,10 +595,10 @@ The application uses centralized structured logging via Pino with configurable o
 
 ```bash
 # Development (human-readable logs)
-LOG_LEVEL=debug LOG_FORMAT=pretty node src/orchestrator.js
+LOG_LEVEL=debug LOG_FORMAT=pretty node src/cli/orchestrator.js
 
 # Production (structured JSON logs)
-LOG_LEVEL=info LOG_FORMAT=json node src/orchestrator.js
+LOG_LEVEL=info LOG_FORMAT=jsonl node src/cli/orchestrator.js
 ```
 
 ### Log Structure
@@ -557,10 +609,12 @@ All logs include contextual information for tracing:
 
 ```json
 {
-  "level": "info",
+  "level": "debug",
   "time": "2026-02-15T12:34:56.789Z",
-  "component": "rspamd",
-  "folder": "INBOX",
+  "component": "scan-controller",
+  "from": 0,
+  "to": 10,
+  "total": 42,
   "msg": "Scanning batch"
 }
 ```
@@ -569,19 +623,27 @@ All logs include contextual information for tracing:
 
 ```json
 {
-  "level": "info",
+  "level": "debug",
   "time": "2026-02-15T12:34:56.789Z",
-  "component": "rspamd",
+  "component": "rspamd-check",
   "uid": 12455,
-  "score": 8.5,
+  "subject": "...",
   "action": "add header",
+  "score": 8.5,
   "msg": "Rspamd check completed"
 }
 ```
 
 The `uid` field allows you to trace all operations related to a specific email message across the entire processing pipeline.
 
-**Component names:** `config`, `imap`, `imapflow`, `rspamd`, `rspamd-maps`, `state-manager`, `folder-resolver`, `orchestrator`, and one per workflow (`scan-workflow`, `train-workflow`, `map-workflow`, `init-workflow`, `idle-workflow`).
+**Component names:**
+
+- Core: `config`, `orchestrator`
+- Clients (I/O boundary): `imap`, `imapflow`, `rspamd`, `ai-client`, `state-manager`, `folder-resolver`
+- Workflow controllers: `scan-controller`, `train-controller`, `init-controller`, `sender-list-training-controller` (idle mode logs through `imap`, not its own component)
+- Steps: `rspamd-check`, `rspamd-training`, `pending-messages`, `folder-move`, `spam-move`, `label-apply`, `list-update`, `ai-classification`, `ai-failure-alert`
+- Services: `ai-content`, `sender-lists`
+- Admin scripts (`src/admin/`): `export-list`, `import-list`, `export-mailbox-state`, `import-mailbox-state`, `read-state`, `read-email`, `list-all`
 
 ---
 
