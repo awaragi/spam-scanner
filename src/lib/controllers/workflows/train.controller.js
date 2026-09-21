@@ -4,9 +4,11 @@ import {
   count,
   fetchAllMessages,
   moveMessages,
+  updateLabels,
 } from '../../clients/imap.client.js';
 import { trainSpam, trainHam } from '../steps/rspamd-training.step.js';
 import { createDefaultContext } from '../../core/context.js';
+import { TRAINED_FLAG } from '../../services/spam-classifier.service.js';
 
 const logger = rootLogger.forComponent('train-controller');
 
@@ -26,9 +28,21 @@ const logger = rootLogger.forComponent('train-controller');
  * @param {Function} trainFn - Training function (trainSpam or trainHam)
  * @param {string} type - Training type ('spam' or 'ham')
  * @param {Object} ctx
+ * @param {boolean} [tagAsTrained] - When true, flag every moved message with
+ *   `TRAINED_FLAG` before the move, exempting it from AI re-escalation on its
+ *   next scan (see `training-reescalation-guard`). Only meaningful when
+ *   `destFolder` is scanned (i.e. ham training, not spam training).
  * @returns {Promise<void>} - Never rejects
  */
-async function runTraining(imap, folder, destFolder, trainFn, type, ctx) {
+async function runTraining(
+  imap,
+  folder,
+  destFolder,
+  trainFn,
+  type,
+  ctx,
+  tagAsTrained = false
+) {
   try {
     const box = await open(imap, folder);
     const messageCount = count(box);
@@ -63,7 +77,11 @@ async function runTraining(imap, folder, destFolder, trainFn, type, ctx) {
       // Move every message this batch finished with (learned or permanently
       // un-learnable) - only a transient failure (thrown above) should leave
       // messages behind in the training folder for retry.
-      await moveMessages(imap, [...learned, ...skipped], destFolder);
+      const movedMessages = [...learned, ...skipped];
+      if (tagAsTrained) {
+        await updateLabels(imap, movedMessages, [TRAINED_FLAG]);
+      }
+      await moveMessages(imap, movedMessages, destFolder);
     }
 
     logger.info(
@@ -108,6 +126,7 @@ export async function runHam(imap, ctx = createDefaultContext()) {
     ctx.config.FOLDER_INBOX,
     trainHam,
     'ham',
-    ctx
+    ctx,
+    true
   );
 }

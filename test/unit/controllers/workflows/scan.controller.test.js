@@ -316,6 +316,47 @@ describe('AI escalation wiring', () => {
 
     expect(fakeAiClient.classifyEmail).toHaveBeenCalled();
   });
+
+  test('AI_ENABLED=true: a $ScannerTrained-flagged low-tier message is never sent to AI and keeps its low tier even though the mock AI would escalate it', async () => {
+    const ctx = fixtureContext({
+      config: {
+        AI_ENABLED: true,
+        SPAM_PROCESSING_MODE: 'folder',
+        AI_ESCALATE_TO_LOW_THRESHOLD: 50,
+        AI_ESCALATE_TO_HIGH_THRESHOLD: 80,
+      },
+    });
+    fakeStateManager.readScannerState.mockResolvedValue({
+      last_uid: 100,
+      last_seen_date: '',
+      last_checked: '',
+    });
+    fakeImapClient.search.mockResolvedValue([101]);
+    fakeImapClient.fetchMessagesByUIDs.mockResolvedValue([
+      fixtureMessage({ uid: 101, flags: new Set(['$ScannerTrained']) }),
+    ]);
+    fakeRspamdClient.checkEmail.mockResolvedValue({
+      score: 8,
+      required_score: 15,
+    }); // low tier from rspamd (53% of required)
+    fakeAiClient.classifyEmail.mockResolvedValue({
+      score: 90,
+      reasoning: 'looks like phishing',
+    });
+
+    await runScan({}, ctx);
+
+    expect(fakeAiClient.classifyEmail).not.toHaveBeenCalled();
+    expect(fakeImapClient.moveMessages).toHaveBeenCalledWith(
+      {},
+      expect.arrayContaining([expect.objectContaining({ uid: 101 })]),
+      ctx.config.FOLDER_SPAM_LOW
+    );
+    const highSpamCall = fakeImapClient.moveMessages.mock.calls.find(
+      call => call[2] === ctx.config.FOLDER_SPAM_HIGH
+    );
+    expect(highSpamCall[1]).toEqual([]);
+  });
 });
 
 describe('AI failure alert wiring', () => {

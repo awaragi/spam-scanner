@@ -5,6 +5,9 @@ import {
   applyWhitelistAdjustments,
   partitionByWhitelistFlag,
   mergeWhitelistedBack,
+  partitionByTrainedFlag,
+  mergeTrainedBack,
+  TRAINED_FLAG,
 } from '../../../src/lib/services/spam-classifier.service.js';
 
 describe('categorizeMessages', () => {
@@ -564,6 +567,45 @@ describe('mergeWhitelistedBack', () => {
       [{ uid: 10 }],
       [{ uid: 20 }]
     );
+
+    expect(result.nonSpamMessages.map(m => m.uid)).toEqual([1, 10]);
+    expect(result.lowSpamMessages.map(m => m.uid)).toEqual([2, 20]);
+    expect(result.highSpamMessages).toBe(categorized.highSpamMessages);
+    expect(result.spamMessages).toBe(categorized.spamMessages);
+  });
+});
+
+describe('partitionByTrainedFlag', () => {
+  test('splits messages by presence of TRAINED_FLAG in message.flags', () => {
+    const messages = [
+      { uid: 1, flags: new Set([TRAINED_FLAG]) },
+      { uid: 2, flags: new Set(['\\Seen']) },
+      { uid: 3, flags: new Set([TRAINED_FLAG, '\\Seen']) },
+    ];
+
+    const { trained, rest } = partitionByTrainedFlag(messages);
+
+    expect(trained.map(m => m.uid)).toEqual([1, 3]);
+    expect(rest.map(m => m.uid)).toEqual([2]);
+  });
+
+  test('treats a missing flags field as not trained', () => {
+    const { trained, rest } = partitionByTrainedFlag([{ uid: 1 }]);
+    expect(trained).toEqual([]);
+    expect(rest.map(m => m.uid)).toEqual([1]);
+  });
+});
+
+describe('mergeTrainedBack', () => {
+  test('appends trained messages back onto nonSpam/lowSpam, leaving other fields untouched', () => {
+    const categorized = {
+      nonSpamMessages: [{ uid: 1 }],
+      lowSpamMessages: [{ uid: 2 }],
+      highSpamMessages: [{ uid: 3 }],
+      spamMessages: [{ uid: 4 }],
+    };
+
+    const result = mergeTrainedBack(categorized, [{ uid: 10 }], [{ uid: 20 }]);
 
     expect(result.nonSpamMessages.map(m => m.uid)).toEqual([1, 10]);
     expect(result.lowSpamMessages.map(m => m.uid)).toEqual([2, 20]);

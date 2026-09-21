@@ -17,7 +17,7 @@ vi.mock(
   () => fakeStateManager
 );
 
-const { runWhitelist } = await import(
+const { runWhitelist, runBlacklist } = await import(
   '../../../../src/lib/controllers/workflows/sender-list-training.controller.js'
 );
 
@@ -58,6 +58,21 @@ describe('sender-list-training.controller: messages with no extractable sender a
     );
   });
 
+  test('no extractable senders: messages are still tagged $ScannerTrained before moving', async () => {
+    const messages = [makeMessage(1, undefined)];
+    fakeImapClient.count.mockReturnValue(1);
+    fakeImapClient.fetchAllMessages.mockResolvedValue(messages);
+    const ctx = fixtureContext({ config: { FOLDER_INBOX: 'INBOX' } });
+
+    await runWhitelist(mockImap, ctx);
+
+    expect(fakeImapClient.updateLabels).toHaveBeenCalledWith(
+      mockImap,
+      messages,
+      ['$ScannerTrained']
+    );
+  });
+
   test('extractable senders: IMAP-backed list is updated in append mode and messages are moved on', async () => {
     const messages = [makeMessage(1, 'sender@example.com')];
     fakeImapClient.count.mockReturnValue(1);
@@ -77,10 +92,37 @@ describe('sender-list-training.controller: messages with no extractable sender a
       'rspamd-whitelist-map',
       JSON.stringify(['sender@example.com'], null, 2)
     );
+    expect(fakeImapClient.updateLabels).toHaveBeenCalledWith(
+      mockImap,
+      messages,
+      ['$ScannerTrained']
+    );
     expect(fakeImapClient.moveMessages).toHaveBeenCalledWith(
       mockImap,
       messages,
       'INBOX'
+    );
+  });
+
+  test('runBlacklist never tags moved messages with $ScannerTrained', async () => {
+    const messages = [makeMessage(1, 'sender@example.com')];
+    fakeImapClient.count.mockReturnValue(1);
+    fakeImapClient.fetchAllMessages.mockResolvedValue(messages);
+    fakeStateManager.readMapState.mockResolvedValue([]);
+    const ctx = fixtureContext({
+      config: {
+        FOLDER_SPAM: 'INBOX.spam',
+        STATE_KEY_BLACKLIST_MAP: 'rspamd-blacklist-map',
+      },
+    });
+
+    await runBlacklist(mockImap, ctx);
+
+    expect(fakeImapClient.updateLabels).not.toHaveBeenCalled();
+    expect(fakeImapClient.moveMessages).toHaveBeenCalledWith(
+      mockImap,
+      messages,
+      'INBOX.spam'
     );
   });
 });

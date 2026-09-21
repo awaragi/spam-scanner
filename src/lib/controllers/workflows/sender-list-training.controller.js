@@ -4,10 +4,12 @@ import {
   count,
   fetchAllMessages,
   moveMessages,
+  updateLabels,
 } from '../../clients/imap.client.js';
 import { extractSenderAddresses } from '../../services/sender-lists.service.js';
 import { updateListState } from '../steps/list-update.step.js';
 import { createDefaultContext } from '../../core/context.js';
+import { TRAINED_FLAG } from '../../services/spam-classifier.service.js';
 
 const logger = rootLogger.forComponent('sender-list-training-controller');
 
@@ -19,6 +21,10 @@ const logger = rootLogger.forComponent('sender-list-training-controller');
  * @param {string} destFolder - Destination folder after processing
  * @param {string} type - Map type ('whitelist' or 'blacklist')
  * @param {Object} ctx
+ * @param {boolean} [tagAsTrained] - When true, flag every moved message with
+ *   `TRAINED_FLAG` before the move, exempting it from AI re-escalation on its
+ *   next scan (see `training-reescalation-guard`). Only meaningful when
+ *   `destFolder` is scanned (i.e. whitelist training, not blacklist training).
  * @returns {Promise<void>}
  */
 async function runMapTraining(
@@ -27,7 +33,8 @@ async function runMapTraining(
   mapStateKey,
   destFolder,
   type,
-  ctx
+  ctx,
+  tagAsTrained = false
 ) {
   try {
     const box = await open(imap, folder);
@@ -60,6 +67,9 @@ async function runMapTraining(
     }
 
     // Move processed messages to destination folder
+    if (tagAsTrained) {
+      await updateLabels(imap, messages, [TRAINED_FLAG]);
+    }
     await moveMessages(imap, messages, destFolder);
     logger.debug(
       { folder, type, destFolder, total: messages.length },
@@ -88,7 +98,8 @@ export async function runWhitelist(imap, ctx = createDefaultContext()) {
     ctx.config.STATE_KEY_WHITELIST_MAP,
     ctx.config.FOLDER_INBOX,
     'whitelist',
-    ctx
+    ctx,
+    true
   );
 }
 

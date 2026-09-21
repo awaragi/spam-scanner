@@ -8,6 +8,8 @@ import {
   applyWhitelistAdjustments,
   partitionByWhitelistFlag,
   mergeWhitelistedBack,
+  partitionByTrainedFlag,
+  mergeTrainedBack,
 } from '../../services/spam-classifier.service.js';
 import { partitionBySender } from '../../services/sender-lists.service.js';
 import {
@@ -92,10 +94,21 @@ async function scanBatch(imap, uids, state, processFn, lists, ctx) {
       categorized.lowSpamMessages
     );
 
+    // A message a human just reinjected via ham/whitelist training (see
+    // `training-reescalation-guard`) is held back from AI the same way an
+    // authenticated whitelist match is - it's a separate, message-scoped
+    // exemption, not a sender-level one, so it's partitioned independently.
+    const nonSpamTrainedPartition = partitionByTrainedFlag(
+      nonSpamPartition.rest
+    );
+    const lowSpamTrainedPartition = partitionByTrainedFlag(
+      lowSpamPartition.rest
+    );
+
     const aiResults = await classifyWithAi(
       {
-        nonSpamMessages: nonSpamPartition.rest,
-        lowSpamMessages: lowSpamPartition.rest,
+        nonSpamMessages: nonSpamTrainedPartition.rest,
+        lowSpamMessages: lowSpamTrainedPartition.rest,
       },
       ctx
     );
@@ -104,8 +117,8 @@ async function scanBatch(imap, uids, state, processFn, lists, ctx) {
     const escalated = applyAiEscalation(
       {
         ...categorized,
-        nonSpamMessages: nonSpamPartition.rest,
-        lowSpamMessages: lowSpamPartition.rest,
+        nonSpamMessages: nonSpamTrainedPartition.rest,
+        lowSpamMessages: lowSpamTrainedPartition.rest,
       },
       aiResults,
       {
@@ -114,8 +127,14 @@ async function scanBatch(imap, uids, state, processFn, lists, ctx) {
       }
     );
 
-    categorized = mergeWhitelistedBack(
+    const trainedMergedBack = mergeTrainedBack(
       escalated,
+      nonSpamTrainedPartition.trained,
+      lowSpamTrainedPartition.trained
+    );
+
+    categorized = mergeWhitelistedBack(
+      trainedMergedBack,
       nonSpamPartition.whitelisted,
       lowSpamPartition.whitelisted
     );

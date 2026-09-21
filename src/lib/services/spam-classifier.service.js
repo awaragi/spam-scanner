@@ -4,6 +4,15 @@
 import { senderAddressOf } from './sender-lists.service.js';
 
 /**
+ * IMAP keyword flag marking "a human just reviewed this exact message via a
+ * training folder (ham or whitelist) - don't let the AI safety net escalate
+ * it again." Set by the training workflows before reinjecting a message into
+ * `FOLDER_INBOX`; read here to exempt the flagged message from AI
+ * classification. See the `training-reescalation-guard` capability.
+ */
+export const TRAINED_FLAG = '$ScannerTrained';
+
+/**
  * Categorizes messages into four score-percentage-driven tiers - clean, low,
  * high, confirmed - per the `scan-inbox` capability. `scorePercentage` is
  * `(spamInfo.score / spamInfo.required) * 100`, where `spamInfo.score` is
@@ -236,5 +245,43 @@ export function mergeWhitelistedBack(
     ...categorized,
     nonSpamMessages: [...categorized.nonSpamMessages, ...nonSpamWhitelisted],
     lowSpamMessages: [...categorized.lowSpamMessages, ...lowSpamWhitelisted],
+  };
+}
+
+/**
+ * Splits a list of already-categorized messages by whether they carry
+ * `TRAINED_FLAG` - a human just reinjected this exact message via ham or
+ * whitelist training and it should not be re-escalated by AI. Independent of
+ * `partitionByWhitelistFlag`: a message's own training-exemption flag and its
+ * sender's whitelist-authentication status are two separately-reasoned
+ * exemptions, so each gets its own predicate rather than being folded into
+ * one combined check. See the `training-reescalation-guard` capability.
+ * @param {Array} messages
+ * @returns {{trained: Array, rest: Array}}
+ */
+export function partitionByTrainedFlag(messages) {
+  const trained = [];
+  const rest = [];
+  for (const message of messages) {
+    (message.flags?.has(TRAINED_FLAG) ? trained : rest).push(message);
+  }
+  return { trained, rest };
+}
+
+/**
+ * Merges `TRAINED_FLAG` messages (held back from AI classification/
+ * escalation) back into an AI-escalated categorization's nonSpam/lowSpam
+ * tiers - the tiers they were partitioned out of, so they land back where
+ * their own rspamd score already placed them. Mirrors `mergeWhitelistedBack`.
+ * @param {Object} categorized - output of applyAiEscalation (or of a prior mergeWhitelistedBack)
+ * @param {Array} nonSpamTrained - held-back flagged nonSpam messages
+ * @param {Array} lowSpamTrained - held-back flagged lowSpam messages
+ * @returns {Object} - new object, same shape as categorized
+ */
+export function mergeTrainedBack(categorized, nonSpamTrained, lowSpamTrained) {
+  return {
+    ...categorized,
+    nonSpamMessages: [...categorized.nonSpamMessages, ...nonSpamTrained],
+    lowSpamMessages: [...categorized.lowSpamMessages, ...lowSpamTrained],
   };
 }

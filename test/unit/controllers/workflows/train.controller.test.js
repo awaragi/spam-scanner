@@ -64,6 +64,45 @@ describe('train.controller: per-message failure isolation', () => {
     );
   });
 
+  test('runSpam never tags moved messages with $ScannerTrained', async () => {
+    const messages = [makeMessage(1)];
+    fakeImapClient.count.mockReturnValue(1);
+    fakeImapClient.fetchAllMessages.mockResolvedValue(messages);
+    fakeRspamdClient.learnSpam.mockResolvedValue({ success: true });
+
+    await runSpam(mockImap, fixtureContext());
+
+    expect(fakeImapClient.updateLabels).not.toHaveBeenCalled();
+  });
+
+  test('runHam tags learned and permanently-failed-but-moved-on messages with $ScannerTrained before moving them', async () => {
+    const messages = [makeMessage(1), makeMessage(2)];
+    fakeImapClient.count.mockReturnValue(2);
+    fakeImapClient.fetchAllMessages.mockResolvedValue(messages);
+    fakeRspamdClient.learnHam.mockImplementation(async raw => {
+      if (raw === 'raw-2') {
+        const err = new Error('bad request');
+        err.status = 400;
+        throw err;
+      }
+      return { success: true };
+    });
+    const ctx = fixtureContext({ config: { FOLDER_INBOX: 'INBOX' } });
+
+    await runHam(mockImap, ctx);
+
+    expect(fakeImapClient.updateLabels).toHaveBeenCalledWith(
+      mockImap,
+      [messages[0], messages[1]],
+      ['$ScannerTrained']
+    );
+    expect(fakeImapClient.moveMessages).toHaveBeenCalledWith(
+      mockImap,
+      [messages[0], messages[1]],
+      'INBOX'
+    );
+  });
+
   test('transient training failure does not throw: it is logged and swallowed, moveMessages is never called for it', async () => {
     const messages = [makeMessage(1), makeMessage(2)];
     fakeImapClient.count.mockReturnValue(2);
