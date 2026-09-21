@@ -409,26 +409,41 @@ describe('applyAiEscalation', () => {
 });
 
 describe('applyWhitelistAdjustment', () => {
-  test('subtracts 20 when whitelisted', () => {
-    expect(applyWhitelistAdjustment(30, true)).toBe(10);
+  test('subtracts 20 when whitelisted and authenticated', () => {
+    expect(applyWhitelistAdjustment(30, true, true)).toBe(10);
   });
 
-  test('leaves the score unchanged when not whitelisted', () => {
-    expect(applyWhitelistAdjustment(30, false)).toBe(30);
+  test('subtracts only 5 when whitelisted but not authenticated', () => {
+    expect(applyWhitelistAdjustment(30, true, false)).toBe(25);
+  });
+
+  test('defaults to unauthenticated (subtracts 5) when the flag is omitted', () => {
+    expect(applyWhitelistAdjustment(30, true)).toBe(25);
+  });
+
+  test('leaves the score unchanged when not whitelisted, regardless of authentication', () => {
+    expect(applyWhitelistAdjustment(30, false, true)).toBe(30);
+    expect(applyWhitelistAdjustment(30, false, false)).toBe(30);
   });
 });
 
 describe('applyWhitelistAdjustments', () => {
-  function messageFrom(uid, address, score = 30, required = 15) {
+  function messageFrom(
+    uid,
+    address,
+    score = 30,
+    required = 15,
+    isSenderAuthenticated = false
+  ) {
     return {
       uid,
       envelope: { from: [{ address }] },
-      spamInfo: { score, required },
+      spamInfo: { score, required, isSenderAuthenticated },
     };
   }
 
-  test('a whitelisted sender has 20 subtracted from the score and isWhitelisted set', () => {
-    const messages = [messageFrom(1, 'trusted@example.com', 30)];
+  test('an authenticated whitelisted sender has 20 subtracted and isWhitelisted set', () => {
+    const messages = [messageFrom(1, 'trusted@example.com', 30, 15, true)];
 
     const { messages: result, whitelistedTotal } = applyWhitelistAdjustments(
       messages,
@@ -438,6 +453,23 @@ describe('applyWhitelistAdjustments', () => {
     expect(result[0].spamInfo).toMatchObject({
       score: 10,
       isWhitelisted: true,
+      isSenderAuthenticated: true,
+    });
+    expect(whitelistedTotal).toBe(1);
+  });
+
+  test('an unauthenticated whitelisted sender has only 5 subtracted', () => {
+    const messages = [messageFrom(1, 'trusted@example.com', 30, 15, false)];
+
+    const { messages: result, whitelistedTotal } = applyWhitelistAdjustments(
+      messages,
+      new Set(['trusted@example.com'])
+    );
+
+    expect(result[0].spamInfo).toMatchObject({
+      score: 25,
+      isWhitelisted: true,
+      isSenderAuthenticated: false,
     });
     expect(whitelistedTotal).toBe(1);
   });
@@ -459,9 +491,9 @@ describe('applyWhitelistAdjustments', () => {
 
   test('counts whitelistedTotal across a mixed batch, unmatched entries untouched', () => {
     const messages = [
-      messageFrom(1, 'trusted@example.com', 30),
+      messageFrom(1, 'trusted@example.com', 30, 15, true),
       messageFrom(2, 'stranger@example.com', 30),
-      messageFrom(3, 'trusted@example.com', 50),
+      messageFrom(3, 'trusted@example.com', 50, 15, false),
     ];
 
     const { messages: result, whitelistedTotal } = applyWhitelistAdjustments(
@@ -469,23 +501,46 @@ describe('applyWhitelistAdjustments', () => {
       new Set(['trusted@example.com'])
     );
 
-    expect(result.map(m => m.spamInfo.score)).toEqual([10, 30, 30]);
+    expect(result.map(m => m.spamInfo.score)).toEqual([10, 30, 45]);
     expect(whitelistedTotal).toBe(2);
   });
 });
 
 describe('partitionByWhitelistFlag', () => {
-  test('splits messages by spamInfo.isWhitelisted', () => {
+  test('splits messages by isWhitelisted AND isSenderAuthenticated together', () => {
     const messages = [
-      { uid: 1, spamInfo: { isWhitelisted: true } },
-      { uid: 2, spamInfo: { isWhitelisted: false } },
-      { uid: 3, spamInfo: { isWhitelisted: true } },
+      {
+        uid: 1,
+        spamInfo: { isWhitelisted: true, isSenderAuthenticated: true },
+      },
+      {
+        uid: 2,
+        spamInfo: { isWhitelisted: false, isSenderAuthenticated: false },
+      },
+      {
+        uid: 3,
+        spamInfo: { isWhitelisted: true, isSenderAuthenticated: true },
+      },
     ];
 
     const { whitelisted, rest } = partitionByWhitelistFlag(messages);
 
     expect(whitelisted.map(m => m.uid)).toEqual([1, 3]);
     expect(rest.map(m => m.uid)).toEqual([2]);
+  });
+
+  test('an unauthenticated whitelist match is NOT held back from AI', () => {
+    const messages = [
+      {
+        uid: 1,
+        spamInfo: { isWhitelisted: true, isSenderAuthenticated: false },
+      },
+    ];
+
+    const { whitelisted, rest } = partitionByWhitelistFlag(messages);
+
+    expect(whitelisted).toEqual([]);
+    expect(rest.map(m => m.uid)).toEqual([1]);
   });
 
   test('treats a missing spamInfo as not whitelisted', () => {

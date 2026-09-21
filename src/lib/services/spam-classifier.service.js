@@ -136,15 +136,26 @@ export function applyAiEscalation(categorized, aiResults, thresholds = {}) {
 }
 
 /**
- * Pure - the -20 whitelist adjustment rspamd's own multimap rule used to
+ * Pure - the whitelist score adjustment rspamd's own multimap rule used to
  * apply, now computed here since rspamd is a stateless content scorer with
- * no list awareness (see `sender-lists` capability).
+ * no list awareness (see `sender-lists` capability). The full -20 discount
+ * only applies when rspamd also found a passing DKIM/DMARC symbol for the
+ * message (`isSenderAuthenticated`); an unauthenticated whitelist match
+ * (address matched, but nothing proves the message actually came from it -
+ * the most common phishing pattern) gets a smaller -5 discount instead, so a
+ * spoofed "trusted" sender's spammy content can still reach `confirmed`.
  * @param {number} rawScore
  * @param {boolean} isWhitelisted
+ * @param {boolean} [isSenderAuthenticated]
  * @returns {number}
  */
-export function applyWhitelistAdjustment(rawScore, isWhitelisted) {
-  return isWhitelisted ? rawScore - 20 : rawScore;
+export function applyWhitelistAdjustment(
+  rawScore,
+  isWhitelisted,
+  isSenderAuthenticated = false
+) {
+  if (!isWhitelisted) return rawScore;
+  return isSenderAuthenticated ? rawScore - 20 : rawScore - 5;
 }
 
 /**
@@ -153,8 +164,10 @@ export function applyWhitelistAdjustment(rawScore, isWhitelisted) {
  * `spamInfo`, and counts how many were whitelisted. This is where
  * `rspamd-check.step.js` used to do per-message whitelist lookup/adjustment
  * before attaching `spamInfo` - now split out since rspamd itself has no
- * list awareness (see `sender-lists` capability).
- * @param {Array} messages - already-checked messages (spamInfo.score/required set)
+ * list awareness (see `sender-lists` capability). `isSenderAuthenticated` is
+ * read from `spamInfo` (set by `rspamd-check.step.js` from rspamd's own
+ * DKIM/DMARC symbols) and passed through unchanged - it's not computed here.
+ * @param {Array} messages - already-checked messages (spamInfo.score/required/isSenderAuthenticated set)
  * @param {Set<string>} whitelistSet - normalized whitelist addresses
  * @returns {{messages: Array, whitelistedTotal: number}}
  */
@@ -162,13 +175,20 @@ export function applyWhitelistAdjustments(messages, whitelistSet) {
   let whitelistedTotal = 0;
   const adjusted = messages.map(message => {
     const isWhitelisted = whitelistSet.has(senderAddressOf(message));
+    const isSenderAuthenticated = Boolean(
+      message.spamInfo.isSenderAuthenticated
+    );
     if (isWhitelisted) whitelistedTotal++;
     return {
       ...message,
       spamInfo: {
         ...message.spamInfo,
         isWhitelisted,
-        score: applyWhitelistAdjustment(message.spamInfo.score, isWhitelisted),
+        score: applyWhitelistAdjustment(
+          message.spamInfo.score,
+          isWhitelisted,
+          isSenderAuthenticated
+        ),
       },
     };
   });
@@ -177,9 +197,14 @@ export function applyWhitelistAdjustments(messages, whitelistSet) {
 
 /**
  * Splits a list of already-categorized messages by whether their sender was
- * whitelisted (`spamInfo.isWhitelisted`, set by `applyWhitelistAdjustment`'s
- * caller). Used only to decide AI eligibility - it never changes which tier
- * a message is in.
+ * both whitelisted AND authenticated (`spamInfo.isWhitelisted` and
+ * `spamInfo.isSenderAuthenticated`, set by `applyWhitelistAdjustments`).
+ * Used only to decide AI eligibility - it never changes which tier a
+ * message is in. An unauthenticated whitelist match (address matched, but
+ * rspamd found no passing DKIM/DMARC symbol) does NOT skip AI - it's
+ * treated like a non-whitelisted message, since the match alone doesn't
+ * establish the sender is who the whitelist entry names (see
+ * `sender-lists` capability).
  * @param {Array} messages
  * @returns {{whitelisted: Array, rest: Array}}
  */
@@ -187,7 +212,10 @@ export function partitionByWhitelistFlag(messages) {
   const whitelisted = [];
   const rest = [];
   for (const message of messages) {
-    (message.spamInfo?.isWhitelisted ? whitelisted : rest).push(message);
+    const isTrustedMatch =
+      message.spamInfo?.isWhitelisted &&
+      message.spamInfo?.isSenderAuthenticated;
+    (isTrustedMatch ? whitelisted : rest).push(message);
   }
   return { whitelisted, rest };
 }

@@ -54,6 +54,19 @@ describe('processWithRspamd', () => {
     expect(result[0].spamInfo).not.toHaveProperty('isWhitelisted');
   });
 
+  test('threads isSenderAuthenticated from rspamd symbols onto spamInfo', async () => {
+    const messages = [makeMessage(1)];
+    fakeRspamdClient.checkEmail.mockResolvedValue({
+      score: 1,
+      required_score: 15,
+      symbols: { R_DKIM_ALLOW: { score: -0.2 } },
+    });
+
+    const result = await processWithRspamd(messages);
+
+    expect(result[0].spamInfo.isSenderAuthenticated).toBe(true);
+  });
+
   test('one permanent failure, one success: permanent one skipped, success kept, no throw', async () => {
     const messages = [makeMessage(1), makeMessage(2)];
     fakeRspamdClient.checkEmail.mockImplementation(async raw => {

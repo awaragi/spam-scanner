@@ -260,7 +260,7 @@ describe('AI escalation wiring', () => {
     );
   });
 
-  test('AI_ENABLED=true: a whitelisted clean-tier message is never sent to AI and stays clean', async () => {
+  test('AI_ENABLED=true: an authenticated whitelisted clean-tier message is never sent to AI and stays clean', async () => {
     const ctx = fixtureContext({
       config: { AI_ENABLED: true, SPAM_PROCESSING_MODE: 'folder' },
     });
@@ -276,10 +276,9 @@ describe('AI escalation wiring', () => {
     fakeImapClient.fetchMessagesByUIDs.mockResolvedValue([
       fixtureMessage({ uid: 101, from: 'trusted@example.com' }),
     ]);
-    fakeRspamdClient.checkEmail.mockResolvedValue({
-      score: 1,
-      required_score: 15,
-    });
+    fakeRspamdClient.checkEmail.mockResolvedValue(
+      fixtureRspamdCheck({ score: 1, required: 15, authenticated: true })
+    );
 
     await runScan({}, ctx);
 
@@ -289,6 +288,33 @@ describe('AI escalation wiring', () => {
       call => call[2] === ctx.config.FOLDER_SPAM_LOW
     );
     expect(lowSpamCall[1]).toEqual([]);
+  });
+
+  test('AI_ENABLED=true: an unauthenticated whitelisted clean-tier message is still sent to AI', async () => {
+    const ctx = fixtureContext({
+      config: { AI_ENABLED: true, SPAM_PROCESSING_MODE: 'folder' },
+    });
+    fakeStateManager.readScannerState.mockResolvedValue({
+      last_uid: 100,
+      last_seen_date: '',
+      last_checked: '',
+    });
+    fakeStateManager.readMapState.mockImplementation((imap, key) =>
+      key === ctx.config.STATE_KEY_WHITELIST_MAP ? ['trusted@example.com'] : []
+    );
+    fakeImapClient.search.mockResolvedValue([101]);
+    fakeImapClient.fetchMessagesByUIDs.mockResolvedValue([
+      fixtureMessage({ uid: 101, from: 'trusted@example.com' }),
+    ]);
+    // No `symbols` - rspamd found no passing DKIM/DMARC, so the whitelist
+    // match is untrusted and must not exempt this message from AI.
+    fakeRspamdClient.checkEmail.mockResolvedValue(
+      fixtureRspamdCheck({ score: 1, required: 15 })
+    );
+
+    await runScan({}, ctx);
+
+    expect(fakeAiClient.classifyEmail).toHaveBeenCalled();
   });
 });
 

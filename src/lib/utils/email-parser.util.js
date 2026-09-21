@@ -73,15 +73,26 @@ export function parseEmail(rawEmail) {
   return { headers, body };
 }
 
+// Symbols rspamd sets when it verifies the message's own DKIM signature or
+// finds a passing DMARC alignment - see rspamd's scores.d/policies_group.conf.
+// DMARC_POLICY_ALLOW_WITH_FAILURES deliberately does NOT count: it means the
+// policy allowed the message despite a DKIM/SPF failure, not that it verified.
+const AUTHENTICATING_SYMBOLS = ['R_DKIM_ALLOW', 'DMARC_POLICY_ALLOW'];
+
 /**
  * Parses Rspamd JSON response to extract its content score. Rspamd is a
  * stateless content scorer only (see the `sender-lists` capability) - it has
- * no list/mailbox awareness, so its own `action` and any `symbols` it
- * returns are no longer used to derive spam/whitelist status. That
- * derivation happens entirely in app code from `score`/`required` plus the
- * app's own whitelist/blacklist lookups (see `spam-classifier.js`).
+ * no list/mailbox awareness, so its own `action` is not used to derive
+ * spam/whitelist status. That derivation happens entirely in app code from
+ * `score`/`required` plus the app's own whitelist/blacklist lookups (see
+ * `spam-classifier.js`). `symbols` IS read for one narrow purpose: whether
+ * rspamd found a passing DKIM/DMARC symbol for the message, used to decide
+ * whether a whitelist hit can be trusted as authenticated (see the
+ * `sender-lists` capability) - this doesn't reintroduce list/mailbox
+ * awareness into rspamd, since it's a content-scoring signal rspamd computes
+ * for every message regardless of any list.
  * @param {Object} response - JSON response object from Rspamd /checkv2 endpoint
- * @returns {{score: number, required: number}} - Rspamd's content score and its add-header threshold
+ * @returns {{score: number, required: number, isSenderAuthenticated: boolean}} - Rspamd's content score, its add-header threshold, and whether it found a passing DKIM/DMARC symbol
  */
 export function parseRspamdOutput(response) {
   if (!response || typeof response !== 'object') {
@@ -92,10 +103,15 @@ export function parseRspamdOutput(response) {
 
   const score = response.score || 0;
   const required = response.required_score || 0;
+  const symbols = response.symbols || {};
+  const isSenderAuthenticated = AUTHENTICATING_SYMBOLS.some(
+    symbol => symbol in symbols
+  );
 
   return {
     score,
     required,
+    isSenderAuthenticated,
   };
 }
 

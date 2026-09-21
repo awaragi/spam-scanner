@@ -17,8 +17,23 @@ export function fixtureMessage({ from, envelope, ...overrides } = {}) {
   };
 }
 
-export function fixtureRspamdCheck({ score = 5, required = 15 } = {}) {
-  return { score, required_score: required };
+/**
+ * A rspamd `/checkv2` response fixture. `authenticated: true` adds the
+ * `R_DKIM_ALLOW` symbol, so `parseRspamdOutput` reports
+ * `isSenderAuthenticated: true` - the signal `applyWhitelistAdjustment`/
+ * `partitionByWhitelistFlag` gate the full whitelist discount and AI-skip
+ * on (see the `sender-lists` capability).
+ */
+export function fixtureRspamdCheck({
+  score = 5,
+  required = 15,
+  authenticated = false,
+} = {}) {
+  return {
+    score,
+    required_score: required,
+    ...(authenticated ? { symbols: { R_DKIM_ALLOW: { score: -0.2 } } } : {}),
+  };
 }
 
 export function fixtureAiResult({ score = 10, reasoning = 'looks fine' } = {}) {

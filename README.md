@@ -26,7 +26,10 @@ Email address whitelisting and blacklisting is decided entirely in application c
 Blacklist and whitelist are treated differently on purpose:
 
 - **Blacklist**: an absolute override. A blacklisted sender is checked _before_ Rspamd is even called - the message is classified `confirmed` (moved to the spam folder) unconditionally, with no content scoring and no AI review.
-- **Whitelist**: a **−20** adjustment to Rspamd's own content score, applied _after_ Rspamd responds. A whitelisted sender still skips AI review, but severe-enough content can still push the message into the `confirmed` tier despite the whitelist match - a spoofed "trusted" address doesn't get a free pass on content that's bad enough.
+- **Whitelist**: a score adjustment applied _after_ Rspamd responds, sized by whether the sender is authenticated - matching only the envelope `From` address is spoofable (the most common phishing pattern forges a trusted contact's address), so a whitelist hit alone isn't treated as proof of identity:
+  - **Authenticated** (Rspamd's response includes a passing DKIM or DMARC symbol for the message): a full **−20** adjustment, and AI review is skipped.
+  - **Unauthenticated** (address matched, but Rspamd found no passing DKIM/DMARC symbol): a reduced **−5** adjustment, and the message still goes through AI review like any other message - so a spoofed "trusted" address gets, at most, a small discount, never a free pass.
+  - Either way, severe-enough content can still push the message into the `confirmed` tier despite the whitelist match.
 
 If a sender is listed on both, blacklist wins.
 
@@ -155,7 +158,8 @@ LABEL_SPAM_HIGH=Spam:High
 # Score-percentage thresholds ((score / required_score) * 100) that decide a
 # message's tier - clean, low, high, or confirmed (moved to FOLDER_SPAM,
 # skips AI). A blacklist match is always confirmed regardless of score; a
-# whitelist match subtracts 20 from the score before this math runs.
+# whitelist match subtracts 20 from the score before this math runs if the
+# sender is DKIM/DMARC-authenticated, or 5 if not (see Whitelist & Blacklist).
 SPAM_CLEAN_THRESHOLD=30
 SPAM_LOW_THRESHOLD=60
 SPAM_CONFIRMED_THRESHOLD=200
