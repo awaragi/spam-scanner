@@ -70,21 +70,6 @@ describe('sender-list-training.controller: messages with no extractable sender a
     );
   });
 
-  test('no extractable senders: messages are still tagged $ScannerTrained before moving', async () => {
-    const messages = [makeMessage(1, undefined)];
-    fakeImapClient.count.mockReturnValue(1);
-    stubUidsAndFetch(messages);
-    const ctx = fixtureContext({ config: { FOLDER_INBOX: 'INBOX' } });
-
-    await runWhitelist(mockImap, ctx);
-
-    expect(fakeImapClient.updateLabels).toHaveBeenCalledWith(
-      mockImap,
-      messages,
-      ['$ScannerTrained']
-    );
-  });
-
   test('extractable senders: IMAP-backed list is updated in append mode and messages are moved on', async () => {
     const messages = [makeMessage(1, 'sender@example.com')];
     fakeImapClient.count.mockReturnValue(1);
@@ -104,11 +89,6 @@ describe('sender-list-training.controller: messages with no extractable sender a
       'rspamd-whitelist-map',
       JSON.stringify(['sender@example.com'], null, 2)
     );
-    expect(fakeImapClient.updateLabels).toHaveBeenCalledWith(
-      mockImap,
-      messages,
-      ['$ScannerTrained']
-    );
     expect(fakeImapClient.moveMessages).toHaveBeenCalledWith(
       mockImap,
       messages,
@@ -116,7 +96,7 @@ describe('sender-list-training.controller: messages with no extractable sender a
     );
   });
 
-  test('runBlacklist never tags moved messages with $ScannerTrained', async () => {
+  test('runBlacklist moves messages to FOLDER_SPAM', async () => {
     const messages = [makeMessage(1, 'sender@example.com')];
     fakeImapClient.count.mockReturnValue(1);
     stubUidsAndFetch(messages);
@@ -130,7 +110,6 @@ describe('sender-list-training.controller: messages with no extractable sender a
 
     await runBlacklist(mockImap, ctx);
 
-    expect(fakeImapClient.updateLabels).not.toHaveBeenCalled();
     expect(fakeImapClient.moveMessages).toHaveBeenCalledWith(
       mockImap,
       messages,
