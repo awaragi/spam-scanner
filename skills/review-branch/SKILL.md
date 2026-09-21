@@ -69,20 +69,23 @@ correctly even in a fresh session.
    context suggests a good name, like `review/<topic>`) and tell the user the name you
    picked - no need to ask unless they'd previously indicated a naming preference or the
    default would collide with an existing branch (`git rev-parse --verify --quiet
-   refs/heads/<name>`).
+refs/heads/<name>`).
 
 6. **Create it and stage the merge:**
+
    ```bash
    git branch <review-branch> <base>
    git checkout <review-branch>
    git merge --no-commit --no-ff <source-branch>
    ```
+
    If the merge reports conflicts (unexpected for this workflow - it implies the review
    branch's base diverged from the source branch in a way that isn't a strict ancestor
    relationship), stop, show the user the conflicting files, and ask how to proceed. Do not
    resolve conflicts unilaterally.
 
 7. **Persist the marker:**
+
    ```bash
    git config --local reviewbranch.source <source-branch>
    git config --local reviewbranch.branch <review-branch>
