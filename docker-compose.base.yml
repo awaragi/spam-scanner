@@ -1,0 +1,66 @@
+# Shared infra stack (rspamd, Redis, Unbound) - included by both the
+# production compose file (docker-compose.yml) and the local dev compose file
+# (bin/local/docker-compose.yml) via the top-level `include:` directive, so
+# the two never drift out of sync. Not meant to be run directly with `-f`.
+
+services:
+  rspamd:
+    image: rspamd/rspamd:3.14
+    ports:
+      # Loopback-only: the controller/web UI holds Bayes training and map
+      # data, so it must never be reachable from the LAN or internet. Access
+      # remotely via an SSH tunnel (ssh -L 11334:localhost:11334 host).
+      # The proxy worker (11332) is not used by this project and isn't published.
+      - "127.0.0.1:11334:11334"
+    volumes:
+      - ./rspamd/config:/etc/rspamd/local.d
+      - ${SPAM_SCANNER_DATA:?Set SPAM_SCANNER_DATA in .env to an absolute path}/rspamd/data:/var/lib/rspamd
+      - ${SPAM_SCANNER_DATA:?Set SPAM_SCANNER_DATA in .env to an absolute path}/rspamd/logs:/var/log/rspamd
+    depends_on:
+      redis:
+        condition: service_healthy
+      unbound:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - spam-network
+    healthcheck:
+      # `uptime` is an unauthenticated control command (unlike learn_spam/learn_ham),
+      # so this needs no RSPAMD_PASSWORD. start_period covers rspamd's TLD-suffix
+      # compilation on cold start (observed ~8s; padded well above that).
+      test: ['CMD', 'rspamc', '-h', '127.0.0.1:11334', 'uptime']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    image: redis:8-alpine
+    volumes:
+      - ${SPAM_SCANNER_DATA:?Set SPAM_SCANNER_DATA in .env to an absolute path}/redis:/data
+    restart: unless-stopped
+    networks:
+      - spam-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  unbound:
+    # Pinned by digest, not tag: this image publishes only `:latest` (no
+    # semver tags) - see https://github.com/klutchell/unbound-docker.
+    # No healthcheck: the image ships with `control-enable: no` by default,
+    # so `unbound-control status` (the only in-image health probe) fails out
+    # of the box; wiring one up needs a custom unbound.conf, which is out of
+    # scope here. rspamd is pointed at this resolver via
+    # rspamd/config/options.inc's `dns { nameserver = ["unbound:53"]; }`.
+    image: klutchell/unbound@sha256:cb9a0f06c803c764395e2ff50bd8a244470601290c78fb2cdcf1bd200a027cd6
+    restart: unless-stopped
+    networks:
+      - spam-network
+
+networks:
+  spam-network:
+    driver: bridge
