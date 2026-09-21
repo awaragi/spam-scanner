@@ -64,8 +64,8 @@ services:
     # No healthcheck: the image ships with `control-enable: no` by default,
     # so `unbound-control status` (the only in-image health probe) fails out
     # of the box; wiring one up needs a custom unbound.conf, which is out of
-    # scope here (see ROADMAP.md 5.6, still open, about wiring rspamd to use
-    # this resolver at all).
+    # scope here. rspamd is pointed at this resolver via
+    # rspamd/config/options.inc's `dns { nameserver = ["unbound:53"]; }`.
     image: klutchell/unbound@sha256:cb9a0f06c803c764395e2ff50bd8a244470601290c78fb2cdcf1bd200a027cd6
     restart: unless-stopped
     networks:
