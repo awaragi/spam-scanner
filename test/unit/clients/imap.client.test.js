@@ -1,21 +1,87 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../../src/lib/core/config.js', () => ({ config: {} }));
-vi.mock('../../../src/lib/core/logger.js', () => ({
-  rootLogger: {
-    forComponent: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
-  },
-}));
+vi.mock('../../../src/lib/core/logger.js', () => {
+  const noOpLogger = {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  };
+  noOpLogger.forMessage = () => noOpLogger;
+  return {
+    rootLogger: {
+      forComponent: () => noOpLogger,
+    },
+  };
+});
 
 import {
   safeLogout,
   waitForNewMail,
+  processMessageHeaders,
+  fetchMessageHeadersByUIDs,
 } from '../../../src/lib/clients/imap.client.js';
+
+describe('processMessageHeaders', () => {
+  test('parses headers from a header buffer that already ends in a blank line', () => {
+    const message = {
+      uid: 1,
+      headers: Buffer.from('From: a@example.com\r\nSubject: hi\r\n\r\n'),
+    };
+
+    const result = processMessageHeaders(message);
+
+    expect(result).toEqual({
+      uid: 1,
+      headers: { from: 'a@example.com', subject: 'hi' },
+    });
+  });
+
+  test('parses headers from a header buffer with no trailing blank line', () => {
+    // Some servers' BODY[HEADER] response omits the trailing CRLFCRLF -
+    // processMessageHeaders must still find the header/body boundary.
+    const message = {
+      uid: 2,
+      headers: Buffer.from('From: b@example.com\r\nSubject: bye'),
+    };
+
+    const result = processMessageHeaders(message);
+
+    expect(result).toEqual({
+      uid: 2,
+      headers: { from: 'b@example.com', subject: 'bye' },
+    });
+  });
+});
+
+describe('fetchMessageHeadersByUIDs', () => {
+  test('fetches only headers (never source/envelope/bodyStructure) and maps results through processMessageHeaders', async () => {
+    async function* fakeFetch() {
+      yield {
+        uid: 1,
+        headers: Buffer.from('From: a@example.com\r\n\r\n'),
+      };
+      yield {
+        uid: 2,
+        headers: Buffer.from('From: b@example.com\r\n\r\n'),
+      };
+    }
+    const mockImap = { fetch: vi.fn().mockReturnValue(fakeFetch()) };
+
+    const result = await fetchMessageHeadersByUIDs(mockImap, [1, 2]);
+
+    expect(mockImap.fetch).toHaveBeenCalledWith(
+      { uid: '1,2' },
+      { uid: true, headers: true },
+      { uid: true }
+    );
+    expect(result).toEqual([
+      { uid: 1, headers: { from: 'a@example.com' } },
+      { uid: 2, headers: { from: 'b@example.com' } },
+    ]);
+  });
+});
 
 describe('safeLogout', () => {
   test('calls imap.logout()', async () => {

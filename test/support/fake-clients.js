@@ -7,7 +7,7 @@ export function createFakeImapClient() {
     search: vi.fn().mockResolvedValue([]),
     count: vi.fn().mockReturnValue(0),
     fetchMessagesByUIDs: vi.fn().mockResolvedValue([]),
-    fetchAllMessages: vi.fn().mockResolvedValue([]),
+    fetchMessageHeadersByUIDs: vi.fn().mockResolvedValue([]),
     moveMessages: vi.fn().mockResolvedValue(),
     appendMessage: vi.fn().mockResolvedValue(),
     updateLabels: vi.fn().mockResolvedValue(),

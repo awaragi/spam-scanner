@@ -154,6 +154,28 @@ export function processMessage(message) {
 }
 
 /**
+ * Helper function to handle headers-only message fetching - for callers (map
+ * training) that only need `uid`/`headers`, never the source or body, so a
+ * much cheaper `BODY[HEADER]` fetch suffices instead of a full `BODY[]` one.
+ * `parseEmail` splits on the first blank line it finds to separate headers
+ * from body; a headers-only fetch has no body and so may have no trailing
+ * blank line, so one is appended here - a no-op if the fetched header block
+ * already ends in one, and otherwise what makes `parseEmail` find the
+ * boundary at all rather than treating the whole buffer as bodyless content.
+ * @param {Object} message - The message object from ImapFlow (fetched with `headers: true`)
+ * @returns {{uid: number, headers: Record<string, string>}}
+ */
+export function processMessageHeaders(message) {
+  const { uid, headers: headerBuffer } = message;
+  const messageLogger = logger.forMessage(uid);
+  const { headers } = parseEmail(`${headerBuffer.toString()}\r\n\r\n`);
+
+  messageLogger.debug('Message headers read');
+
+  return { uid, headers };
+}
+
+/**
  * Open folder and return the box object
  */
 export async function open(imap, folder, readOnly = false) {
@@ -207,33 +229,6 @@ export async function search(imap, query) {
 }
 
 /**
- * for learnFromFolder: Fetch all messages sequentially
- * @param {Object} imap - ImapFlow client
- * @returns {Promise<Array>} - Array of message objects with uid, raw content, and attributes
- */
-export async function fetchAllMessages(imap) {
-  try {
-    const messages = [];
-
-    // Use for await to process messages one by one
-    for await (const message of imap.fetch('1:*', {
-      source: true,
-      envelope: true,
-      bodyStructure: true,
-      flags: true,
-    })) {
-      messages.push(processMessage(message));
-    }
-
-    logger.debug({ messageCount: messages.length }, 'Fetched all messages');
-    return messages;
-  } catch (err) {
-    logger.error({ error: err.message }, 'Error fetching all messages');
-    throw err;
-  }
-}
-
-/**
  * Fetch messages by UID
  * @param {Object} imap - ImapFlow client
  * @param {Array} uids - Array of UIDs to fetch
@@ -268,6 +263,40 @@ export async function fetchMessagesByUIDs(imap, uids) {
     logger.error(
       { error: err.message, uids },
       'Error fetching messages by UIDs'
+    );
+    throw err;
+  }
+}
+
+/**
+ * Fetch only message headers by UID - see `processMessageHeaders` for why
+ * this exists as a separate, cheaper primitive from `fetchMessagesByUIDs`.
+ * @param {Object} imap - ImapFlow client
+ * @param {Array} uids - Array of UIDs to fetch
+ * @returns {Promise<Array>} - Array of `{uid, headers}` objects
+ */
+export async function fetchMessageHeadersByUIDs(imap, uids) {
+  try {
+    const messages = [];
+    const _messages = imap.fetch(
+      { uid: uids.join(',') },
+      { uid: true, headers: true },
+      { uid: true }
+    );
+
+    for await (const message of _messages) {
+      messages.push(processMessageHeaders(message));
+    }
+
+    logger.debug(
+      { uids, messageCount: messages.length },
+      'Fetched message headers by UIDs'
+    );
+    return messages;
+  } catch (err) {
+    logger.error(
+      { error: err.message, uids },
+      'Error fetching message headers by UIDs'
     );
     throw err;
   }

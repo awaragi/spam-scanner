@@ -2,7 +2,8 @@ import { rootLogger } from '../../core/logger.js';
 import {
   open,
   count,
-  fetchAllMessages,
+  search,
+  fetchMessagesByUIDs,
   moveMessages,
   updateLabels,
 } from '../../clients/imap.client.js';
@@ -52,21 +53,25 @@ async function runTraining(
       return;
     }
 
-    const messages = await fetchAllMessages(imap);
+    const uids = await search(imap, { all: true });
     const { PROCESS_BATCH_SIZE } = ctx.config;
 
-    // Process messages in batches
-    for (let i = 0; i < messages.length; i += PROCESS_BATCH_SIZE) {
+    // Search UIDs once, then fetch/train/move PROCESS_BATCH_SIZE messages at a
+    // time - bounds how much message content is ever in memory at once, and
+    // means a batch already trained and moved survives a later batch's fetch
+    // failure (see `bounded-training-fetch`).
+    for (let i = 0; i < uids.length; i += PROCESS_BATCH_SIZE) {
       logger.debug(
         {
           from: i,
-          to: Math.min(i + PROCESS_BATCH_SIZE, messages.length),
-          total: messages.length,
+          to: Math.min(i + PROCESS_BATCH_SIZE, uids.length),
+          total: uids.length,
           type,
         },
         'Learn batch'
       );
-      const batchMessages = messages.slice(i, i + PROCESS_BATCH_SIZE);
+      const batchUids = uids.slice(i, i + PROCESS_BATCH_SIZE);
+      const batchMessages = await fetchMessagesByUIDs(imap, batchUids);
       const { learned, skipped } = await trainFn(batchMessages, ctx);
       if (skipped.length > 0) {
         logger.warn(
@@ -85,7 +90,7 @@ async function runTraining(
     }
 
     logger.info(
-      { folder, type, total: messages.length },
+      { folder, type, total: uids.length },
       'All operations completed'
     );
   } catch (error) {
