@@ -83,12 +83,12 @@ const ConfigSchema = z
       )
       .default('new'),
     IDLE_WATCHDOG_MS: intField(1200000),
-    // Single-run (<0) / IDLE (0) / poll-every-N-seconds (>0). Read here, not
-    // via a direct process.env read at its point of use, so a typo (e.g.
-    // "5m") is caught at startup instead of silently misread (or, for a
-    // fully non-numeric value, NaN -> setTimeout(NaN) -> a tight loop
+    // Single-run (<0) / IDLE (0, the default) / poll-every-N-seconds (>0).
+    // Read here, not via a direct process.env read at its point of use, so a
+    // typo (e.g. "5m") is caught at startup instead of silently misread (or,
+    // for a fully non-numeric value, NaN -> setTimeout(NaN) -> a tight loop
     // hammering IMAP and rspamd) - see the `config-validation` capability.
-    SCAN_INTERVAL: intField(-1),
+    SCAN_INTERVAL: intField(0),
 
     LABEL_SPAM_LOW: z.string().default('Spam:Low'),
     LABEL_SPAM_HIGH: z.string().default('Spam:High'),

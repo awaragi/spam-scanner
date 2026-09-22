@@ -55,19 +55,19 @@ The orchestrator SHALL execute the following steps in order on each poll cycle: 
 - **THEN** the remaining steps in that cycle SHALL NOT execute, but the orchestrator SHALL NOT exit immediately — the failure is instead handled by the cycle-retry-with-backoff requirement below
 
 ### Requirement: Configurable sleep interval
-The orchestrator SHALL use `SCAN_INTERVAL` to control loop behaviour, defaulting to `-1`.
+The orchestrator SHALL use `SCAN_INTERVAL` to control loop behaviour, defaulting to `0`.
 
-#### Scenario: Single-run mode (default)
-- **WHEN** `SCAN_INTERVAL` is `-1` or not set in the environment
-- **THEN** the orchestrator SHALL execute one full cycle and exit
+#### Scenario: IDLE mode (default)
+- **WHEN** `SCAN_INTERVAL` is `0` or not set in the environment
+- **THEN** the orchestrator SHALL enter IDLE mode and SHALL NOT use a fixed sleep interval between cycles
 
 #### Scenario: Custom interval used when set
 - **WHEN** `SCAN_INTERVAL` is set to a positive integer in the environment
 - **THEN** the orchestrator SHALL wait that many seconds after each completed cycle before starting the next, repeating indefinitely
 
-#### Scenario: IDLE mode when SCAN_INTERVAL is zero
-- **WHEN** `SCAN_INTERVAL` is set to `0` in the environment
-- **THEN** the orchestrator SHALL enter IDLE mode and SHALL NOT use a fixed sleep interval between cycles
+#### Scenario: Single-run mode when SCAN_INTERVAL is negative
+- **WHEN** `SCAN_INTERVAL` is set to `-1` in the environment
+- **THEN** the orchestrator SHALL execute one full cycle and exit
 
 ### Requirement: IDLE mode loop
 When `SCAN_INTERVAL=0`, the orchestrator SHALL drive scan cycles via IMAP IDLE notifications rather than a fixed sleep interval.

@@ -135,13 +135,13 @@ describe('config', () => {
     );
   });
 
-  test('SCAN_INTERVAL defaults to -1 (single-run) when unset', async () => {
+  test('SCAN_INTERVAL defaults to 0 (IDLE mode) when unset', async () => {
     delete process.env.SCAN_INTERVAL;
     process.env.AI_ENABLED = 'false';
 
     const { config } = await import('../../../src/lib/core/config.js');
 
-    expect(config.SCAN_INTERVAL).toBe(-1);
+    expect(config.SCAN_INTERVAL).toBe(0);
   });
 
   test('throws naming the field when SPAM_PROCESSING_MODE is invalid', async () => {

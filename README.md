@@ -19,6 +19,85 @@ Supports UID-based incremental scanning, mailbox-contained state, and both manua
 
 ---
 
+## Quickstart (Local Setup)
+
+The fastest path from a clean checkout to a running scanner. Everything here is covered in more depth further down (environment variables, folder mechanics, whitelist/blacklist, troubleshooting); this section exists so you don't have to jump around to get a working setup on the first try.
+
+**Prerequisites**: Docker Engine 20.10+ and Docker Compose v2 (`docker compose`, not the old
+`docker-compose` v1 CLI).
+
+1. **Clone the repository**
+
+   ```bash
+   git clone git@github.com:awaragi/spam-scanner.git
+   cd spam-scanner
+   ```
+
+2. **Configure your environment**
+
+   ```bash
+   cp .env.example .env
+   nano .env
+   ```
+
+   At minimum, set:
+   - `IMAP_HOST`, `IMAP_PORT`, `IMAP_USER`, `IMAP_PASSWORD` - your mailbox's IMAP credentials
+   - `RSPAMD_PASSWORD` - pick your own; never reuse the example value
+   - `SPAM_SCANNER_DATA` - an **absolute** path on the host for Rspamd/Redis data (Docker Compose
+     does not expand `~`)
+   - `SCAN_INTERVAL` - defaults to `0` (event-driven IDLE mode) when unset, which is what you want for a normal always-on Docker container. Set it to `-1` for single-run mode (e.g. cron/an external scheduler - the container exits after one cycle, and Compose's `restart: unless-stopped` just keeps relaunching it) or a poll interval in seconds (e.g. `300`) instead.
+
+   (`RSPAMD_URL` is auto-set to the internal Docker service address and doesn't need editing.)
+
+3. **Generate the Rspamd controller password**
+
+   ```bash
+   bin/local/hash-rspamd-password.sh
+   ```
+
+   Reads `RSPAMD_PASSWORD` from `.env` and writes `rspamd/config/worker-controller.inc`
+   (gitignored - every install generates its own). Re-run this and `docker compose restart rspamd`
+   whenever you change `RSPAMD_PASSWORD`.
+
+4. **Start everything**
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+   This builds and starts all four services: spam-scanner, rspamd, redis, unbound.
+
+5. **Confirm it's working**
+
+   ```bash
+   docker compose logs -f spam-scanner
+   ```
+
+   On its very first cycle the app creates every IMAP folder it needs (`INBOX.scanner.state`, the four `INBOX.scanner.train.*` folders, `INBOX.spam`, and `INBOX.spam.low`/`INBOX.spam.high` when `SPAM_PROCESSING_MODE=folder`) before training or scanning anything - you'll see `Created folder` log lines for each. No manual init step is needed for this path.
+
+6. **Seed spam/ham training with existing mail (optional but recommended)**
+
+   Using any IMAP client, move a batch of messages you already know are spam into
+   `INBOX.scanner.train.spam`, and messages you know are legitimate into
+   `INBOX.scanner.train.ham`. The next training cycle drains the entire folder in one pass (however
+   many messages are in it) - each one trains Rspamd's Bayes classifier, then moves to `FOLDER_SPAM`
+   (spam) or back to `INBOX` (ham).
+
+7. **Seed whitelist/blacklist (optional)**
+
+   Move a message from a sender you always want to trust into `INBOX.scanner.train.whitelist`, or
+   from one you always want treated as spam into `INBOX.scanner.train.blacklist`. The next cycle
+   extracts the sender address into that mailbox's IMAP-stored list - see
+   [Whitelist & Blacklist](#whitelist--blacklist) below for how matches are scored.
+
+That's it - by default (`SCAN_INTERVAL=0`, IDLE mode) the container keeps re-training from those
+four folders and scanning `INBOX` every time new mail arrives, with no further manual steps. See
+[Docker Deployment](#docker-deployment) for the full production reference (multi-mailbox stacks,
+data persistence, troubleshooting) and [Environment Variables](#environment-variables) for every
+setting.
+
+---
+
 ## Whitelist & Blacklist
 
 Email address whitelisting and blacklisting is decided entirely in application code, keyed on the message's sender address - Rspamd itself is a stateless content scorer with no list or mailbox awareness, so the same Rspamd instance can safely be shared by more than one mailbox's scanner. Each mailbox's lists are stored as JSON in that mailbox's own IMAP state folder (the same folder and mechanism scanner progress already uses), not in a file on local disk.
@@ -88,7 +167,7 @@ Use the initialization step to auto-create the application folders:
 node src/cli/init-folders.js
 ```
 
-Training folders, the state folder, and (when `SPAM_PROCESSING_MODE=folder`) the low/high spam folders are created automatically. `FOLDER_SPAM` itself (the destination for rspamd's own confident "reject" verdict) is **not** auto-created as of this writing - create it manually, or point `FOLDER_SPAM` at your server's existing Junk folder.
+Training folders, the state folder, `FOLDER_SPAM` (the destination for rspamd's own confident "reject" verdict), and (when `SPAM_PROCESSING_MODE=folder`) the low/high spam folders are all created automatically - no folder needs to be created by hand.
 
 ---
 
@@ -132,10 +211,10 @@ FOLDER_TRAIN_BLACKLIST=INBOX.scanner.train.blacklist
 FOLDER_STATE=INBOX.scanner.state
 
 # SCAN_INTERVAL controls the run mode:
-#   -1  = single-run mode: run once and exit (default)
-#    0  = IDLE mode: event-driven, waits for IMAP EXISTS notifications
+#    0  = IDLE mode: event-driven, waits for IMAP EXISTS notifications (default)
+#   -1  = single-run mode: run once and exit
 #   >0  = poll mode: repeat every N seconds
-SCAN_INTERVAL=-1
+SCAN_INTERVAL=0
 SCAN_BATCH_SIZE=200
 # SCAN_READ: when false, the scan query is restricted to unseen (\Seen-unset)
 # messages only; true also rescans messages already marked read.
@@ -409,7 +488,7 @@ Additionally, `./rspamd/config` (from the repo) is bind-mounted read-only into t
 - **RSPAMD_PASSWORD**: Required in `.env`; run `bin/local/hash-rspamd-password.sh` after setting it (or changing it) to regenerate `rspamd/config/worker-controller.inc`, then `docker compose restart rspamd`. **If the password contains a literal `$`, escape it as `$$`** - Compose interpolates `.env` values wherever they're consumed (including via `env_file`), so an unescaped `$` starts what looks like a variable reference and gets silently dropped, truncating the password inside the container (the app will then get `401 Unauthorized` from `/checkv2`). `hash-rspamd-password.sh` un-escapes `$$` back to `$` before hashing, so the escaped form in `.env` and the hash stay in sync.
 - **SPAM_SCANNER_DATA**: Required, absolute path
 - **IMAP\_\***: All IMAP configuration must be set in `.env`
-- **SCAN_INTERVAL**: Controls sleep time between scan cycles. Defaults to `-1` (single-run mode). Set to `0` for IDLE mode or a positive integer for poll mode
+- **SCAN_INTERVAL**: Controls sleep time between scan cycles. Defaults to `0` (IDLE mode). Set to `-1` for single-run mode or a positive integer for poll mode
 - **LOG_FORMAT**: Use `json` for production, `pretty` for debugging (note: `pino-pretty` is a devDependency and is not installed in the production image - `pretty` may not work inside the container as shipped)
 
 ### Accessing Rspamd Web Interface
@@ -451,12 +530,12 @@ docker compose up --build -d
 
 ### Local Development vs Docker
 
-| Aspect      | Local Development                              | Docker Deployment                                                      |
-| ----------- | ---------------------------------------------- | ---------------------------------------------------------------------- |
-| Rspamd      | `bin/local/rspamd.sh up`                       | Included in root `docker-compose.yml`                                  |
-| Application | `./bin/local/start.sh <env-file>`              | Runs automatically in container                                        |
-| RSPAMD_URL  | `http://localhost:11334`                       | `http://rspamd:11334` (auto-set)                                       |
-| Run mode    | Controlled by `SCAN_INTERVAL` in your env file | Single-run by default; set `SCAN_INTERVAL` for continuous loop or IDLE |
+| Aspect      | Local Development                              | Docker Deployment                                                                |
+| ----------- | ---------------------------------------------- | -------------------------------------------------------------------------------- |
+| Rspamd      | `bin/local/rspamd.sh up`                       | Included in root `docker-compose.yml`                                            |
+| Application | `./bin/local/start.sh <env-file>`              | Runs automatically in container                                                  |
+| RSPAMD_URL  | `http://localhost:11334`                       | `http://rspamd:11334` (auto-set)                                                 |
+| Run mode    | Controlled by `SCAN_INTERVAL` in your env file | Defaults to IDLE mode (`SCAN_INTERVAL=0`); set it for single-run or poll instead |
 
 ### Running Multiple Isolated Stacks
 
@@ -504,14 +583,14 @@ node src/cli/scan-inbox.js
 `src/cli/orchestrator.js` runs the full cycle - init (once), then training (spam/ham/whitelist/blacklist), then scan - according to `SCAN_INTERVAL`:
 
 ```bash
-# Single-run mode (default, SCAN_INTERVAL=-1): one full cycle then exit
+# IDLE mode (default, SCAN_INTERVAL=0): event-driven, waits for IMAP EXISTS notifications
 node src/cli/orchestrator.js
+
+# Single-run mode: one full cycle then exit
+SCAN_INTERVAL=-1 node src/cli/orchestrator.js
 
 # Poll mode: repeat every N seconds
 SCAN_INTERVAL=300 node src/cli/orchestrator.js
-
-# IDLE mode: event-driven, waits for IMAP EXISTS notifications instead of polling
-SCAN_INTERVAL=0 node src/cli/orchestrator.js
 ```
 
 Single-run mode is useful for scheduled execution via cron or an external scheduler. Poll and IDLE mode keep the process running.
