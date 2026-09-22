@@ -96,6 +96,23 @@ describe('sender-list-training.controller: messages with no extractable sender a
     );
   });
 
+  test('a sender already covered by an existing domain entry is not re-added', async () => {
+    const messages = [makeMessage(1, 'bob@example.com')];
+    fakeImapClient.count.mockReturnValue(1);
+    stubUidsAndFetch(messages);
+    fakeStateManager.readMapState.mockResolvedValue(['@example.com']);
+    const ctx = fixtureContext({ config: { FOLDER_INBOX: 'INBOX' } });
+
+    await runWhitelist(mockImap, ctx);
+
+    expect(fakeStateManager.writeMapState).not.toHaveBeenCalled();
+    expect(fakeImapClient.moveMessages).toHaveBeenCalledWith(
+      mockImap,
+      messages,
+      'INBOX'
+    );
+  });
+
   test('runBlacklist moves messages to FOLDER_SPAM', async () => {
     const messages = [makeMessage(1, 'sender@example.com')];
     fakeImapClient.count.mockReturnValue(1);

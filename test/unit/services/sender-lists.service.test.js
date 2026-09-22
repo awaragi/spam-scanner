@@ -191,11 +191,6 @@ describe('isHumanReadable', () => {
       expect(isHumanReadable('user@relay.example.com')).toBe(false);
       expect(isHumanReadable('user@mailer.example.com')).toBe(false);
     });
-
-    test('should reject known relay domains', () => {
-      expect(isHumanReadable('anything@lnk01.com')).toBe(false);
-      expect(isHumanReadable('token@cyberimpact.com')).toBe(false);
-    });
   });
 
   describe('should reject tokenized addresses', () => {
@@ -274,6 +269,24 @@ describe('extractSenders', () => {
 
   test('should return empty array if no sender headers are present', () => {
     expect(extractSenders({ to: 'recipient@example.com' })).toEqual([]);
+  });
+
+  test('should filter out a sender whose exact address is already listed', () => {
+    const headers = {
+      from: 'john@example.com',
+      to: 'recipient@example.com',
+    };
+
+    expect(extractSenders(headers, new Set(['john@example.com']))).toEqual([]);
+  });
+
+  test('should filter out a sender whose domain is already listed', () => {
+    const headers = {
+      from: 'jane@example.com',
+      to: 'recipient@example.com',
+    };
+
+    expect(extractSenders(headers, new Set(['@example.com']))).toEqual([]);
   });
 
   test('should filter out non-human-readable email addresses', () => {

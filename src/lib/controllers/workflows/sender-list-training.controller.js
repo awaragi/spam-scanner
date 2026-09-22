@@ -7,6 +7,7 @@ import {
   moveMessages,
 } from '../../clients/imap.client.js';
 import { extractSenderAddresses } from '../../services/sender-lists.service.js';
+import { readMapState } from '../../clients/state-manager.client.js';
 import { updateListState } from '../steps/list-update.step.js';
 import { createDefaultContext } from '../../core/context.js';
 
@@ -42,6 +43,13 @@ async function runMapTraining(
     const uids = await search(imap, { all: true });
     const { PROCESS_BATCH_SIZE } = ctx.config;
 
+    // Read the list once up front so extraction can skip a sender already
+    // covered by an exact-address or domain entry (see `isSenderListed`) -
+    // e.g. training shouldn't re-add "bob@example.com" as its own entry when
+    // "@example.com" is already listed. Updated as batches add new entries so
+    // a later batch in the same run also sees them.
+    const listedEntries = new Set(await readMapState(imap, mapStateKey));
+
     // Search UIDs once, then fetch/extract/move PROCESS_BATCH_SIZE messages
     // at a time - bounds how much message content is ever in memory at once,
     // fetches headers only (never the full source/body map training doesn't
@@ -53,7 +61,7 @@ async function runMapTraining(
     for (let i = 0; i < uids.length; i += PROCESS_BATCH_SIZE) {
       const batchUids = uids.slice(i, i + PROCESS_BATCH_SIZE);
       const batchMessages = await fetchMessageHeadersByUIDs(imap, batchUids);
-      const senders = extractSenderAddresses(batchMessages);
+      const senders = extractSenderAddresses(batchMessages, listedEntries);
 
       if (senders.length === 0) {
         logger.info(
@@ -71,6 +79,7 @@ async function runMapTraining(
           ctx
         );
         logger.info({ folder, type, ...result }, `${type} list updated`);
+        senders.forEach(sender => listedEntries.add(sender));
       }
 
       // Move processed messages to destination folder

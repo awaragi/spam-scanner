@@ -112,8 +112,13 @@ export function serializeAddressList(addresses, format = 'txt') {
 
 /**
  * Checks if an email address appears to be human-generated.
- * Filters out per-message tokens and relay addresses while keeping
- * legitimate corporate senders (even if automated).
+ * Filters out per-message tokens and generic bounce/relay subdomains while
+ * keeping legitimate corporate senders (even if automated). Deliberately has
+ * no notion of specific known relay/ESP domains (e.g. a particular mailing-list
+ * provider) - which senders use which ESP is mailbox-specific data, not a
+ * generic pattern, so it belongs in the whitelist/blacklist itself (a domain
+ * entry there is skipped by `isSenderListed`, not filtered here).
+ * @param {string} email
  */
 export function isHumanReadable(email) {
   if (!email) return false;
@@ -153,22 +158,22 @@ export function isHumanReadable(email) {
   // Check for bounce/relay subdomains at the start (more specific than before)
   if (/^(bounces?\.|relay\.|mailer\.)/.test(domainLower)) return false;
 
-  // Known relay domains that generate per-message addresses
-  const knownRelays = ['lnk01.com', 'cyberimpact.com'];
-  if (knownRelays.some(relay => domainLower.endsWith(relay))) {
-    return false;
-  }
-
   // other cases
   return true;
 }
 
 /**
- * Extracts human-relevant sender addresses from parsed headers.
+ * Extracts human-relevant sender addresses from parsed headers, for adding to
+ * a whitelist/blacklist via training. Skips an address already covered by
+ * `listedEntries` (an exact match, or its domain already listed - see
+ * `isSenderListed`) so training doesn't re-add what a domain entry already
+ * covers.
  * @param {Record<string, string>} headers - Email headers with lowercase keys
+ * @param {Set<string>} [listedEntries] - Normalized entries already in the
+ *   target list (see `isSenderListed`)
  * @returns {string[]} - Up to 2 clean sender addresses
  */
-export function extractSenders(headers) {
+export function extractSenders(headers, listedEntries = new Set()) {
   const candidates = [];
   const priorityFields = ['from', 'reply-to', 'return-path', 'sender'];
 
@@ -178,13 +183,19 @@ export function extractSenders(headers) {
 
     const parsed = parseOneAddress(raw);
     if (parsed) {
-      if (isHumanReadable(parsed.address)) {
-        candidates.push(parsed.address.toLowerCase());
-      } else {
+      const address = parsed.address.toLowerCase();
+      if (!isHumanReadable(address)) {
         logger.debug(
-          { field, email: parsed.address },
+          { field, email: address },
           'Email address rejected as non-human-readable'
         );
+      } else if (isSenderListed(address, listedEntries)) {
+        logger.debug(
+          { field, email: address },
+          'Email address already covered by an existing list entry'
+        );
+      } else {
+        candidates.push(address);
       }
     }
   }
@@ -196,15 +207,16 @@ export function extractSenders(headers) {
  * Extract sender addresses from a batch of messages, for the map-training
  * workflows (see the `sender-lists` capability).
  * @param {Array} messages - Array of message objects with uid, headers
+ * @param {Set<string>} [listedEntries] - Passed through to `extractSenders`
  * @returns {Array<string>} - Array of unique sender email addresses
  */
-export function extractSenderAddresses(messages) {
+export function extractSenderAddresses(messages, listedEntries = new Set()) {
   const senders = [];
 
   for (const message of messages) {
     const { uid, headers } = message;
     const messageLogger = logger.forMessage(uid);
-    const messageSenders = extractSenders(headers);
+    const messageSenders = extractSenders(headers, listedEntries);
 
     if (messageSenders.length > 0) {
       senders.push(...messageSenders);
