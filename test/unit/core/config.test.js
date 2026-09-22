@@ -1,4 +1,9 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { resolve, dirname } from 'path';
+import { configGroups } from '../../../src/lib/core/config.js';
+import { renderEnvFile } from '../../../src/lib/utils/env-file.util.js';
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -260,5 +265,20 @@ describe('assertRequiredConfig', () => {
     );
 
     expect(() => assertRequiredConfig()).not.toThrow();
+  });
+});
+
+describe('configGroups -> .env.example sync', () => {
+  // Guards against exactly the kind of drift this generator exists to
+  // prevent (a config.js default changed without regenerating .env.example,
+  // or vice versa) - see src/cli/generate-env-example.js.
+  test('the committed .env.example matches what configGroups renders', () => {
+    const repoRoot = resolve(
+      dirname(fileURLToPath(import.meta.url)),
+      '../../..'
+    );
+    const committed = readFileSync(resolve(repoRoot, '.env.example'), 'utf8');
+
+    expect(committed).toBe(renderEnvFile(configGroups));
   });
 });

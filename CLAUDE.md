@@ -68,6 +68,11 @@ that mailbox's own IMAP state folder, not a local file or database.
 - `npm run format` / `npm run format:check` — Prettier write/check
 - `npm run lint` — ESLint (`eslint.config.js`, flat config); reports only, not
   wired into a `--fix` script or CI yet
+- `npm run generate:env-example` — regenerate `.env.example` from
+  `config.js`'s `configGroups` (single source of truth for shape, defaults,
+  and docs - see that file's module doc comment); a unit test in
+  `config.test.js` fails if `.env.example` drifts from what this produces, so
+  run it after changing `configGroups` rather than hand-editing the file
 - `bin/local/start.sh <env-file> [script]` — run a script locally with `.env` loaded
   (defaults to `src/cli/orchestrator.js`)
 
