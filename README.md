@@ -795,4 +795,16 @@ The `uid` field allows you to trace all operations related to a specific email m
 
 ## License
 
-MIT
+MIT (see `LICENSE`). Application dependencies are permissive (MIT/Apache-2.0),
+compatible with that license.
+
+The Docker images this project runs alongside are licensed separately and aren't part of
+this repository:
+
+- **rspamd** — Apache-2.0.
+- **Redis** (`redis:8-alpine` in `docker-compose.base.yml`) — Redis 7.4+ is dual-licensed
+  under RSALv2/SSPLv1, and Redis 8 adds AGPLv3 as a third option; none of these are OSI
+  "open source" licenses in the traditional sense, though all three permit this project's
+  personal/self-hosted use. If that matters for your deployment, swap in
+  [`valkey/valkey`](https://github.com/valkey-io/valkey) (BSD-3-Clause) as a drop-in
+  replacement in `docker-compose.base.yml`.

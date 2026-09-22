@@ -401,56 +401,7 @@ documentation of "what a working install looks like."
 
 ## 5. Low findings
 
-### 6.8 Buffer → UTF-8 string conversion may alter 8-bit messages (verify)
-
-- **Area:** REL · **Complexity:** S · **Where:** `src/lib/clients/imap.client.js`
-- `message.source.toString()` decodes as UTF-8; non-UTF-8 8-bit bodies (legacy Latin-1
-  mail) get replacement characters before being posted to rspamd, changing Bayes tokens
-  and fuzzy hashes. Post the original `Buffer` to rspamd; only decode for header parsing.
-
-### 6.9 Orchestrator logout can mask the original error
-
-- **Area:** REL · **Complexity:** XS · **Where:** `src/cli/orchestrator.js`
-- Wrap `logout()` in try/catch. Obsolete if a single-IMAP-connection-per-cycle model is
-  adopted (would build on `src/lib`'s existing core/utils/services/clients/controllers
-  layering).
-
-### 6.16 `SCAN_BATCH_SIZE` vs `PROCESS_BATCH_SIZE` naming is confusing
-
-- **Area:** CFG · **Complexity:** XS
-- One limits UIDs per scan pass, the other messages per rspamd/IMAP batch. Rename
-  (`SCAN_MAX_PER_CYCLE`, `BATCH_SIZE`) with backward-compatible aliases, or document
-  clearly.
-
-### 6.18 `.gitignore` is a generic Node template (~150 lines)
-
-- **Area:** HYG · **Complexity:** XS
-- Trim to what applies; local AI-tool dirs (`.idea`, `.junie`, `.windsurf`, `.temp`)
-  should be listed explicitly (`.windsurf` currently relies on a global ignore).
-
-### 6.19 AI-assistant configuration sprawl
-
-- **Area:** HYG · **Complexity:** XS
-- `CLAUDE.md` now covers project conventions for Claude Code, but local dirs (`.junie`,
-  `.windsurf`, `.idea`) still clutter the repo root, and there's no `CONTRIBUTING.md`
-  stating openspec is the process of record. Consider one canonical `AGENTS.md`
-  referenced by each tool-specific file, and keep tool-generated folders out of the repo
-  root where possible.
-
-### 6.21 No CHANGELOG / release process
-
-- **Area:** LIC, OPS · **Complexity:** S
-- Adopt Conventional Commits (already mostly used: `feat:`, `chore:`, `fix:`, `refactor:`)
-  with `release-please` or `changesets` to generate `CHANGELOG.md`, semver tags and
-  matching image tags.
-
-### 6.22 Third-party licence notes
-
-- **Area:** LIC · **Complexity:** XS
-- App deps are permissive (MIT/Apache-2.0) — compatible with the MIT licence. Docker
-  images: rspamd Apache-2.0; Redis ≥ 7.4 is RSALv2/SSPL (Redis 8 adds AGPLv3). Fine for
-  personal/self-hosted use, but mention it in docs and consider `valkey/valkey` (BSD) as a
-  drop-in. Copyright year in `LICENSE` is 2025 — optionally `2025-2026`.
+None open.
 
 ---
 
@@ -587,13 +538,11 @@ Doc hygiene: add a CI check that every env var read in `config.js` appears in
 | **MAP** Whitelist / blacklist    | 5.2, 7.1                                    |
 | **RSP** Rspamd setup             | 5.20, 7.2                                   |
 | **SEC** Security & privacy       | 5.8, 5.19                                   |
-| **REL** Reliability              | 5.3, 5.7, 6.8, 6.9                          |
-| **CFG** Configuration            | 5.28, 6.16                                  |
+| **REL** Reliability              | 5.3, 5.7                                    |
+| **CFG** Configuration            | 5.28                                        |
 | **TST** Testing                  | 5.16, 5.29                                  |
-| **OPS** Operability              | 5.2, 5.7, 5.23, 5.29, 6.21                  |
-| **HYG** Repo hygiene             | 6.18, 6.19                                  |
+| **OPS** Operability              | 5.2, 5.7, 5.23, 5.29                        |
 | **UX** End-user workflow         | 5.2, 5.3, 5.14, 5.20, 5.22, 5.27, 5.28, 7.1 |
-| **LIC** Licensing & metadata     | 6.21, 6.22                                  |
 
 ---
 
