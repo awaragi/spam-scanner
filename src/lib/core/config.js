@@ -137,10 +137,10 @@ const scanGroup = {
  -1  = Single-run mode: run once and exit - use this for cron/an external scheduler
  >0  = Poll mode: repeat every N seconds`
     ),
-    SCAN_BATCH_SIZE: intField(200).describe(
-      `SCAN_BATCH_SIZE: max UIDs fetched from a single mailbox SEARCH per scan cycle - how
+    BATCH_SCAN_SIZE: intField(200).describe(
+      `BATCH_SCAN_SIZE: max UIDs fetched from a single mailbox SEARCH per scan cycle - how
 many pending messages one cycle considers at all, before any of them are downloaded.
-Distinct from PROCESS_BATCH_SIZE below, which then subdivides that set into smaller
+Distinct from BATCH_PROCESS_SIZE below, which then subdivides that set into smaller
 batches for fetching/processing. Default: 200`
     ),
     SCAN_READ: boolField(false).describe(
@@ -169,10 +169,10 @@ so nothing already sitting in the inbox is skipped.`
 const batchRetryGroup = {
   title: 'Batch Processing & Retry Configuration',
   schema: z.object({
-    PROCESS_BATCH_SIZE: intField(10).describe(
-      `PROCESS_BATCH_SIZE: max messages fetched/processed together per batch within
+    BATCH_PROCESS_SIZE: intField(10).describe(
+      `BATCH_PROCESS_SIZE: max messages fetched/processed together per batch within
 a single scan or train run (used by the scan, train, and sender-list-training
-controllers). Distinct from SCAN_BATCH_SIZE above, which caps how many UIDs a scan
+controllers). Distinct from BATCH_SCAN_SIZE above, which caps how many UIDs a scan
 cycle considers in total before this smaller per-batch limit subdivides them. Default: 10`
     ),
     MAX_RETRIES: intField(5).describe(

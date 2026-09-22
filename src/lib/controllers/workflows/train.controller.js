@@ -40,23 +40,23 @@ async function runTraining(imap, folder, destFolder, trainFn, type, ctx) {
     }
 
     const uids = await search(imap, { all: true });
-    const { PROCESS_BATCH_SIZE } = ctx.config;
+    const { BATCH_PROCESS_SIZE } = ctx.config;
 
-    // Search UIDs once, then fetch/train/move PROCESS_BATCH_SIZE messages at a
+    // Search UIDs once, then fetch/train/move BATCH_PROCESS_SIZE messages at a
     // time - bounds how much message content is ever in memory at once, and
     // means a batch already trained and moved survives a later batch's fetch
     // failure (see `bounded-training-fetch`).
-    for (let i = 0; i < uids.length; i += PROCESS_BATCH_SIZE) {
+    for (let i = 0; i < uids.length; i += BATCH_PROCESS_SIZE) {
       logger.debug(
         {
           from: i,
-          to: Math.min(i + PROCESS_BATCH_SIZE, uids.length),
+          to: Math.min(i + BATCH_PROCESS_SIZE, uids.length),
           total: uids.length,
           type,
         },
         'Learn batch'
       );
-      const batchUids = uids.slice(i, i + PROCESS_BATCH_SIZE);
+      const batchUids = uids.slice(i, i + BATCH_PROCESS_SIZE);
       const batchMessages = await fetchMessagesByUIDs(imap, batchUids);
       const { learned, skipped } = await trainFn(batchMessages, ctx);
       if (skipped.length > 0) {

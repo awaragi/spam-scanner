@@ -17,7 +17,7 @@ const logger = rootLogger.forComponent('pending-messages');
  * scanner state, opens the inbox, resets to new-mail-only on a UIDVALIDITY
  * change (persisting that reset immediately even if nothing new turns up,
  * so the next cycle doesn't re-detect the same mismatch and re-warn
- * forever), searches, and filters/caps the result to `SCAN_BATCH_SIZE`.
+ * forever), searches, and filters/caps the result to `BATCH_SCAN_SIZE`.
  * @param {Object} imap - ImapFlow client
  * @param {Object} [ctx]
  * @returns {Promise<{state: Object, uids: Array<number>}>} - `uids` is empty when there's nothing new
@@ -76,5 +76,5 @@ export async function locatePendingMessages(
     return { state, uids: [] };
   }
 
-  return { state, uids: newUIDs.slice(0, cfg.SCAN_BATCH_SIZE) };
+  return { state, uids: newUIDs.slice(0, cfg.BATCH_SCAN_SIZE) };
 }

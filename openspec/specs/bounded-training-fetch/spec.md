@@ -25,16 +25,16 @@ directly.
 ### Requirement: Message content is fetched in bounded batches
 
 The spam/ham training workflow and the whitelist/blacklist map-training workflow
-SHALL fetch message content in chunks of at most `PROCESS_BATCH_SIZE` UIDs at a
+SHALL fetch message content in chunks of at most `BATCH_PROCESS_SIZE` UIDs at a
 time, processing (learning/extracting and moving) each fetched batch before
 fetching the next, rather than fetching every message in the folder in a single
 call.
 
-#### Scenario: A folder larger than PROCESS_BATCH_SIZE is processed in multiple fetches
+#### Scenario: A folder larger than BATCH_PROCESS_SIZE is processed in multiple fetches
 
-- **WHEN** a training folder contains more messages than `PROCESS_BATCH_SIZE`
+- **WHEN** a training folder contains more messages than `BATCH_PROCESS_SIZE`
 - **THEN** the workflow issues more than one content-fetch call, each for at most
-  `PROCESS_BATCH_SIZE` UIDs, rather than a single call covering the whole folder
+  `BATCH_PROCESS_SIZE` UIDs, rather than a single call covering the whole folder
 
 #### Scenario: A batch already processed survives a later batch's fetch failure
 

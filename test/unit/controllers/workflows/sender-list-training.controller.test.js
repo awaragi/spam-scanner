@@ -149,7 +149,7 @@ describe('sender-list-training.controller: messages with no extractable sender a
     );
   });
 
-  test('more than PROCESS_BATCH_SIZE UIDs are fetched in more than one bounded call', async () => {
+  test('more than BATCH_PROCESS_SIZE UIDs are fetched in more than one bounded call', async () => {
     const messages = Array.from({ length: 25 }, (_, i) =>
       makeMessage(i + 1, `sender${i + 1}@example.com`)
     );
@@ -157,7 +157,7 @@ describe('sender-list-training.controller: messages with no extractable sender a
     stubUidsAndFetch(messages);
     fakeStateManager.readMapState.mockResolvedValue([]);
     const ctx = fixtureContext({
-      config: { FOLDER_INBOX: 'INBOX', PROCESS_BATCH_SIZE: 10 },
+      config: { FOLDER_INBOX: 'INBOX', BATCH_PROCESS_SIZE: 10 },
     });
 
     await runWhitelist(mockImap, ctx);

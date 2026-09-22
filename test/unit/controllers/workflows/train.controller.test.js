@@ -66,12 +66,12 @@ describe('train.controller: per-message failure isolation', () => {
     });
   });
 
-  test('more than PROCESS_BATCH_SIZE UIDs are fetched in more than one bounded call', async () => {
+  test('more than BATCH_PROCESS_SIZE UIDs are fetched in more than one bounded call', async () => {
     const uids = Array.from({ length: 25 }, (_, i) => i + 1); // 3 batches of 10
     fakeImapClient.count.mockReturnValue(uids.length);
     stubUidsAndFetch(uids);
     fakeRspamdClient.learnSpam.mockResolvedValue({ success: true });
-    const ctx = fixtureContext({ config: { PROCESS_BATCH_SIZE: 10 } });
+    const ctx = fixtureContext({ config: { BATCH_PROCESS_SIZE: 10 } });
 
     await runSpam(mockImap, ctx);
 
@@ -93,7 +93,7 @@ describe('train.controller: per-message failure isolation', () => {
     });
     fakeRspamdClient.learnSpam.mockResolvedValue({ success: true });
     const ctx = fixtureContext({
-      config: { PROCESS_BATCH_SIZE: 1, FOLDER_SPAM: 'INBOX.spam' },
+      config: { BATCH_PROCESS_SIZE: 1, FOLDER_SPAM: 'INBOX.spam' },
     });
 
     await expect(runSpam(mockImap, ctx)).resolves.toBeUndefined();

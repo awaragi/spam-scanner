@@ -71,8 +71,8 @@ describe('locatePendingMessages', () => {
     expect(result.uids).toEqual([101, 102]);
   });
 
-  test('caps the result to SCAN_BATCH_SIZE', async () => {
-    const ctx = fixtureContext({ config: { SCAN_BATCH_SIZE: 2 } });
+  test('caps the result to BATCH_SCAN_SIZE', async () => {
+    const ctx = fixtureContext({ config: { BATCH_SCAN_SIZE: 2 } });
     readScannerState.mockResolvedValue({
       last_uid: 100,
       last_seen_date: '',

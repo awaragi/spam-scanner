@@ -41,7 +41,7 @@ async function runMapTraining(
     }
 
     const uids = await search(imap, { all: true });
-    const { PROCESS_BATCH_SIZE } = ctx.config;
+    const { BATCH_PROCESS_SIZE } = ctx.config;
 
     // Read the list once up front so extraction can skip a sender already
     // covered by an exact-address or domain entry (see `isSenderListed`) -
@@ -50,7 +50,7 @@ async function runMapTraining(
     // a later batch in the same run also sees them.
     const listedEntries = new Set(await readMapState(imap, mapStateKey));
 
-    // Search UIDs once, then fetch/extract/move PROCESS_BATCH_SIZE messages
+    // Search UIDs once, then fetch/extract/move BATCH_PROCESS_SIZE messages
     // at a time - bounds how much message content is ever in memory at once,
     // fetches headers only (never the full source/body map training doesn't
     // need), and means a batch already extracted and moved survives a later
@@ -58,8 +58,8 @@ async function runMapTraining(
     // list-state update appends independently - append mode merges with
     // whatever's already stored, so per-batch calls compose correctly into
     // the same end state as a single call over every sender would.
-    for (let i = 0; i < uids.length; i += PROCESS_BATCH_SIZE) {
-      const batchUids = uids.slice(i, i + PROCESS_BATCH_SIZE);
+    for (let i = 0; i < uids.length; i += BATCH_PROCESS_SIZE) {
+      const batchUids = uids.slice(i, i + BATCH_PROCESS_SIZE);
       const batchMessages = await fetchMessageHeadersByUIDs(imap, batchUids);
       const senders = extractSenderAddresses(batchMessages, listedEntries);
 

@@ -224,11 +224,11 @@ FOLDER_STATE=INBOX.scanner.state
 #   -1  = single-run mode: run once and exit
 #   >0  = poll mode: repeat every N seconds
 SCAN_INTERVAL=0
-SCAN_BATCH_SIZE=200
+BATCH_SCAN_SIZE=200
 # SCAN_READ: when false, the scan query is restricted to unseen (\Seen-unset)
 # messages only; true also rescans messages already marked read.
 SCAN_READ=false
-PROCESS_BATCH_SIZE=10
+BATCH_PROCESS_SIZE=10
 
 # SCAN_INITIAL_STATE: only matters the very first run against a mailbox with no
 # saved state yet (once state exists, this is ignored):

@@ -203,16 +203,16 @@ export async function runScan(imap, ctx = createDefaultContext()) {
     };
 
     // Process messages in batches
-    for (let i = 0; i < uids.length; i += cfg.PROCESS_BATCH_SIZE) {
+    for (let i = 0; i < uids.length; i += cfg.BATCH_PROCESS_SIZE) {
       logger.debug(
         {
           from: i,
-          to: Math.min(i + cfg.PROCESS_BATCH_SIZE, uids.length),
+          to: Math.min(i + cfg.BATCH_PROCESS_SIZE, uids.length),
           total: uids.length,
         },
         'Scanning batch'
       );
-      const batchUids = uids.slice(i, i + cfg.PROCESS_BATCH_SIZE);
+      const batchUids = uids.slice(i, i + cfg.BATCH_PROCESS_SIZE);
       const counts = await scanBatch(
         imap,
         batchUids,
