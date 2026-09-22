@@ -61,6 +61,23 @@ export function stripSpamHeaders(emailContent) {
   return filterSpamHeaderLines(headerText) + rest;
 }
 
+/**
+ * Buffer-safe variant of `stripSpamHeaders`, for message content that isn't
+ * known to be valid UTF-8 (e.g. legacy Latin-1/8-bit mail bodies). Decoding
+ * the whole buffer as UTF-8 first would replace any invalid byte with U+FFFD
+ * before re-encoding, permanently corrupting the body's bytes (which then
+ * feeds Bayes tokens and fuzzy hashes at rspamd). `latin1` is a lossless 1:1
+ * byte<->code-unit mapping in both directions, so decoding, running the same
+ * line-based header stripping, and re-encoding never alters a single body
+ * byte - only whole header lines are ever removed.
+ * @param {Buffer} messageBuffer - Full raw message (headers + body)
+ * @returns {Buffer} - Same bytes, minus any X-Spam- or X-Ham-Report header lines
+ */
+export function stripSpamHeadersBuffer(messageBuffer) {
+  const stripped = stripSpamHeaders(messageBuffer.toString('latin1'));
+  return Buffer.from(stripped, 'latin1');
+}
+
 const RECEIVED_FROM_RE = /^from\s+(\S+)(?:\s*\(([^)]*)\))?/i;
 const IP_IN_BRACKETS_RE = /\[([0-9a-fA-F:.]+)]/;
 

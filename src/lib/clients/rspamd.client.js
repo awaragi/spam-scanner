@@ -54,7 +54,7 @@ async function parseRspamdJson(response) {
 
 /**
  * Checks email for spam using Rspamd /checkv2 endpoint
- * @param {string} emailContent - Raw email content including headers
+ * @param {string|Buffer} emailContent - Raw email content including headers
  * @param {{ip?: string, helo?: string, from?: string, rcpt?: string}} [envelope] -
  *   Envelope data (connecting IP/HELO, envelope-from, recipient) so Rspamd
  *   can evaluate SPF and IP-based DNSBL checks against the real sending
@@ -99,7 +99,7 @@ export async function checkEmail(emailContent, envelope = {}) {
 
 /**
  * Trains Rspamd classifier with ham (non-spam) email
- * @param {string} emailContent - Raw email content including headers
+ * @param {string|Buffer} emailContent - Raw email content including headers
  * @returns {Promise<Object>} - Parsed JSON response from Rspamd
  * @throws {Error} - If the request fails or Rspamd returns an error
  */
@@ -165,7 +165,7 @@ export async function learnHam(emailContent) {
 
 /**
  * Trains Rspamd classifier with spam email
- * @param {string} emailContent - Raw email content including headers
+ * @param {string|Buffer} emailContent - Raw email content including headers
  * @returns {Promise<Object>} - Parsed JSON response from Rspamd
  * @throws {Error} - If the request fails or Rspamd returns an error
  */

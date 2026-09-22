@@ -2,7 +2,10 @@ import { ImapFlow } from 'imapflow';
 import { setTimeout as delay } from 'timers/promises';
 import { config } from '../core/config.js';
 import { rootLogger } from '../core/logger.js';
-import { parseEmail, stripSpamHeaders } from '../utils/email-parser.util.js';
+import {
+  parseEmail,
+  stripSpamHeadersBuffer,
+} from '../utils/email-parser.util.js';
 import { collectFoldersToCreate } from '../utils/mailboxes.util.js';
 
 const logger = rootLogger.forComponent('imap');
@@ -135,16 +138,18 @@ export async function findFirstUIDOnDate(imap, folder, dateString) {
 }
 
 /**
- * Helper function to handle message fetching common code
+ * Helper function to handle message fetching common code. Keeps `raw` as a
+ * Buffer (ImapFlow's own `message.source` type) rather than decoding it to a
+ * string, so a non-UTF-8 8-bit body (legacy Latin-1 mail) reaches rspamd/AI
+ * classification byte-for-byte instead of getting UTF-8 replacement
+ * characters baked in - see `stripSpamHeadersBuffer`.
  * @param {Object} message - The message object from ImapFlow
- * @returns {Object} - Object containing raw message, uid, and attributes
+ * @returns {{uid: number, flags: string[], envelope: Object, raw: Buffer}}
  */
 export function processMessage(message) {
   const { uid, flags, envelope } = message;
   const messageLogger = logger.forMessage(uid);
-  // ImapFlow returns a Buffer for message.source
-  const raw = stripSpamHeaders(message.source.toString());
-  const { body, headers } = parseEmail(raw);
+  const raw = stripSpamHeadersBuffer(message.source);
 
   messageLogger.debug('Message read');
 
@@ -153,8 +158,6 @@ export function processMessage(message) {
     flags,
     envelope,
     raw,
-    headers,
-    body,
   };
 }
 
@@ -237,7 +240,7 @@ export async function search(imap, query) {
  * Fetch messages by UID
  * @param {Object} imap - ImapFlow client
  * @param {Array} uids - Array of UIDs to fetch
- * @returns {Promise<Array>} - Array of message objects with uid, raw content, and attributes
+ * @returns {Promise<Array>} - Array of message objects with uid, flags, envelope, and a raw Buffer
  */
 export async function fetchMessagesByUIDs(imap, uids) {
   try {

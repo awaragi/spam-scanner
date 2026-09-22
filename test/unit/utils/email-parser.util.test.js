@@ -3,6 +3,7 @@ import {
   parseRspamdOutput,
   parseAiClassificationOutput,
   stripSpamHeaders,
+  stripSpamHeadersBuffer,
   parseReceivedHeader,
   resolveConnectingHop,
 } from '../../../src/lib/utils/email-parser.util.js';
@@ -85,6 +86,39 @@ Content-Type: text/plain
 x-spam-status is not a real header down here, just body text.`;
 
     expect(stripSpamHeaders(input)).toBe(expected);
+  });
+});
+
+describe('stripSpamHeadersBuffer', () => {
+  test('removes X-Spam headers the same way as the string version', () => {
+    const content = `From: test@example.com
+X-Spam-Flag: YES
+Subject: Test
+
+Body text.`;
+
+    const result = stripSpamHeadersBuffer(Buffer.from(content, 'latin1'));
+
+    expect(result.toString('latin1')).toBe(stripSpamHeaders(content));
+  });
+
+  test('preserves non-UTF-8 8-bit body bytes untouched', () => {
+    // 0xE9 alone is invalid UTF-8 (a lone continuation-less lead byte) but a
+    // valid Latin-1 byte ("é") - decoding as UTF-8 would replace it with
+    // U+FFFD, changing the byte the body sends to rspamd.
+    const header = Buffer.from('Subject: Test\r\n\r\n', 'latin1');
+    const body = Buffer.from([0x63, 0x61, 0x66, 0xe9]); // "caf" + 0xE9
+    const input = Buffer.concat([header, body]);
+
+    const result = stripSpamHeadersBuffer(input);
+    const resultBody = result.subarray(result.length - body.length);
+
+    expect(Buffer.compare(resultBody, body)).toBe(0);
+  });
+
+  test('returns a Buffer, not a string', () => {
+    const input = Buffer.from('Subject: Test\r\n\r\nBody', 'latin1');
+    expect(Buffer.isBuffer(stripSpamHeadersBuffer(input))).toBe(true);
   });
 });
 

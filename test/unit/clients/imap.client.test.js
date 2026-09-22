@@ -27,6 +27,7 @@ import {
   newClient,
   safeLogout,
   waitForNewMail,
+  processMessage,
   processMessageHeaders,
   fetchMessageHeadersByUIDs,
 } from '../../../src/lib/clients/imap.client.js';
@@ -86,6 +87,47 @@ describe('processMessageHeaders', () => {
       uid: 2,
       headers: { from: 'b@example.com', subject: 'bye' },
     });
+  });
+});
+
+describe('processMessage', () => {
+  test('returns raw as a Buffer with X-Spam headers stripped', () => {
+    const source = Buffer.from(
+      'From: a@example.com\nX-Spam-Flag: YES\n\nBody',
+      'latin1'
+    );
+    const message = {
+      uid: 5,
+      flags: ['\\Seen'],
+      envelope: { subject: 'hi' },
+      source,
+    };
+
+    const result = processMessage(message);
+
+    expect(Buffer.isBuffer(result.raw)).toBe(true);
+    expect(result).toEqual({
+      uid: 5,
+      flags: ['\\Seen'],
+      envelope: { subject: 'hi' },
+      raw: Buffer.from('From: a@example.com\n\nBody', 'latin1'),
+    });
+  });
+
+  test('preserves non-UTF-8 8-bit body bytes rather than corrupting them', () => {
+    const header = Buffer.from('Subject: hi\r\n\r\n', 'latin1');
+    const body = Buffer.from([0x63, 0x61, 0x66, 0xe9]); // "caf" + invalid-UTF-8 0xE9
+    const message = {
+      uid: 6,
+      flags: [],
+      envelope: {},
+      source: Buffer.concat([header, body]),
+    };
+
+    const result = processMessage(message);
+    const resultBody = result.raw.subarray(result.raw.length - body.length);
+
+    expect(Buffer.compare(resultBody, body)).toBe(0);
   });
 });
 

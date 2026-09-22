@@ -21,7 +21,7 @@ const logger = rootLogger.forComponent('rspamd-check');
  * splitting, since it already handles repeated headers (`Received:`) and
  * `Return-Path:` address parsing correctly - a failure here never blocks
  * the Rspamd check itself, it just means less envelope data is sent.
- * @param {string} raw - Raw email content
+ * @param {string|Buffer} raw - Raw email content
  * @param {Object} cfg - `ctx.config`
  * @param {Object} messageLogger
  * @returns {Promise<{ip: string|null, helo: string|null, from: string|null, rcpt: string|null}>}
