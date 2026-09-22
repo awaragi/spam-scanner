@@ -94,6 +94,15 @@ without this also set to "true". Even with both set, STARTTLS is still
 enforced (the connection fails rather than silently falling back to
 plaintext if the server doesn't support it).`
     ),
+    IMAP_NOTIFY_ADDRESS: z
+      .string()
+      .default('')
+      .describe(
+        `IMAP_NOTIFY_ADDRESS: email address the scanner sends its own notices to (e.g. the
+AI-classification-failure alert). Defaults to IMAP_USER, which works when IMAP_USER is
+itself an email address (most providers). Set this explicitly when IMAP_USER is a bare
+username instead (e.g. "pierre" on self-hosted Dovecot).`
+      ),
   }),
 };
 
@@ -453,6 +462,23 @@ const ConfigSchema = configGroups
         code: 'custom',
         path: ['AI_ESCALATE_TO_LOW_THRESHOLD'],
         message: `AI_ESCALATE_TO_LOW_THRESHOLD (${data.AI_ESCALATE_TO_LOW_THRESHOLD}) must not exceed AI_ESCALATE_TO_HIGH_THRESHOLD (${data.AI_ESCALATE_TO_HIGH_THRESHOLD})`,
+      });
+    }
+    // The AI-failure alert needs a real To: address. IMAP_USER covers this
+    // for most providers (it's an email address); a bare-username IMAP_USER
+    // (e.g. self-hosted Dovecot) has no safe default, so IMAP_NOTIFY_ADDRESS must
+    // be set explicitly - but only once AI is actually enabled, since that's
+    // the only path that sends this alert.
+    if (
+      data.AI_ENABLED &&
+      !data.IMAP_NOTIFY_ADDRESS &&
+      !(data.IMAP_USER && data.IMAP_USER.includes('@'))
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['IMAP_NOTIFY_ADDRESS'],
+        message:
+          'IMAP_NOTIFY_ADDRESS is required when AI_ENABLED=true and IMAP_USER is not an email address (used as the To: address for the AI-classification-failure alert)',
       });
     }
     // Disabling transport encryption's direct-TLS wrapper must be a deliberate

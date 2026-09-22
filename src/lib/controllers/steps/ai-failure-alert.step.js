@@ -30,7 +30,8 @@ export async function postAiFailureAlert(
   if (!alert) {
     return;
   }
-  const raw = buildAiFailureAlertEmail(alert, ctx.config.IMAP_USER);
+  const notifyAddress = ctx.config.IMAP_NOTIFY_ADDRESS || ctx.config.IMAP_USER;
+  const raw = buildAiFailureAlertEmail(alert, notifyAddress);
   try {
     await appendMessage(imap, ctx.config.FOLDER_INBOX, raw);
     ctx.aiFailureTracker.markNotified(alert.reason);

@@ -48,6 +48,7 @@ describe('config', () => {
     process.env.AI_MODEL = 'gpt-4o-mini';
     process.env.AI_ENABLED = 'true';
     process.env.AI_API_KEY = 'sk-test';
+    process.env.IMAP_USER = 'owner@example.com';
 
     const { config } = await import('../../../src/lib/core/config.js');
 
@@ -174,6 +175,7 @@ describe('config', () => {
     process.env.AI_MODEL = 'gpt-4o-mini';
     delete process.env.AI_API_KEY;
     process.env.AI_BASE_URL = 'http://localhost:11434/v1';
+    process.env.IMAP_USER = 'owner@example.com';
 
     const { config } = await import('../../../src/lib/core/config.js');
 
@@ -186,10 +188,57 @@ describe('config', () => {
     process.env.AI_API_KEY = 'sk-test';
     process.env.AI_ESCALATE_TO_LOW_THRESHOLD = '90';
     process.env.AI_ESCALATE_TO_HIGH_THRESHOLD = '80';
+    process.env.IMAP_USER = 'owner@example.com';
 
     await expect(import('../../../src/lib/core/config.js')).rejects.toThrow(
       /AI_ESCALATE_TO_LOW_THRESHOLD.*AI_ESCALATE_TO_HIGH_THRESHOLD/s
     );
+  });
+
+  test('throws naming IMAP_NOTIFY_ADDRESS when AI_ENABLED=true and IMAP_USER is not an email address', async () => {
+    process.env.AI_ENABLED = 'true';
+    process.env.AI_MODEL = 'gpt-4o-mini';
+    process.env.AI_API_KEY = 'sk-test';
+    process.env.IMAP_USER = 'pierre';
+    delete process.env.IMAP_NOTIFY_ADDRESS;
+
+    await expect(import('../../../src/lib/core/config.js')).rejects.toThrow(
+      /IMAP_NOTIFY_ADDRESS/
+    );
+  });
+
+  test('does not require IMAP_NOTIFY_ADDRESS when IMAP_USER is itself an email address', async () => {
+    process.env.AI_ENABLED = 'true';
+    process.env.AI_MODEL = 'gpt-4o-mini';
+    process.env.AI_API_KEY = 'sk-test';
+    process.env.IMAP_USER = 'owner@example.com';
+    delete process.env.IMAP_NOTIFY_ADDRESS;
+
+    const { config } = await import('../../../src/lib/core/config.js');
+
+    expect(config.IMAP_NOTIFY_ADDRESS).toBe('');
+  });
+
+  test('does not require IMAP_NOTIFY_ADDRESS to match IMAP_USER when explicitly set, even with a bare-username IMAP_USER', async () => {
+    process.env.AI_ENABLED = 'true';
+    process.env.AI_MODEL = 'gpt-4o-mini';
+    process.env.AI_API_KEY = 'sk-test';
+    process.env.IMAP_USER = 'pierre';
+    process.env.IMAP_NOTIFY_ADDRESS = 'pierre@example.com';
+
+    const { config } = await import('../../../src/lib/core/config.js');
+
+    expect(config.IMAP_NOTIFY_ADDRESS).toBe('pierre@example.com');
+  });
+
+  test('does not require IMAP_NOTIFY_ADDRESS when AI_ENABLED=false, regardless of IMAP_USER', async () => {
+    process.env.AI_ENABLED = 'false';
+    delete process.env.IMAP_USER;
+    delete process.env.IMAP_NOTIFY_ADDRESS;
+
+    const { config } = await import('../../../src/lib/core/config.js');
+
+    expect(config.IMAP_NOTIFY_ADDRESS).toBe('');
   });
 
   test('reports every simultaneous load-time problem in one error, not just the first', async () => {

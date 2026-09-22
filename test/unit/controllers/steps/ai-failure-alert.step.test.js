@@ -58,6 +58,31 @@ describe('postAiFailureAlert', () => {
     expect(learnHam).toHaveBeenCalledWith(rawArg);
   });
 
+  test('addresses the alert to IMAP_NOTIFY_ADDRESS when set, instead of IMAP_USER', async () => {
+    const ctx = fixtureContext({
+      config: {
+        IMAP_USER: 'pierre',
+        IMAP_NOTIFY_ADDRESS: 'pierre@example.com',
+      },
+    });
+
+    await postAiFailureAlert(mockImap, fixtureAlert(), ctx);
+
+    const [, , rawArg] = appendMessage.mock.calls[0];
+    expect(rawArg).toContain('To: pierre@example.com');
+  });
+
+  test('falls back to IMAP_USER when IMAP_NOTIFY_ADDRESS is unset', async () => {
+    const ctx = fixtureContext({
+      config: { IMAP_USER: 'owner@example.com', IMAP_NOTIFY_ADDRESS: '' },
+    });
+
+    await postAiFailureAlert(mockImap, fixtureAlert(), ctx);
+
+    const [, , rawArg] = appendMessage.mock.calls[0];
+    expect(rawArg).toContain('To: owner@example.com');
+  });
+
   test('an appendMessage failure is swallowed: never marks notified, never trains, never throws', async () => {
     const ctx = fixtureContext();
     vi.spyOn(ctx.aiFailureTracker, 'markNotified');

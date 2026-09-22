@@ -189,6 +189,11 @@ opt-in (configuration fails to load with `IMAP_TLS=false` alone) - and even then
 is enforced rather than merely attempted, so the connection fails outright if the server
 doesn't support it, rather than silently falling back to a fully unencrypted connection.
 
+`IMAP_NOTIFY_ADDRESS` (optional, empty by default) sets the address the scanner sends its own
+notices to (e.g. the AI-classification-failure alert). It defaults to `IMAP_USER`, which
+works when `IMAP_USER` is itself an email address (most providers) - set it explicitly
+when `IMAP_USER` is a bare username instead (e.g. `pierre` on self-hosted Dovecot).
+
 Every environment variable is validated once at startup against a declarative schema: a
 non-numeric value for a numeric field, an invalid `SPAM_PROCESSING_MODE`, inverted AI
 escalation thresholds, or `AI_ENABLED=true` with no `AI_API_KEY` against the default OpenAI
