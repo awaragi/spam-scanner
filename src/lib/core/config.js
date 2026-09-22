@@ -138,7 +138,10 @@ const scanGroup = {
  >0  = Poll mode: repeat every N seconds`
     ),
     SCAN_BATCH_SIZE: intField(200).describe(
-      'SCAN_BATCH_SIZE: max UIDs fetched from a single mailbox SEARCH per scan cycle. Default: 200'
+      `SCAN_BATCH_SIZE: max UIDs fetched from a single mailbox SEARCH per scan cycle - how
+many pending messages one cycle considers at all, before any of them are downloaded.
+Distinct from PROCESS_BATCH_SIZE below, which then subdivides that set into smaller
+batches for fetching/processing. Default: 200`
     ),
     SCAN_READ: boolField(false).describe(
       `SCAN_READ: when false (default), the scan query is restricted to unseen
@@ -169,7 +172,8 @@ const batchRetryGroup = {
     PROCESS_BATCH_SIZE: intField(10).describe(
       `PROCESS_BATCH_SIZE: max messages fetched/processed together per batch within
 a single scan or train run (used by the scan, train, and sender-list-training
-controllers). Default: 10`
+controllers). Distinct from SCAN_BATCH_SIZE above, which caps how many UIDs a scan
+cycle considers in total before this smaller per-batch limit subdivides them. Default: 10`
     ),
     MAX_RETRIES: intField(5).describe(
       'MAX_RETRIES: Maximum consecutive failures before exiting (applies to all modes)'
