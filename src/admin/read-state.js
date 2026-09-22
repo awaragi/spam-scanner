@@ -13,7 +13,7 @@ try {
   const state = await readScannerState(imap);
   console.log(JSON.stringify(state, null, 2));
 } catch (err) {
-  logger.error('Failed to read scanner state:', err.message);
+  logger.error({ error: err.message }, 'Failed to read scanner state');
   process.exit(1);
 } finally {
   await safeLogout(imap);
