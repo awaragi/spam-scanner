@@ -41,7 +41,7 @@ function boolField(defaultValue) {
 /**
  * Grouped, `.describe()`-annotated config, in `.env.example` section order -
  * single source of truth for type, default, validation, and documentation
- * (see the `config-validation` capability and `src/cli/generate-env-example.js`).
+ * (see the `config-validation` capability and `src/cli/generate-env.js`).
  * Each entry is `{ title, schema, docsOnly? }`. `docsOnly` groups (Docker-only
  * or bootstrap-order-constrained vars - see below) are never merged into the
  * runtime `ConfigSchema`: nothing in the app ever reads `config.<docsOnlyKey>`,
@@ -413,7 +413,7 @@ the threshold is reached during a sustained outage; it is most useful in the def
 
 /**
  * Every config group, in `.env.example` file order. Exported so
- * `src/cli/generate-env-example.js` can render `.env.example` directly from
+ * `src/cli/generate-env.js` can render `.env.example` directly from
  * it - see the module doc comment above for what `docsOnly` means.
  */
 export const configGroups = [

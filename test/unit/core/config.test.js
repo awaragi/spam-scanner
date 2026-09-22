@@ -320,7 +320,7 @@ describe('assertRequiredConfig', () => {
 describe('configGroups -> .env.example sync', () => {
   // Guards against exactly the kind of drift this generator exists to
   // prevent (a config.js default changed without regenerating .env.example,
-  // or vice versa) - see src/cli/generate-env-example.js.
+  // or vice versa) - see src/cli/generate-env.js.
   test('the committed .env.example matches what configGroups renders', () => {
     const repoRoot = resolve(
       dirname(fileURLToPath(import.meta.url)),

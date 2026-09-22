@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { renderEnvFile } from '../../../src/lib/utils/env-file.util.js';
+import {
+  renderEnvFile,
+  diffEnvValues,
+} from '../../../src/lib/utils/env-file.util.js';
 
 describe('env-file-util', () => {
   describe('renderEnvFile', () => {
@@ -91,6 +94,93 @@ describe('env-file-util', () => {
       ];
 
       expect(renderEnvFile(groups)).toBe('# Docs Only Group\nFOO=a\n');
+    });
+
+    it('uses a value from `values` instead of the schema default when the key is present', () => {
+      const groups = [
+        {
+          title: 'Example Group',
+          schema: z.object({ FOO: z.string().default('bar') }),
+        },
+      ];
+
+      expect(renderEnvFile(groups, { FOO: 'custom' })).toBe(
+        '# Example Group\nFOO=custom\n'
+      );
+    });
+
+    it('falls back to the schema default when `values` omits the key', () => {
+      const groups = [
+        {
+          title: 'Example Group',
+          schema: z.object({
+            FOO: z.string().default('bar'),
+            BAZ: z.string().default('qux'),
+          }),
+        },
+      ];
+
+      expect(renderEnvFile(groups, { FOO: 'custom' })).toBe(
+        '# Example Group\nFOO=custom\nBAZ=qux\n'
+      );
+    });
+
+    it('uses an empty value from `values` rather than the default, when explicitly present', () => {
+      const groups = [
+        {
+          title: 'Example Group',
+          schema: z.object({ FOO: z.string().default('bar') }),
+        },
+      ];
+
+      expect(renderEnvFile(groups, { FOO: '' })).toBe(
+        '# Example Group\nFOO=\n'
+      );
+    });
+  });
+
+  describe('diffEnvValues', () => {
+    it('lists keys absent from `values` as defaulted', () => {
+      const groups = [
+        {
+          schema: z.object({
+            FOO: z.string().default('a'),
+            BAR: z.string().default('b'),
+          }),
+        },
+      ];
+
+      expect(diffEnvValues(groups, { FOO: 'set' })).toEqual({
+        defaultedKeys: ['BAR'],
+        unknownKeys: [],
+      });
+    });
+
+    it('lists keys in `values` that match no known schema key as unknown', () => {
+      const groups = [
+        {
+          schema: z.object({ FOO: z.string().default('a') }),
+        },
+      ];
+
+      expect(
+        diffEnvValues(groups, { FOO: 'set', OLD_RENAMED_KEY: 'leftover' })
+      ).toEqual({
+        defaultedKeys: [],
+        unknownKeys: ['OLD_RENAMED_KEY'],
+      });
+    });
+
+    it('spans multiple groups for both known and unknown keys', () => {
+      const groups = [
+        { schema: z.object({ FOO: z.string().default('a') }) },
+        { schema: z.object({ BAR: z.string().default('b') }) },
+      ];
+
+      expect(diffEnvValues(groups, { FOO: 'set', STRAY: 'x' })).toEqual({
+        defaultedKeys: ['BAR'],
+        unknownKeys: ['STRAY'],
+      });
     });
   });
 });

@@ -71,8 +71,12 @@ that mailbox's own IMAP state folder, not a local file or database.
 - `npm run generate:env-example` — regenerate `.env.example` from
   `config.js`'s `configGroups` (single source of truth for shape, defaults,
   and docs - see that file's module doc comment); a unit test in
-  `config.test.js` fails if `.env.example` drifts from what this produces, so
-  run it after changing `configGroups` rather than hand-editing the file
+  `config.test.js` fails if `.env.example` drifts from what this produces,
+  so run it after changing `configGroups` rather than hand-editing the file.
+  The underlying `src/cli/generate-env.js --output <path> [--input <path>]`
+  also migrates an existing env file onto the current structure via
+  `--input`, keeping its values in place of defaults for any key it already
+  sets.
 - `bin/local/start.sh <env-file> [script]` — run a script locally with `.env` loaded
   (defaults to `src/cli/orchestrator.js`)
 

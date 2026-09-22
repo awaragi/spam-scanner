@@ -17,12 +17,13 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
-    "generate:env-example": "node src/cli/generate-env-example.js",
+    "generate:env-example": "node src/cli/generate-env.js --output .env.example",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:integration": "env-cmd -f .env vitest run --config vitest.integration.config.js"
   },
   "dependencies": {
+    "dotenv": "^18.0.3",
     "email-addresses": "^5.0.0",
     "imapflow": "^1.0.148",
     "mailparser": "^3.9.28",
