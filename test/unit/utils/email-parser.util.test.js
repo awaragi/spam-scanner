@@ -67,6 +67,25 @@ This is a test email.`;
 
     expect(stripSpamHeaders(input)).toBe(expected);
   });
+
+  test('leaves a body line starting with "x-spam-" untouched', () => {
+    const input = `From: test@example.com
+To: recipient@example.com
+Subject: Test Email
+X-Spam-Status: Yes, score=5.0 required=5.0
+Content-Type: text/plain
+
+x-spam-status is not a real header down here, just body text.`;
+
+    const expected = `From: test@example.com
+To: recipient@example.com
+Subject: Test Email
+Content-Type: text/plain
+
+x-spam-status is not a real header down here, just body text.`;
+
+    expect(stripSpamHeaders(input)).toBe(expected);
+  });
 });
 
 describe('parse', () => {

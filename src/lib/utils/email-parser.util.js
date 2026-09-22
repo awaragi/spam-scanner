@@ -3,12 +3,12 @@
  */
 
 /**
- * Removes all X-Spam-* and X-Ham-Report headers from email content
- * @param {string} emailContent - Raw email content
- * @returns {string} - Email content without spam/ham headers
+ * Removes all X-Spam-* and X-Ham-Report header lines from email content.
+ * @param {string} headerText - Header-only text (no body)
+ * @returns {string} - Header text without spam/ham headers
  */
-export function stripSpamHeaders(emailContent) {
-  const lines = emailContent.split('\n');
+function filterSpamHeaderLines(headerText) {
+  const lines = headerText.split('\n');
   const filteredLines = [];
   let skipNextLines = false;
 
@@ -41,6 +41,24 @@ export function stripSpamHeaders(emailContent) {
   }
 
   return filteredLines.join('\n');
+}
+
+/**
+ * Removes all X-Spam-* and X-Ham-Report headers from email content. Scans
+ * only up to the first blank line (the header/body boundary) so a body line
+ * that happens to start with "x-spam-" is never altered.
+ * @param {string} emailContent - Raw email content
+ * @returns {string} - Email content without spam/ham headers
+ */
+export function stripSpamHeaders(emailContent) {
+  const separatorMatch = emailContent.match(/\r?\n\r?\n/);
+  if (!separatorMatch) {
+    return filterSpamHeaderLines(emailContent);
+  }
+
+  const headerText = emailContent.slice(0, separatorMatch.index);
+  const rest = emailContent.slice(separatorMatch.index);
+  return filterSpamHeaderLines(headerText) + rest;
 }
 
 const RECEIVED_FROM_RE = /^from\s+(\S+)(?:\s*\(([^)]*)\))?/i;
