@@ -1,3 +1,5 @@
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
 import {
   newClient,
   processMessage,
@@ -13,9 +15,27 @@ assertRequiredConfig();
 const HOME = config.HOME;
 const mailbox = config.FOLDER_INBOX;
 
-// MESSAGE_ID has priority
-const UID = 2201; // Replace with actual UID
-const MESSAGE_ID = '<83181f5681bd89f619b2b1e48210f391@eidiant.com>'; // Replace with actual Message-ID
+const argv = yargs(hideBin(process.argv))
+  .usage('Usage: $0 --uid <uid> | --message-id <message-id>')
+  .option('uid', {
+    type: 'number',
+    describe: 'UID of the message to fetch',
+  })
+  .option('message-id', {
+    type: 'string',
+    describe: 'Message-ID of the message to fetch (takes priority over --uid)',
+  })
+  .check(argv => {
+    if (!argv.uid && !argv.messageId) {
+      throw new Error('Provide either --uid or --message-id');
+    }
+    return true;
+  })
+  .strict()
+  .help().argv;
+
+const UID = argv.uid;
+const MESSAGE_ID = argv.messageId;
 
 const logger = rootLogger.forComponent('read-email');
 const imap = newClient();
