@@ -504,6 +504,28 @@ describe('applyWhitelistAdjustments', () => {
     expect(result.map(m => m.spamInfo.score)).toEqual([10, 30, 45]);
     expect(whitelistedTotal).toBe(2);
   });
+
+  test('a domain entry ("@example.com") whitelists any sender at that domain', () => {
+    const messages = [
+      messageFrom(1, 'anyone@example.com', 30, 15, true),
+      messageFrom(2, 'stranger@other.com', 30),
+    ];
+
+    const { messages: result, whitelistedTotal } = applyWhitelistAdjustments(
+      messages,
+      new Set(['@example.com'])
+    );
+
+    expect(result[0].spamInfo).toMatchObject({
+      score: 10,
+      isWhitelisted: true,
+    });
+    expect(result[1].spamInfo).toMatchObject({
+      score: 30,
+      isWhitelisted: false,
+    });
+    expect(whitelistedTotal).toBe(1);
+  });
 });
 
 describe('partitionByWhitelistFlag', () => {

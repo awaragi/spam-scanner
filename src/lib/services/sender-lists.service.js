@@ -219,8 +219,27 @@ export function extractSenderAddresses(messages) {
 }
 
 /**
- * Splits messages by whether their sender address is present in `addressSet`
- * (e.g. a blacklist) - used by scan.controller.js to route blacklisted
+ * Checks whether a (normalized) sender address matches an entry in
+ * `entrySet` - either an exact address ("bob@example.com") or a domain
+ * entry ("@example.com", matching any sender at exactly that domain).
+ * Domain entries are added the same way as addresses (e.g. via
+ * `import-list.js`) - `normalizeEmail` already accepts the "@domain" form
+ * since it contains "@", so no separate storage/parsing path is needed.
+ * @param {string|null} address - as returned by senderAddressOf
+ * @param {Set<string>} entrySet - whitelist/blacklist entries (addresses and/or domains)
+ * @returns {boolean}
+ */
+export function isSenderListed(address, entrySet) {
+  if (!address) return false;
+  if (entrySet.has(address)) return true;
+  const domain = address.slice(address.lastIndexOf('@'));
+  return entrySet.has(domain);
+}
+
+/**
+ * Splits messages by whether their sender matches an entry in `addressSet`
+ * (e.g. a blacklist) - an exact address or a domain entry (see
+ * `isSenderListed`) - used by scan.controller.js to route blacklisted
  * senders around rspamd/AI entirely.
  * @param {Array} messages
  * @param {Set<string>} addressSet
@@ -231,7 +250,7 @@ export function partitionBySender(messages, addressSet) {
   const rest = [];
   for (const message of messages) {
     const sender = senderAddressOf(message);
-    (addressSet.has(sender) ? matched : rest).push(message);
+    (isSenderListed(sender, addressSet) ? matched : rest).push(message);
   }
   return { matched, rest };
 }

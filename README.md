@@ -114,6 +114,10 @@ If a sender is listed on both, blacklist wins.
 
 Training messages by moving them to the `INBOX.scanner.train.whitelist` or `INBOX.scanner.train.blacklist` folder automatically extracts sender addresses and merges them into the corresponding mailbox-backed list.
 
+### Domain entries
+
+Alongside exact addresses (`bob@example.com`), both lists also accept domain entries - `@example.com` - matching any sender at exactly that domain (not subdomains). These aren't produced by training (which always extracts one specific sender address); add them by hand via `import-list.js` (see below), e.g. a text file containing a line like `@example.com`.
+
 ### Importing, exporting, and backing up lists
 
 If you're upgrading from a version that used local `whitelist.map`/`blacklist.map` files read by Rspamd's multimap module, import them once with `src/admin/import-list.js`:

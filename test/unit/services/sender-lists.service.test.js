@@ -8,6 +8,7 @@ import {
   isHumanReadable,
   extractSenders,
   extractSenderAddresses,
+  isSenderListed,
   partitionBySender,
 } from '../../../src/lib/services/sender-lists.service.js';
 
@@ -364,6 +365,43 @@ describe('extractSenderAddresses', () => {
   });
 });
 
+describe('isSenderListed', () => {
+  test('matches an exact address entry', () => {
+    expect(
+      isSenderListed('bob@example.com', new Set(['bob@example.com']))
+    ).toBe(true);
+  });
+
+  test('matches a domain entry ("@example.com") against any address at that domain', () => {
+    const entrySet = new Set(['@example.com']);
+    expect(isSenderListed('bob@example.com', entrySet)).toBe(true);
+    expect(isSenderListed('alice@example.com', entrySet)).toBe(true);
+  });
+
+  test('a domain entry does not match a different domain', () => {
+    expect(isSenderListed('bob@other.com', new Set(['@example.com']))).toBe(
+      false
+    );
+  });
+
+  test('a domain entry does not match a subdomain', () => {
+    expect(
+      isSenderListed('bob@mail.example.com', new Set(['@example.com']))
+    ).toBe(false);
+  });
+
+  test('returns false for a null/empty address', () => {
+    expect(isSenderListed(null, new Set(['@example.com']))).toBe(false);
+    expect(isSenderListed('', new Set(['@example.com']))).toBe(false);
+  });
+
+  test('returns false when neither the address nor its domain is listed', () => {
+    expect(
+      isSenderListed('bob@example.com', new Set(['other@example.com']))
+    ).toBe(false);
+  });
+});
+
 describe('partitionBySender', () => {
   test('splits messages by whether their sender address is in the set', () => {
     const messages = [
@@ -385,5 +423,20 @@ describe('partitionBySender', () => {
     const { matched, rest } = partitionBySender(messages, new Set(['x@y.com']));
     expect(matched).toEqual([]);
     expect(rest).toEqual(messages);
+  });
+
+  test('matches any sender at a blacklisted domain ("@evil.com")', () => {
+    const messages = [
+      { envelope: { from: [{ address: 'anyone@evil.com' }] } },
+      { envelope: { from: [{ address: 'ok@example.com' }] } },
+    ];
+
+    const { matched, rest } = partitionBySender(
+      messages,
+      new Set(['@evil.com'])
+    );
+
+    expect(matched).toEqual([messages[0]]);
+    expect(rest).toEqual([messages[1]]);
   });
 });

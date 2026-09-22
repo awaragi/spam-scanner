@@ -1,7 +1,7 @@
 /**
  * Domain rules for classifying spam messages. Pure, never sees `ctx`.
  */
-import { senderAddressOf } from './sender-lists.service.js';
+import { senderAddressOf, isSenderListed } from './sender-lists.service.js';
 
 /**
  * Categorizes messages into four score-percentage-driven tiers - clean, low,
@@ -168,13 +168,16 @@ export function applyWhitelistAdjustment(
  * read from `spamInfo` (set by `rspamd-check.step.js` from rspamd's own
  * DKIM/DMARC symbols) and passed through unchanged - it's not computed here.
  * @param {Array} messages - already-checked messages (spamInfo.score/required/senderAuthenticated set)
- * @param {Set<string>} whitelistSet - normalized whitelist addresses
+ * @param {Set<string>} whitelistSet - normalized whitelist entries (addresses and/or "@domain" entries)
  * @returns {{messages: Array, whitelistedTotal: number}}
  */
 export function applyWhitelistAdjustments(messages, whitelistSet) {
   let whitelistedTotal = 0;
   const adjusted = messages.map(message => {
-    const isWhitelisted = whitelistSet.has(senderAddressOf(message));
+    const isWhitelisted = isSenderListed(
+      senderAddressOf(message),
+      whitelistSet
+    );
     const senderAuthenticated = Boolean(message.spamInfo.senderAuthenticated);
     if (isWhitelisted) whitelistedTotal++;
     return {
