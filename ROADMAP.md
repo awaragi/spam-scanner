@@ -1,7 +1,7 @@
 # spam-scanner — Roadmap (Open Items)
 
 - **Original review date:** 2026-09-17
-- **Last cleanup:** 2026-09-21 — resolved findings deleted entirely rather than logged
+- **Last cleanup:** 2026-09-22 — resolved findings deleted entirely rather than logged
   here; see `git log -p -- ROADMAP.md` for the full write-up of anything that used to be
   here and why it was resolved.
 
@@ -401,24 +401,6 @@ documentation of "what a working install looks like."
 
 ## 5. Low findings
 
-### 6.5 `stripSpamHeaders` scans the whole message, not just headers
-
-- **Area:** REL · **Complexity:** XS · **Where:** `src/lib/utils/email-parser.util.js`
-- Body lines beginning with `x-spam-` are also removed, altering content sent to
-  rspamd/Bayes. Stop at the first blank line.
-
-### 6.6 `admin/read-email.js` requires editing hard-coded constants
-
-- **Area:** CLN, UX · **Complexity:** XS · **Where:** `src/admin/read-email.js`
-- UID `2201` and a real third-party Message-ID are committed. Make them CLI args (part of
-  5.14); remove the Message-ID from history if considered sensitive.
-
-### 6.7 Logger misuse in `admin/read-state.js`
-
-- **Area:** CLN · **Complexity:** XS · **Where:** `src/admin/read-state.js`
-- `logger.error('msg', err.message)` — pino drops the second arg. Use
-  `logger.error({ error: err.message }, 'msg')`.
-
 ### 6.8 Buffer → UTF-8 string conversion may alter 8-bit messages (verify)
 
 - **Area:** REL · **Complexity:** S · **Where:** `src/lib/clients/imap.client.js`
@@ -432,25 +414,6 @@ documentation of "what a working install looks like."
 - Wrap `logout()` in try/catch. Obsolete if a single-IMAP-connection-per-cycle model is
   adopted (would build on `src/lib`'s existing core/utils/services/clients/controllers
   layering).
-
-### 6.10 AI alert `To:` uses `IMAP_USER`
-
-- **Area:** UX · **Complexity:** XS · **Where:** `src/lib/services/alert-email.service.js`
-- `IMAP_USER` is not always an email address (e.g. `pierre` on self-hosted Dovecot). Add
-  `NOTIFY_ADDRESS` defaulting to `IMAP_USER` when it contains `@`.
-
-### 6.11 `isHumanReadable` heuristics contain provider-specific constants
-
-- **Area:** MAP, REF · **Complexity:** XS · **Where:** `src/lib/services/sender-lists.service.js`
-- `lnk01.com`, `cyberimpact.com` hard-coded. Move to a configurable list (or a small data
-  file) and document.
-
-### 6.14 `.env.example` inline comments break shell-based loaders
-
-- **Area:** CFG, DEP · **Complexity:** XS · **Where:** `.env.example`; `bin/local/start.sh`
-- `AI_ESCALATE_TO_LOW_THRESHOLD=50   # nonSpam -> lowSpam`: Compose strips it, but
-  `start.sh`'s loader keeps `50   # nonSpam -> lowSpam` as the value (works only because
-  `parseInt` tolerates trailing text). Put comments on their own lines.
 
 ### 6.16 `SCAN_BATCH_SIZE` vs `PROCESS_BATCH_SIZE` naming is confusing
 
@@ -473,13 +436,6 @@ documentation of "what a working install looks like."
   stating openspec is the process of record. Consider one canonical `AGENTS.md`
   referenced by each tool-specific file, and keep tool-generated folders out of the repo
   root where possible.
-
-### 6.20 Package metadata incomplete
-
-- **Area:** LIC · **Complexity:** XS · **Where:** `package.json`
-- Missing `"private": true` (prevents accidental publish), `"license"`, `description`,
-  `repository`, `bin`, `start` script. Version is frozen at `1.0.0`; images are only
-  tagged `latest`.
 
 ### 6.21 No CHANGELOG / release process
 
@@ -622,22 +578,22 @@ Doc hygiene: add a CI check that every env var read in `config.js` appears in
 
 ## 7. Index of findings by area
 
-| Area                             | Findings                                               |
-| -------------------------------- | ------------------------------------------------------ |
-| **REF** Refactoring & modularity | 5.14, 5.28, 6.11                                       |
-| **CLN** Clean-up / dead code     | 5.14, 6.6, 6.7                                         |
-| **DOC** Documentation            | 5.19, 5.20, 5.22, 7.4                                  |
-| **DEP** Build / deploy / install | 4.15, 5.7, 5.8, 5.22, 5.27, 5.29, 6.14, 7.3            |
-| **MAP** Whitelist / blacklist    | 5.2, 6.11, 7.1                                         |
-| **RSP** Rspamd setup             | 5.20, 7.2                                              |
-| **SEC** Security & privacy       | 5.8, 5.19                                              |
-| **REL** Reliability              | 5.3, 5.7, 6.5, 6.8, 6.9                                |
-| **CFG** Configuration            | 5.28, 6.14, 6.16                                       |
-| **TST** Testing                  | 5.16, 5.29                                             |
-| **OPS** Operability              | 5.2, 5.7, 5.23, 5.29, 6.21                             |
-| **HYG** Repo hygiene             | 6.18, 6.19                                             |
-| **UX** End-user workflow         | 5.2, 5.3, 5.14, 5.20, 5.22, 5.27, 5.28, 6.6, 6.10, 7.1 |
-| **LIC** Licensing & metadata     | 6.20, 6.21, 6.22                                       |
+| Area                             | Findings                                    |
+| -------------------------------- | ------------------------------------------- |
+| **REF** Refactoring & modularity | 5.14, 5.28                                  |
+| **CLN** Clean-up / dead code     | 5.14                                        |
+| **DOC** Documentation            | 5.19, 5.20, 5.22, 7.4                       |
+| **DEP** Build / deploy / install | 4.15, 5.7, 5.8, 5.22, 5.27, 5.29, 7.3       |
+| **MAP** Whitelist / blacklist    | 5.2, 7.1                                    |
+| **RSP** Rspamd setup             | 5.20, 7.2                                   |
+| **SEC** Security & privacy       | 5.8, 5.19                                   |
+| **REL** Reliability              | 5.3, 5.7, 6.8, 6.9                          |
+| **CFG** Configuration            | 5.28, 6.16                                  |
+| **TST** Testing                  | 5.16, 5.29                                  |
+| **OPS** Operability              | 5.2, 5.7, 5.23, 5.29, 6.21                  |
+| **HYG** Repo hygiene             | 6.18, 6.19                                  |
+| **UX** End-user workflow         | 5.2, 5.3, 5.14, 5.20, 5.22, 5.27, 5.28, 7.1 |
+| **LIC** Licensing & metadata     | 6.21, 6.22                                  |
 
 ---
 
