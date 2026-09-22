@@ -1,11 +1,19 @@
 {
   "name": "spam-scanner",
   "version": "1.0.0",
+  "description": "Node.js IMAP spam scanner and trainer backed by Rspamd, with mailbox-contained state and an optional AI safety-net classifier.",
+  "license": "MIT",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/awaragi/spam-scanner.git"
+  },
   "type": "module",
   "engines": {
     "node": ">=24"
   },
   "scripts": {
+    "start": "node src/cli/orchestrator.js",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
