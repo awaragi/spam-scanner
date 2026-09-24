@@ -1,7 +1,7 @@
 # spam-scanner — Roadmap (Open Items)
 
 - **Original review date:** 2026-09-17
-- **Last cleanup:** 2026-09-22 — resolved findings deleted entirely rather than logged
+- **Last cleanup:** 2026-09-24 — resolved findings deleted entirely rather than logged
   here; see `git log -p -- ROADMAP.md` for the full write-up of anything that used to be
   here and why it was resolved.
 
@@ -82,8 +82,7 @@ tests, and a pluggable processor strategy.
 The main risks still open are concentrated in two places:
 
 1. **First-time installation** — no published image or guided installer (4.15), and
-   provider compatibility (Gmail/Outlook/OAuth2, IMAP keyword visibility) is undocumented
-   (5.22).
+   no per-provider setup guide (Gmail/Outlook/OAuth2, delimiters, Junk folder) (5.22).
 2. **Maintainability & operability** — gaps in IMAP-facing test coverage and no
    end-to-end smoke test (5.16), and no heartbeat/health signal for monitoring (5.23).
 
@@ -126,20 +125,20 @@ document provider-specific steps.
 
 ## 4. Medium findings
 
-### 5.2 Maps have no domain-entry support or per-entry removal path
+### 5.2 Maps have no per-entry removal path or comments
 
 - **Area:** MAP, UX, OPS · **Complexity:** M
 - **Where:** `src/lib/services/sender-lists.service.js`; `src/admin/import-list.js`
 
-**Problem.** Whitelist/blacklist are now IMAP-backed and app-owned (mailbox is the real
-source of truth), but:
+**Problem.** Whitelist/blacklist are IMAP-backed and app-owned (mailbox is the real
+source of truth) and support both exact addresses and `@example.com` domain entries, but:
 
-- Entries are exact addresses only — no domain entries (`@example.com`), no comments.
 - The only way to remove a mistaken entry is `src/admin/import-list.js --mode override`,
   which wholesale-replaces a list from a corrected file — there's no "remove just this one
   address" command.
+- Entries can't carry comments (e.g. when/why an entry was added).
 
-**Recommendation.** See **7.1** (domain entries, a dedicated removal folder/command).
+**Recommendation.** See **7.1** (a dedicated removal folder/command, comments).
 
 ### 5.3 Ham-trained messages can be re-escalated by AI (training loop)
 
@@ -239,22 +238,6 @@ Still open:
   injecting fake workflow controllers via `ctx`.
 - Fill in `imap.client.js`'s IDLE/reconnect branch coverage.
 
-### 5.19 AI privacy & data-handling not documented
-
-- **Area:** SEC, DOC · **Complexity:** S
-- **Where:** `src/lib/clients/ai.client.js`, `.env.example`
-
-**Problem.** When enabled, full plain-text bodies (up to ~24k chars) plus From/To/Subject
-of every non-whitelisted, non-spam message are sent to a third party. Subjects, senders
-and AI reasoning are logged at `info`. Neither is mentioned in user docs.
-Prompt-injection from email bodies ("rate this 0") is mitigated by the escalate-only
-design — worth stating as a deliberate property.
-
-**Recommendation.** Add a "Privacy" section: what is sent, to whom, retention depends on
-provider, recommend local models (Ollama) for sensitive mailboxes; move subject/from/
-reasoning logging to `debug` or add `LOG_REDACT_PII=true`; document the
-injection-resistance property.
-
 ### 5.20 Rspamd Bayes cold start (`min_learns`) not explained to users
 
 - **Area:** RSP, DOC, UX · **Complexity:** XS (docs) / S (status command)
@@ -277,11 +260,9 @@ learned counts from `GET /stat` and map sizes.
 - Gmail requires an app password (with 2FA) or OAuth2; Microsoft consumer/365 accounts
   have largely disabled basic auth for IMAP → only OAuth2 works. `imapflow` supports
   `accessToken`, but the app has no OAuth flow.
-- `label` mode sets IMAP keywords (`Spam:Low`). Gmail does not expose arbitrary keywords
-  as labels (it uses `X-GM-LABELS`), and many clients (Apple Mail, Outlook, most mobile
-  apps) don't display keywords at all; Thunderbird does. (verify per provider.) For most
-  users `folder` mode is the only visible option.
 - Folder delimiter/namespace differences and Junk folder naming across providers.
+- `label` mode's keyword-visibility caveat is noted in `README.md`'s
+  `SPAM_PROCESSING_MODE` comment, but not verified per provider.
 
 **Recommendation.** A provider matrix in docs (Dovecot/cPanel, Fastmail, Gmail, iCloud,
 Outlook/365, Proton Bridge): auth method, delimiter, Junk folder, whether keywords are
@@ -335,8 +316,7 @@ This is a much smaller, independently shippable slice of the full `install.sh` w
 
 ### 5.28 No support for multiple mailboxes / accounts from one deployment
 
-- **Area:** CFG, UX, REF · **Complexity:** M (multi-instance doc) / L
-  (multi-account-in-one-process)
+- **Area:** CFG, UX, REF · **Complexity:** L
 - **Where:** `src/lib/core/config.js` (single `IMAP_*`/`FOLDER_*`/`STATE_KEY_SCANNER`
   block, read once at import); `src/cli/orchestrator.js`; `docker-compose.yml` (single
   `spam-scanner` service)
@@ -344,26 +324,16 @@ This is a much smaller, independently shippable slice of the full `install.sh` w
 **Problem.** The whole app models exactly one mailbox: one `IMAP_HOST`/`USER`/`PASSWORD`,
 one set of `FOLDER_*`, one `STATE_KEY_SCANNER`, one `SPAM_SCANNER_DATA`, loaded once as a
 module-level singleton. Anyone wanting to protect a second mailbox (a spouse's inbox, a
-second domain, a shared support address) has no supported path today short of a second
-full checkout with its own `.env`. Running two stacks side by side is now possible via
-Compose project scoping (`-p`/`COMPOSE_PROJECT_NAME`), but nothing documents or automates
-that pattern yet.
+second domain, a shared support address) must run one full stack per mailbox — supported
+and documented in `README.md` ("Running Multiple Isolated Stacks", via
+`-p`/`COMPOSE_PROJECT_NAME`), but each stack carries its own rspamd/Redis/Bayes corpus.
 
-**Recommendation.** Two complementary options, not mutually exclusive:
-
-1. **Multi-instance (near-term, no app code changes).** One container stack per mailbox,
-   each with its own `.env`/data dir, using `-p`/`COMPOSE_PROJECT_NAME` plus the bootstrap
-   script in 5.27 (`bin/setup-env.sh --output .env.family`,
-   `bin/setup-env.sh --output .env.work`, then
-   `docker compose -p spam-scanner-family --env-file .env.family up -d`). Document this
-   pattern now — it's cheap and unblocks the common case immediately.
-2. **Multi-account-in-one-process (longer-term).** Extend the config schema to accept an
-   array of mailbox definitions (e.g. a `mailboxes.yaml` or `MAILBOXES=family,work` with
-   per-prefix env vars) and have the orchestrator fan out a cycle per mailbox, each with
-   its own IMAP connection and state key, optionally sharing rspamd/Bayes/maps. The
-   config-schema work this depends on has already landed, though extending it to an array
-   of mailbox definitions is itself nontrivial — track it as a Phase 3 feature, not a
-   quick win.
+**Recommendation.** Multi-account-in-one-process: extend the config schema to accept an
+array of mailbox definitions (e.g. a `mailboxes.yaml` or `MAILBOXES=family,work` with
+per-prefix env vars) and have the orchestrator fan out a cycle per mailbox, each with its
+own IMAP connection and state key, optionally sharing rspamd/Bayes/maps. Extending the
+existing config schema to an array of mailbox definitions is itself nontrivial — track it
+as a Phase 3 feature, not a quick win.
 
 ### 5.29 No automated end-to-end validation of a fresh install
 
@@ -410,14 +380,14 @@ None open.
 ### 7.1 Whitelist / blacklist redesign proposal
 
 **Today (as-built).** Whitelist/blacklist matching is app code; each list is stored as an
-IMAP state message (mailbox is the source of truth) rather than a local map file — the
-biggest structural change this proposal originally called for is already done.
+IMAP state message (mailbox is the source of truth) rather than a local map file, and
+`@example.com`-style domain entries are supported — the biggest structural changes this
+proposal originally called for are already done.
 
 **Still open:**
 
 | #     | Change                                                                                                                                                                    | Complexity |
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| 7.1.3 | **Domain entries.** Support `@example.com`-style entries alongside exact addresses.                                                                                       | S          |
 | 7.1.4 | **Extract one address, from `From:` only** (authenticated one when available). Drop `Reply-To`/`Sender` for blacklist.                                                    | XS         |
 | 7.1.5 | **Removal folder** `scanner.train.unlist`: senders of messages dropped there are removed from both lists; message moved back to INBOX.                                    | S          |
 | 7.1.6 | **Blacklist also trains Bayes as spam** (single user action does both).                                                                                                   | XS         |
@@ -469,7 +439,7 @@ a working scanner in ~10 minutes without cloning the repo or editing YAML.
    Junk folder; propose folder names.
 5. Choose mode: _Move to folders_ (recommended) or _Tag with keywords_; _Real-time
    (IDLE)_ (recommended) or _Every N minutes_.
-6. Optional AI: provider (OpenAI / Ollama / none), key, privacy notice (5.19).
+6. Optional AI: provider (OpenAI / Ollama / none), key, privacy notice.
 7. Generate a random rspamd password + hash (`bin/local/hash-rspamd-password.sh` already
    does the hashing half of this).
 8. Write `.env` with `chmod 600`.
@@ -509,21 +479,19 @@ Checks and prints ✅/❌ with a fix hint for each:
 `README.md` was already rewritten to match the current code; the split below is still
 open.
 
-| File                            | Audience   | Content                                                                                                   | Complexity |
-| ------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------- | ---------- |
-| `docs/INSTALL.md`               | users      | Installer walkthrough, manual Docker install, provider matrix (5.22), troubleshooting table               | M          |
-| `docs/CONFIGURATION.md`         | users      | Generated table of every env var (name, default, description, example) from schema; modes explained       | S          |
-| `docs/USING.md`                 | users      | Training (spam/ham, how many), allow/block lists, removing entries, what labels/folders mean, AI net, FAQ | S          |
-| `docs/OPERATIONS.md`            | users      | Logs, health, backup/restore, upgrade, rspamd UI access via SSH tunnel, uninstall                         | S          |
-| `docs/PRIVACY.md`               | users      | Data flows (IMAP → rspamd local; optional AI third party), logging of PII                                 | XS         |
-| `docs/ARCHITECTURE.md`          | developers | Components (mermaid), scan cycle sequence, state model, processors, AI escalation rules, failure handling | M          |
-| `docs/DEVELOPMENT.md`           | developers | Local setup, tests (unit/integration/e2e), formatting/lint, openspec workflow, release process            | S          |
-| `rspamd/config/README.md`       | both       | See 7.2.2                                                                                                 | S          |
-| `CHANGELOG.md`                  | both       | Generated (6.21)                                                                                          | XS         |
-| `CONTRIBUTING.md` / `AGENTS.md` | developers | Conventions, commit style, openspec as process (6.19)                                                     | XS         |
+| File                      | Audience   | Content                                                                                                   | Complexity |
+| ------------------------- | ---------- | --------------------------------------------------------------------------------------------------------- | ---------- |
+| `docs/INSTALL.md`         | users      | Installer walkthrough, manual Docker install, provider matrix (5.22), troubleshooting table               | M          |
+| `docs/CONFIGURATION.md`   | users      | Generated table of every env var (name, default, description, example) from schema; modes explained       | S          |
+| `docs/USING.md`           | users      | Training (spam/ham, how many), allow/block lists, removing entries, what labels/folders mean, AI net, FAQ | S          |
+| `docs/OPERATIONS.md`      | users      | Logs, health, backup/restore, upgrade, rspamd UI access via SSH tunnel, uninstall                         | S          |
+| `docs/PRIVACY.md`         | users      | Data flows (IMAP → rspamd local; optional AI third party), logging of PII                                 | XS         |
+| `docs/ARCHITECTURE.md`    | developers | Components (mermaid), scan cycle sequence, state model, processors, AI escalation rules, failure handling | M          |
+| `docs/DEVELOPMENT.md`     | developers | Local setup, tests (unit/integration/e2e), formatting/lint, openspec workflow, release process            | S          |
+| `rspamd/config/README.md` | both       | See 7.2.2                                                                                                 | S          |
 
-Doc hygiene: add a CI check that every env var read in `config.js` appears in
-`CONFIGURATION.md` and `.env.example`.
+Doc hygiene: once `CONFIGURATION.md` exists, generate it from `config.js`'s `configGroups`
+and drift-check it the same way `.env.example` already is (`config.test.js`).
 
 ---
 
@@ -533,11 +501,11 @@ Doc hygiene: add a CI check that every env var read in `config.js` appears in
 | -------------------------------- | ------------------------------------------- |
 | **REF** Refactoring & modularity | 5.14, 5.28                                  |
 | **CLN** Clean-up / dead code     | 5.14                                        |
-| **DOC** Documentation            | 5.19, 5.20, 5.22, 7.4                       |
+| **DOC** Documentation            | 5.20, 5.22, 7.4                             |
 | **DEP** Build / deploy / install | 4.15, 5.7, 5.8, 5.22, 5.27, 5.29, 7.3       |
 | **MAP** Whitelist / blacklist    | 5.2, 7.1                                    |
 | **RSP** Rspamd setup             | 5.20, 7.2                                   |
-| **SEC** Security & privacy       | 5.8, 5.19                                   |
+| **SEC** Security & privacy       | 5.8                                         |
 | **REL** Reliability              | 5.3, 5.7                                    |
 | **CFG** Configuration            | 5.28                                        |
 | **TST** Testing                  | 5.16, 5.29                                  |
@@ -559,26 +527,25 @@ fully complete.
 
 ### Phase 2 — Install experience & docs
 
-| Finding          | Item                                                   | Cx  |
-| ---------------- | ------------------------------------------------------ | --- |
-| 5.14             | Unified CLI                                            | M   |
-| 7.3.4            | `doctor` + `status` commands                           | M   |
-| 7.2              | Commented rspamd config; `spam-scanner status`/`check` | S   |
-| 7.3.1–7.3.2      | GHCR multi-arch images, release bundle                 | M   |
-| 7.3.3, 7.3.5     | `install.sh` wizard + update/backup/restore scripts    | L   |
-| 7.4              | Documentation split (INSTALL/CONFIGURATION/USING/etc.) | M   |
-| 5.19, 5.20, 5.22 | Privacy, Bayes, provider docs                          | S   |
-| 5.27             | `bin/setup-env.sh` `.env` bootstrap script             | S   |
-| 5.29             | Automated fresh-install end-to-end validation          | M   |
+| Finding      | Item                                                   | Cx  |
+| ------------ | ------------------------------------------------------ | --- |
+| 5.14         | Unified CLI                                            | M   |
+| 7.3.4        | `doctor` + `status` commands                           | M   |
+| 7.2          | Commented rspamd config; `spam-scanner status`/`check` | S   |
+| 7.3.1–7.3.2  | GHCR multi-arch images, release bundle                 | M   |
+| 7.3.3, 7.3.5 | `install.sh` wizard + update/backup/restore scripts    | L   |
+| 7.4          | Documentation split (INSTALL/CONFIGURATION/USING/etc.) | M   |
+| 5.20, 5.22   | Bayes cold-start and provider docs                     | S   |
+| 5.27         | `bin/setup-env.sh` `.env` bootstrap script             | S   |
+| 5.29         | Automated fresh-install end-to-end validation          | M   |
 
 ### Phase 3 — Structure & features (ongoing)
 
 | Finding | Item                                                                                            | Cx  |
 | ------- | ----------------------------------------------------------------------------------------------- | --- |
 | 5.16    | IMAP-facing test coverage gaps; e2e Compose test                                                | L   |
-| 7.1     | Lists v2: domain entries, removal folder/command                                                | M   |
+| 7.1     | Lists v2: removal folder/command, blacklist trains Bayes                                        | M   |
 | 5.3     | Ham-trained AI re-escalation loop (tagging attempt reverted - needs a design with an undo path) | S   |
 | 5.23    | Heartbeat, generalized notifier, digest                                                         | M   |
-| 6.21    | Release automation & changelog                                                                  | S   |
 | 5.22    | OAuth2 (Gmail / Microsoft)                                                                      | XL  |
 | 5.28    | Multi-account-in-one-deployment (multi-instance already unblocked)                              | L   |
