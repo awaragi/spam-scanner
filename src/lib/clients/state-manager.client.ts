@@ -8,6 +8,7 @@ import {
   validateState,
   type ScannerState,
 } from '../services/state-format.service.ts';
+import { parseEmail } from '../utils/email-parser.util.ts';
 import { rootLogger } from '../core/logger.ts';
 
 const logger = rootLogger.forComponent('state-manager');
@@ -28,13 +29,13 @@ function buildStateCriteria(stateKey: string): SearchObject {
 
 /**
  * `fetchMessagesByUIDs` (imap.client.ts) returns `{uid, flags, envelope,
- * raw}` objects - there is no `.body` field. The `.body` accesses below
- * predate that shape (or always read `undefined`) and are preserved exactly
- * as-is per this migration's identical-runtime-behavior scope; not fixed
- * here.
+ * raw}` objects - `raw` is the full RFC822 message (headers + blank line +
+ * body). State messages are formatted by `formatAppStateEmail`/
+ * `formatStateAsEmail`, so the JSON payload `parseStateFromEmail` expects is
+ * everything after that blank line - `parseEmail()` splits the two apart.
  */
-interface FetchedMessageWithBody {
-  body: string;
+function bodyOf(message: { raw: Buffer }): string {
+  return parseEmail(message.raw.toString()).body;
 }
 
 // `imap.mailbox` is typed `MailboxObject | false` (imapflow uses `false` for
@@ -100,9 +101,7 @@ export async function readScannerState(
     throw new Error('Failed to fetch state message');
   }
 
-  const json = parseStateFromEmail(
-    (messages[0] as unknown as FetchedMessageWithBody).body
-  );
+  const json = parseStateFromEmail(bodyOf(messages[0]));
 
   if (!json) {
     throw new Error('Failed to parse state from email');
@@ -189,9 +188,7 @@ export async function readMapState(
     return [];
   }
 
-  const parsed = parseStateFromEmail(
-    (messages[0] as unknown as FetchedMessageWithBody).body
-  );
+  const parsed = parseStateFromEmail(bodyOf(messages[0]));
 
   // A missing message, unparseable JSON, or JSON that isn't an address array
   // (e.g. a legacy newline-delimited plain-text backup, or malformed content)

@@ -63,15 +63,18 @@ function makeImap(overrides = {}) {
   };
 }
 
-// fetchMessagesByUIDs' real return shape is {uid, flags, envelope, raw} - no
-// `body` (see state-manager.client.ts's FetchedMessageWithBody comment).
-// This mirrors the `.body` access the code under test actually reads.
+// fetchMessagesByUIDs' real return shape is {uid, flags, envelope, raw} -
+// `raw` is the full RFC822 message (headers + blank line + body), which
+// state-manager.client.ts's bodyOf() splits via the real (unmocked)
+// parseEmail(). Build a minimal raw message here so that extraction is
+// exercised the same way it is in production.
 function fakeFetched(
   body: string
 ): Awaited<ReturnType<typeof fetchMessagesByUIDs>> {
-  return [{ body }] as unknown as Awaited<
-    ReturnType<typeof fetchMessagesByUIDs>
-  >;
+  const raw = Buffer.from(`Subject: state\r\n\r\n${body}`);
+  return [
+    { uid: 1, flags: new Set(), envelope: {}, raw },
+  ] as unknown as Awaited<ReturnType<typeof fetchMessagesByUIDs>>;
 }
 
 describe('writeScannerState', () => {
@@ -257,6 +260,31 @@ describe('readScannerState', () => {
     await readScannerState(asImapFlow(imap), undefined);
 
     expect(mockedFetchMessagesByUIDs).toHaveBeenCalledWith(imap, [7]);
+  });
+
+  // Regression test for a real pre-existing bug this migration surfaced:
+  // fetchMessagesByUIDs' actual return shape is {uid, flags, envelope, raw}
+  // (a full RFC822 message) - there is no `.body` field. Reading it directly
+  // (as the code once did) always parses `undefined`. This asserts the state
+  // JSON is correctly extracted from the raw message's body, past its headers.
+  test('extracts the JSON body from the full raw RFC822 message, not a nonexistent .body field', async () => {
+    const imap = makeImap();
+    mockedSearch.mockResolvedValue([7]);
+    const stateJson = JSON.stringify({
+      last_uid: 99,
+      last_seen_date: 'd',
+      last_checked: 'c',
+    });
+    const raw = Buffer.from(
+      `From: Scanner State <scanner@localhost>\r\nSubject: AppState: scanner\r\nX-App-State: scanner\r\nContent-Type: text/plain; charset=utf-8\r\nMIME-Version: 1.0\r\n\r\n${stateJson}`
+    );
+    mockedFetchMessagesByUIDs.mockResolvedValue([
+      { uid: 7, flags: new Set(), envelope: {}, raw },
+    ] as unknown as Awaited<ReturnType<typeof fetchMessagesByUIDs>>);
+
+    await readScannerState(asImapFlow(imap), undefined);
+
+    expect(mockedParseStateFromEmail).toHaveBeenCalledWith(stateJson);
   });
 
   test('unparseable state message: throws "Failed to parse", not masked by validateState', async () => {
