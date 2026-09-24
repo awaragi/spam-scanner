@@ -20,9 +20,9 @@ const logger = rootLogger.forComponent('pending-messages');
  * change (persisting that reset immediately even if nothing new turns up,
  * so the next cycle doesn't re-detect the same mismatch and re-warn
  * forever), searches, and filters/caps the result to `BATCH_SCAN_SIZE`.
- * @param {Object} imap - ImapFlow client
- * @param {Object} [ctx]
- * @returns {Promise<{state: Object, uids: Array<number>}>} - `uids` is empty when there's nothing new
+ * @param imap - ImapFlow client
+ * @param [ctx]
+ * @returns - `uids` is empty when there's nothing new
  */
 export async function locatePendingMessages(
   imap: ImapFlow,

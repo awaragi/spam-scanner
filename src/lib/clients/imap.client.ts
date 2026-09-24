@@ -53,8 +53,7 @@ export function newClient(): ImapFlow {
  * `finally` block even when `connect()` itself never succeeded (there's
  * nothing to log out of in that case, and letting that error escape would
  * mask whatever error the caller already handled).
- * @param {ImapFlow} imap
- * @returns {Promise<void>}
+ * @param imap
  */
 export async function safeLogout(imap: ImapFlow): Promise<void> {
   try {
@@ -69,8 +68,8 @@ export async function safeLogout(imap: ImapFlow): Promise<void> {
 
 /**
  * Retrieves the IMAP folder hierarchy delimiter.
- * @param {ImapFlow} imap - An active and connected ImapFlow client instance.
- * @returns {Promise<string|null>} The folder delimiter (e.g., "/", "."), or null if not found.
+ * @param imap - An active and connected ImapFlow client instance.
+ * @returns The folder delimiter (e.g., "/", "."), or null if not found.
  */
 export async function getImapDelimiter(
   imap: ImapFlow
@@ -170,8 +169,7 @@ export async function findFirstUIDOnDate(
  * string, so a non-UTF-8 8-bit body (legacy Latin-1 mail) reaches rspamd/AI
  * classification byte-for-byte instead of getting UTF-8 replacement
  * characters baked in - see `stripSpamHeadersBuffer`.
- * @param {Object} message - The message object from ImapFlow
- * @returns {{uid: number, flags: string[], envelope: Object, raw: Buffer}}
+ * @param message - The message object from ImapFlow
  */
 interface RawMessage {
   uid: number;
@@ -209,8 +207,7 @@ export function processMessage(message: RawMessage): {
  * blank line, so one is appended here - a no-op if the fetched header block
  * already ends in one, and otherwise what makes `parseEmail` find the
  * boundary at all rather than treating the whole buffer as bodyless content.
- * @param {Object} message - The message object from ImapFlow (fetched with `headers: true`)
- * @returns {{uid: number, headers: Record<string, string>}}
+ * @param message - The message object from ImapFlow (fetched with `headers: true`)
  */
 interface HeaderMessage {
   uid: number;
@@ -267,9 +264,9 @@ export function count(box: MailboxObject): number {
 
 /**
  * Search for messages in an opened folder based on query
- * @param {Object} imap - ImapFlow client
- * @param {Array|Object} query - Search query (array for node-imap compatibility, object for ImapFlow)
- * @returns {Promise<Array>} - Array of message UIDs
+ * @param imap - ImapFlow client
+ * @param query - Search query (array for node-imap compatibility, object for ImapFlow)
+ * @returns - Array of message UIDs
  */
 export async function search(
   imap: ImapFlow,
@@ -298,9 +295,9 @@ export async function search(
 
 /**
  * Fetch messages by UID
- * @param {Object} imap - ImapFlow client
- * @param {Array} uids - Array of UIDs to fetch
- * @returns {Promise<Array>} - Array of message objects with uid, flags, envelope, and a raw Buffer
+ * @param imap - ImapFlow client
+ * @param uids - Array of UIDs to fetch
+ * @returns - Array of message objects with uid, flags, envelope, and a raw Buffer
  */
 export async function fetchMessagesByUIDs(
   imap: ImapFlow,
@@ -342,9 +339,9 @@ export async function fetchMessagesByUIDs(
 /**
  * Fetch only message headers by UID - see `processMessageHeaders` for why
  * this exists as a separate, cheaper primitive from `fetchMessagesByUIDs`.
- * @param {Object} imap - ImapFlow client
- * @param {Array} uids - Array of UIDs to fetch
- * @returns {Promise<Array>} - Array of `{uid, headers}` objects
+ * @param imap - ImapFlow client
+ * @param uids - Array of UIDs to fetch
+ * @returns - Array of `{uid, headers}` objects
  */
 export async function fetchMessageHeadersByUIDs(
   imap: ImapFlow,
@@ -378,10 +375,9 @@ export async function fetchMessageHeadersByUIDs(
 
 /**
  * Helper function to handle message moving and expunging
- * @param {Object} imap - ImapFlow client
- * @param {Number} uid - UID of the message to move
- * @param {String} dest - Destination folder
- * @returns {Promise<void>}
+ * @param imap - ImapFlow client
+ * @param uid - UID of the message to move
+ * @param dest - Destination folder
  */
 export async function moveMessage(
   imap: ImapFlow,
@@ -421,10 +417,9 @@ export async function moveMessage(
 
 /**
  * Move all messages to destination folder
- * @param {Object} imap - ImapFlow client
- * @param {Array} messages - Array of message objects with UIDs
- * @param {String} destFolder - Destination folder
- * @returns {Promise<void>}
+ * @param imap - ImapFlow client
+ * @param messages - Array of message objects with UIDs
+ * @param destFolder - Destination folder
  */
 export async function moveMessages(
   imap: ImapFlow,
@@ -455,11 +450,10 @@ export async function moveMessages(
 
 /**
  * Append a raw RFC822 message to a folder.
- * @param {Object} imap - ImapFlow client
- * @param {String} folder - Destination folder
- * @param {String} raw - Raw RFC822 message source
- * @param {Array} flags - IMAP flags to set on append (e.g. ['\\Seen']); omit to leave the message unread
- * @returns {Promise<void>}
+ * @param imap - ImapFlow client
+ * @param folder - Destination folder
+ * @param raw - Raw RFC822 message source
+ * @param flags - IMAP flags to set on append (e.g. ['\\Seen']); omit to leave the message unread
  */
 export async function appendMessage(
   imap: ImapFlow,
@@ -481,11 +475,11 @@ export async function appendMessage(
 
 /**
  * Update labels (flags) on messages
- * @param {Object} imap - ImapFlow client
- * @param {Array} messages - Array of message objects with UIDs
- * @param {Array} labelsToSet - Array of labels to set
- * @param {Array} labelsToUnset - Array of labels to unset
- * @returns {Promise<void>} - Resolves when all labels are updated
+ * @param imap - ImapFlow client
+ * @param messages - Array of message objects with UIDs
+ * @param labelsToSet - Array of labels to set
+ * @param labelsToUnset - Array of labels to unset
+ * @returns - Resolves when all labels are updated
  */
 export async function updateLabels(
   imap: ImapFlow,
@@ -563,13 +557,12 @@ export async function updateLabels(
  *   - `signal` is aborted (caller-requested shutdown)
  * Rejects if the connection emits `error` or `close` while waiting.
  * Releases the lock and cleans up listeners/timers in a finally block.
- * @param {Object} imap - ImapFlow client
- * @param {string} folder - Mailbox to watch (e.g. ctx.config.FOLDER_INBOX)
- * @param {Object} [options]
- * @param {AbortSignal} [options.signal] - Aborting resolves the wait immediately (treated as a wakeup, not an error)
- * @param {number} [options.lastUid] - Last UID processed by the scanner; used for the pre-IDLE catch-up check
- * @param {number} [options.watchdogMs] - Max time to stay in IDLE before recycling regardless of activity; 0 disables it
- * @returns {Promise<void>}
+ * @param imap - ImapFlow client
+ * @param folder - Mailbox to watch (e.g. ctx.config.FOLDER_INBOX)
+ * @param [options]
+ * @param [options.signal] - Aborting resolves the wait immediately (treated as a wakeup, not an error)
+ * @param [options.lastUid] - Last UID processed by the scanner; used for the pre-IDLE catch-up check
+ * @param [options.watchdogMs] - Max time to stay in IDLE before recycling regardless of activity; 0 disables it
  */
 export async function waitForNewMail(
   imap: ImapFlow,

@@ -41,8 +41,7 @@ process.on('SIGINT', () => requestShutdown('SIGINT'));
  * A setTimeout-style sleep that resolves early (rather than rejecting) if
  * shutdown is requested while waiting, so callers can just check `stopping`
  * afterwards instead of handling an abort-flavoured rejection.
- * @param {number} ms
- * @returns {Promise<void>}
+ * @param ms
  */
 async function interruptibleSleep(ms: number): Promise<void> {
   try {

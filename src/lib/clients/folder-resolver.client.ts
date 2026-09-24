@@ -15,8 +15,7 @@ const logger = rootLogger.forComponent('folder-resolver');
  * folder path. Naturally idempotent if called more than once: splitFolderParts
  * treats `.`, `/` and `\` as equivalent separators, so re-splitting an
  * already-resolved value and rejoining with the same delimiter is a no-op.
- * @param {Object} imap - Connected ImapFlow client
- * @returns {Promise<void>}
+ * @param imap - Connected ImapFlow client
  */
 export async function resolveFolders(imap: ImapFlow): Promise<void> {
   const delimiter = await getImapDelimiter(imap);

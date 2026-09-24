@@ -9,10 +9,9 @@ import {
  * update, in either `append` (merge with existing entries) or `override`
  * (replace existing entries entirely) mode. Pure - the caller is responsible
  * for reading the existing list and persisting `list`.
- * @param {Array<string>} existing - current list entries
- * @param {Array<string>} incoming - addresses being added
- * @param {'append'|'override'} [mode]
- * @returns {{list: Array<string>, added: Array<string>, skipped: Array<string>, removed: Array<string>, total: number}}
+ * @param existing - current list entries
+ * @param incoming - addresses being added
+ * @param [mode]
  */
 const isString = (value: string | null): value is string => value !== null;
 

@@ -7,10 +7,9 @@ const logger = rootLogger.forComponent('folder-move');
 
 /**
  * Moves messages to spam-likelihood folders based on their spam tier.
- * @param {Object} imap - ImapFlow client
- * @param {{nonSpamMessages: Array, lowSpamMessages: Array, highSpamMessages: Array}} categorized
- * @param {Object} [ctx]
- * @returns {Promise<void>}
+ * @param imap - ImapFlow client
+ * @param categorized
+ * @param [ctx]
  */
 export async function moveToFolders(
   imap: ImapFlow,

@@ -64,8 +64,7 @@ type ProcessFn = (
  * controller-level wiring, not a hidden business rule - this is where
  * SPAM_PROCESSING_MODE's mode switch (and its 'label' fallback / unknown-mode
  * throw, both formerly embedded in the retired base-processor.js) now lives.
- * @param {string} mode
- * @returns {(imap: Object, categorized: Object, ctx: Object) => Promise<void>}
+ * @param mode
  */
 function resolveProcessFn(mode: string | undefined): ProcessFn {
   switch (mode || 'label') {
@@ -82,13 +81,13 @@ function resolveProcessFn(mode: string | undefined): ProcessFn {
 
 /**
  * Scan and process a batch of messages.
- * @param {Object} imap - ImapFlow client
- * @param {Array} uids - Array of message UIDs to process
- * @param {Object} state - Current scanner state (mutated: state.last_uid advances)
- * @param {(imap: Object, categorized: Object, ctx: Object) => Promise<void>} processFn - resolved processing strategy
- * @param {{whitelistSet: Set<string>, blacklistSet: Set<string>}} lists - Sender lists loaded once per `runScan` call
- * @param {Object} ctx
- * @returns {Promise<Object>} - Counts of processed messages by category
+ * @param imap - ImapFlow client
+ * @param uids - Array of message UIDs to process
+ * @param state - Current scanner state (mutated: state.last_uid advances)
+ * @param processFn - resolved processing strategy
+ * @param lists - Sender lists loaded once per `runScan` call
+ * @param ctx
+ * @returns - Counts of processed messages by category
  */
 async function scanBatch(
   imap: ImapFlow,
@@ -233,9 +232,9 @@ async function scanBatch(
 /**
  * Run inbox scanning workflow.
  * Orchestrates the complete scanning process: read state, search, batch process, update state.
- * @param {Object} imap - ImapFlow client
- * @param {Object} [ctx]
- * @returns {Promise<{processed: number, last_uid: number}>} - Count of messages fetched and processed, and the resulting last_uid
+ * @param imap - ImapFlow client
+ * @param [ctx]
+ * @returns - Count of messages fetched and processed, and the resulting last_uid
  */
 export async function runScan(
   imap: ImapFlow,

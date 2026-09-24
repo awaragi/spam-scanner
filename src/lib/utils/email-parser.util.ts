@@ -15,8 +15,8 @@ interface ReceivedHop {
 
 /**
  * Removes all X-Spam-* and X-Ham-Report header lines from email content.
- * @param {string} headerText - Header-only text (no body)
- * @returns {string} - Header text without spam/ham headers
+ * @param headerText - Header-only text (no body)
+ * @returns - Header text without spam/ham headers
  */
 function filterSpamHeaderLines(headerText: string): string {
   const lines = headerText.split('\n');
@@ -58,8 +58,8 @@ function filterSpamHeaderLines(headerText: string): string {
  * Removes all X-Spam-* and X-Ham-Report headers from email content. Scans
  * only up to the first blank line (the header/body boundary) so a body line
  * that happens to start with "x-spam-" is never altered.
- * @param {string} emailContent - Raw email content
- * @returns {string} - Email content without spam/ham headers
+ * @param emailContent - Raw email content
+ * @returns - Email content without spam/ham headers
  */
 export function stripSpamHeaders(emailContent: string): string {
   const separatorMatch = emailContent.match(/\r?\n\r?\n/);
@@ -81,8 +81,8 @@ export function stripSpamHeaders(emailContent: string): string {
  * byte<->code-unit mapping in both directions, so decoding, running the same
  * line-based header stripping, and re-encoding never alters a single body
  * byte - only whole header lines are ever removed.
- * @param {Buffer} messageBuffer - Full raw message (headers + body)
- * @returns {Buffer} - Same bytes, minus any X-Spam- or X-Ham-Report header lines
+ * @param messageBuffer - Full raw message (headers + body)
+ * @returns - Same bytes, minus any X-Spam- or X-Ham-Report header lines
  */
 export function stripSpamHeadersBuffer(messageBuffer: Buffer): Buffer {
   const stripped = stripSpamHeaders(messageBuffer.toString('latin1'));
@@ -97,8 +97,8 @@ const IP_IN_BRACKETS_RE = /\[([0-9a-fA-F:.]+)]/;
  * connecting IP address, as written by the MTA that accepted the connection
  * (e.g. `from mail.example.com (unknown [203.0.113.5]) by ...`). Either field
  * may be unavailable depending on the MTA's format.
- * @param {string} value - A single unfolded `Received:` header value
- * @returns {{ip: string|null, helo: string|null}|null} - null if the value
+ * @param value - A single unfolded `Received:` header value
+ * @returns - null if the value
  *   doesn't start with a recognizable `from ...` clause
  */
 export function parseReceivedHeader(value: unknown): ReceivedHop | null {
@@ -128,12 +128,12 @@ export function parseReceivedHeader(value: unknown): ReceivedHop | null {
  * infrastructure added after accepting the message - before reading the
  * boundary hop. Most single-MX setups need `trustedHops: 0`; a setup with an
  * inbound relay in front of the final IMAP store needs a larger value.
- * @param {string[]} receivedHeaders - Raw `Received:` header values, topmost
+ * @param receivedHeaders - Raw `Received:` header values, topmost
  *   (most recent) first - e.g. mailparser's `headers.get('received')`,
  *   normalized to an array (it returns a bare string when there's exactly
  *   one occurrence).
- * @param {number} [trustedHops] - Received headers to skip from the top
- * @returns {{ip: string|null, helo: string|null}|null} - null if there's no
+ * @param [trustedHops] - Received headers to skip from the top
+ * @returns - null if there's no
  *   `Received:` header at that position, or it couldn't be parsed
  */
 export function resolveConnectingHop(
@@ -147,8 +147,8 @@ export function resolveConnectingHop(
 
 /**
  * Parses raw email content into headers and body.
- * @param {string} rawEmail - Full raw email content (headers + body)
- * @returns {{headers: Record<string, string>, body: string}} - Object containing parsed headers and body
+ * @param rawEmail - Full raw email content (headers + body)
+ * @returns - Object containing parsed headers and body
  */
 export function parseEmail(rawEmail: string): {
   headers: Record<string, string>;
@@ -196,8 +196,8 @@ const AUTHENTICATING_SYMBOLS = ['R_DKIM_ALLOW', 'DMARC_POLICY_ALLOW'];
  * `sender-lists` capability) - this doesn't reintroduce list/mailbox
  * awareness into rspamd, since it's a content-scoring signal rspamd computes
  * for every message regardless of any list.
- * @param {Object} response - JSON response object from Rspamd /checkv2 endpoint
- * @returns {{score: number, required: number, senderAuthenticated: boolean}} - Rspamd's content score, its add-header threshold, and whether it found a passing DKIM/DMARC symbol
+ * @param response - JSON response object from Rspamd /checkv2 endpoint
+ * @returns - Rspamd's content score, its add-header threshold, and whether it found a passing DKIM/DMARC symbol
  */
 export function parseRspamdOutput(response: unknown): {
   score: number;
@@ -235,8 +235,8 @@ export function parseRspamdOutput(response: unknown): {
 /**
  * Parses an AI chat-completion's text content into a spam classification.
  * Tolerates markdown code fences (```json ... ``` or ``` ... ```) around the JSON.
- * @param {string} content - Raw text content from the AI response
- * @returns {{score: number, reasoning: string}} - Object containing spam classification
+ * @param content - Raw text content from the AI response
+ * @returns - Object containing spam classification
  * @throws {Error} - If content is empty, not valid JSON, or missing a numeric score
  */
 export function parseAiClassificationOutput(content: unknown): {

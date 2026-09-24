@@ -25,10 +25,9 @@ export interface AiFailureAlert {
  * whitelist map, and is what keeps the alert reliably out of rspamd's spam
  * buckets on future occurrences (Message-ID alone clears the default
  * threshold but by a thin margin; Bayes training widens it considerably).
- * @param {Object} imap - ImapFlow client
- * @param {{reason: string, count: number, lastError: string, lastAt: string}|null} alert
- * @param {Object} [ctx]
- * @returns {Promise<void>}
+ * @param imap - ImapFlow client
+ * @param alert
+ * @param [ctx]
  */
 export async function postAiFailureAlert(
   imap: ImapFlow,

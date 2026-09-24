@@ -8,10 +8,9 @@ const logger = rootLogger.forComponent('label-apply');
 /**
  * Applies Gmail-style labels to messages based on their spam tier. The
  * current default processing mode.
- * @param {Object} imap - ImapFlow client
- * @param {{nonSpamMessages: Array, lowSpamMessages: Array, highSpamMessages: Array}} categorized
- * @param {Object} [ctx]
- * @returns {Promise<void>}
+ * @param imap - ImapFlow client
+ * @param categorized
+ * @param [ctx]
  */
 export async function applyLabels(
   imap: ImapFlow,

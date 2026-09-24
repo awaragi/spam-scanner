@@ -57,11 +57,11 @@ interface WhitelistFlaggedMessage {
  * of truth for what these thresholds actually are; a local default would
  * just be a second copy of the same numbers with nothing keeping them in
  * sync.
- * @param {Array} messages - Array of messages with spam information
- * @param {number} cleanThreshold - clean/low boundary
- * @param {number} lowThreshold - low/high boundary
- * @param {number} confirmedThreshold - high/confirmed boundary
- * @returns {Object} - Object with categorized messages
+ * @param messages - Array of messages with spam information
+ * @param cleanThreshold - clean/low boundary
+ * @param lowThreshold - low/high boundary
+ * @param confirmedThreshold - high/confirmed boundary
+ * @returns - Object with categorized messages
  */
 export function categorizeMessages<M extends ScoredMessage>(
   messages: M[],
@@ -106,10 +106,10 @@ const BUCKET_RANK = { nonSpam: 0, lowSpam: 1, highSpam: 2, spam: 3 };
  * Maps an AI score to the bucket rank it would escalate a message to.
  * Deliberately cannot return BUCKET_RANK.spam - AI can never push a message
  * all the way to spam, only rspamd's own verdict can.
- * @param {number|null|undefined} score
- * @param {number} escalateToLowThreshold
- * @param {number} escalateToHighThreshold
- * @returns {number|null} - null means "no opinion" (score missing, or too low to escalate)
+ * @param score
+ * @param escalateToLowThreshold
+ * @param escalateToHighThreshold
+ * @returns - null means "no opinion" (score missing, or too low to escalate)
  */
 function aiTargetRank(
   score: number | null | undefined,
@@ -127,10 +127,10 @@ function aiTargetRank(
  * escalate-only policy: a message's final bucket can never be less severe than
  * the one rspamd originally assigned it, and AI can never escalate a message
  * as far as `spamMessages` (only rspamd's own verdict can do that).
- * @param {Object} categorized - original 4-bucket output of categorizeMessages
- * @param {{nonSpamMessages: Array, lowSpamMessages: Array}} aiResults - same messages, each with `aiInfo: {score}` attached
- * @param {{escalateToLowThreshold?: number, escalateToHighThreshold?: number}} [thresholds]
- * @returns {Object} - new 4-bucket object, same shape as categorizeMessages' return value
+ * @param categorized - original 4-bucket output of categorizeMessages
+ * @param aiResults - same messages, each with `aiInfo: {score}` attached
+ * @param [thresholds]
+ * @returns - new 4-bucket object, same shape as categorizeMessages' return value
  */
 export function applyAiEscalation<M extends AiScoredMessage>(
   categorized: CategorizedBuckets<M>,
@@ -188,10 +188,9 @@ export function applyAiEscalation<M extends AiScoredMessage>(
  * (address matched, but nothing proves the message actually came from it -
  * the most common phishing pattern) gets a smaller -5 discount instead, so a
  * spoofed "trusted" sender's spammy content can still reach `confirmed`.
- * @param {number} rawScore
- * @param {boolean} isWhitelisted
- * @param {boolean} [senderAuthenticated]
- * @returns {number}
+ * @param rawScore
+ * @param isWhitelisted
+ * @param [senderAuthenticated]
  */
 export function applyWhitelistAdjustment(
   rawScore: number,
@@ -211,9 +210,8 @@ export function applyWhitelistAdjustment(
  * list awareness (see `sender-lists` capability). `senderAuthenticated` is
  * read from `spamInfo` (set by `rspamd-check.step.js` from rspamd's own
  * DKIM/DMARC symbols) and passed through unchanged - it's not computed here.
- * @param {Array} messages - already-checked messages (spamInfo.score/required/senderAuthenticated set)
- * @param {Set<string>} whitelistSet - normalized whitelist entries (addresses and/or "@domain" entries)
- * @returns {{messages: Array, whitelistedTotal: number}}
+ * @param messages - already-checked messages (spamInfo.score/required/senderAuthenticated set)
+ * @param whitelistSet - normalized whitelist entries (addresses and/or "@domain" entries)
  */
 export function applyWhitelistAdjustments<M extends WhitelistableMessage>(
   messages: M[],
@@ -253,8 +251,7 @@ export function applyWhitelistAdjustments<M extends WhitelistableMessage>(
  * treated like a non-whitelisted message, since the match alone doesn't
  * establish the sender is who the whitelist entry names (see
  * `sender-lists` capability).
- * @param {Array} messages
- * @returns {{whitelisted: Array, rest: Array}}
+ * @param messages
  */
 export function partitionByWhitelistFlag<M extends WhitelistFlaggedMessage>(
   messages: M[]
@@ -274,10 +271,10 @@ export function partitionByWhitelistFlag<M extends WhitelistFlaggedMessage>(
  * back into an AI-escalated categorization's nonSpam/lowSpam tiers - the
  * tiers they were partitioned out of, so they land back where their own
  * (whitelist-adjusted) rspamd score already placed them.
- * @param {Object} categorized - output of applyAiEscalation
- * @param {Array} nonSpamWhitelisted - held-back whitelisted nonSpam messages
- * @param {Array} lowSpamWhitelisted - held-back whitelisted lowSpam messages
- * @returns {Object} - new object, same shape as categorized
+ * @param categorized - output of applyAiEscalation
+ * @param nonSpamWhitelisted - held-back whitelisted nonSpam messages
+ * @param lowSpamWhitelisted - held-back whitelisted lowSpam messages
+ * @returns - new object, same shape as categorized
  */
 export function mergeWhitelistedBack<M>(
   categorized: CategorizedBuckets<M>,

@@ -31,9 +31,8 @@ interface DatasetResult {
  * Classifies a single dataset message, never throwing - failures are caught
  * and reflected as `error` so one bad message doesn't abort the batch (same
  * fail-open shape as `ai-classification.step.js`'s `classifyOne`).
- * @param {{bucket: string, filename: string, uid: string, envelope: Object, raw: Buffer}} message
- * @param {Object} ctx
- * @returns {Promise<{bucket: string, filename: string, score: number|null, reasoning: string|null, error: string|null}>}
+ * @param message
+ * @param ctx
  */
 async function classifyOne(
   message: DatasetMessage,
@@ -65,9 +64,8 @@ async function classifyOne(
 /**
  * Classifies an entire loaded `.eml` dataset, bounded by `ctx.config.AI_CONCURRENCY`.
  * Never throws - per-message failures are caught and recorded (see `classifyOne`).
- * @param {Array<{bucket: string, filename: string, uid: string, envelope: Object, raw: Buffer}>} messages
- * @param {Object} [ctx]
- * @returns {Promise<Array<{bucket: string, filename: string, score: number|null, reasoning: string|null, error: string|null}>>}
+ * @param messages
+ * @param [ctx]
  */
 export async function classifyDataset(
   messages: DatasetMessage[],

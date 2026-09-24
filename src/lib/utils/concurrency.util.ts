@@ -1,10 +1,10 @@
 /**
  * Runs an async function over items with a bounded number of concurrent workers.
  * Fully generic - no domain knowledge.
- * @param {Array} items
- * @param {number} limit
- * @param {(item: any) => Promise<any>} fn
- * @returns {Promise<Array>} - results in the same order as items
+ * @param items
+ * @param limit
+ * @param fn
+ * @returns - results in the same order as items
  */
 export async function mapWithConcurrency<T, R>(
   items: T[],

@@ -34,11 +34,10 @@ function emptyStreak(): FailureStreak {
  * should now be posted. Does not itself mark the streak as notified - call
  * `AiFailureTracker.markNotified()` only after the alert has actually been
  * delivered, so a delivery failure can retry on the next failure.
- * @param {{reason: string|null, count: number, notified: boolean, lastError: string|null, lastAt: string|null}} streak
- * @param {Error} err
- * @param {number} threshold
- * @param {() => string} [now]
- * @returns {{streak: Object, shouldAlert: boolean}}
+ * @param streak
+ * @param err
+ * @param threshold
+ * @param [now]
  */
 export function nextFailureStreak(
   streak: FailureStreak,
@@ -74,9 +73,8 @@ export class AiFailureTracker {
   #streak: FailureStreak = emptyStreak();
 
   /**
-   * @param {Error} err
-   * @param {number} threshold
-   * @returns {{shouldAlert: boolean, reason: string, count: number, lastError: string, lastAt: string}}
+   * @param err
+   * @param threshold
    */
   recordFailure(err: unknown, threshold: number) {
     const { streak: next, shouldAlert } = nextFailureStreak(
@@ -99,7 +97,7 @@ export class AiFailureTracker {
   }
 
   /**
-   * @param {string} reason - the `reason` returned alongside `shouldAlert: true`
+   * @param reason - the `reason` returned alongside `shouldAlert: true`
    */
   markNotified(reason: string | null): void {
     if (this.#streak.reason === reason) {

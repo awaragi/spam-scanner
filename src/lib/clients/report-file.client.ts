@@ -6,8 +6,7 @@ const logger = rootLogger.forComponent('report-file-client');
 
 /**
  * Turns a Date into a filesystem-safe timestamp, e.g. "2026-09-20T14-30-00".
- * @param {Date} date
- * @returns {string}
+ * @param date
  */
 function timestampFor(date: Date): string {
   return date.toISOString().replace(/:/g, '-').split('.')[0];
@@ -17,10 +16,10 @@ function timestampFor(date: Date): string {
  * Writes report text to a new timestamped file under `<reportsDir>/`, never
  * overwriting a previous run's report (see the `ai-prompt-eval` capability's
  * "Timestamped, non-overwriting report output" requirement).
- * @param {string} reportsDir
- * @param {string} reportText
- * @param {Date} [generatedAt]
- * @returns {Promise<string>} the written file's path
+ * @param reportsDir
+ * @param reportText
+ * @param [generatedAt]
+ * @returns the written file's path
  */
 export async function writeReport(
   reportsDir: string,

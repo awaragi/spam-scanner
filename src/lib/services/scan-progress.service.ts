@@ -10,10 +10,9 @@ import { dateToString } from '../utils/email.util.ts';
 
 /**
  * Computes the scanner state fields after processing a batch of messages.
- * @param {{last_uid: number}} state - current scanner state
- * @param {Array<{uid: number, envelope: {date: any}}>} messages - the batch just processed
- * @param {() => string} [now]
- * @returns {{last_uid: number, last_seen_date: string, last_checked: string}}
+ * @param state - current scanner state
+ * @param messages - the batch just processed
+ * @param [now]
  */
 interface UidState {
   last_uid: number;
@@ -47,9 +46,8 @@ export function computeScanProgress(
  * the new one (it could even skip all new mail), so a mismatch is treated
  * the same as "no state" - reset to new-mail-only rather than either
  * trusting the stale UID or rescanning the whole inbox.
- * @param {{last_uid: number, uid_validity?: string}} state
- * @param {{uidValidity: bigint, uidNext: number}} mailbox
- * @returns {{state: Object, changed: boolean, previousUidValidity: string|undefined, currentUidValidity: string|undefined}}
+ * @param state
+ * @param mailbox
  */
 interface ValidityState {
   last_uid: number;
@@ -98,9 +96,9 @@ export function computeUidValidityReset(
 
 /**
  * Builds the IMAP search query for the next batch of new messages.
- * @param {{last_uid: number}} state
- * @param {boolean} scanRead - SCAN_READ: when false, restricts to unseen messages
- * @returns {Object} - ImapFlow search query
+ * @param state
+ * @param scanRead - SCAN_READ: when false, restricts to unseen messages
+ * @returns - ImapFlow search query
  */
 export function buildScanQuery(
   state: UidState,
@@ -117,9 +115,9 @@ export function buildScanQuery(
 
 /**
  * Reduces one batch's counts into `runScan`'s running totals.
- * @param {{lowSpamTotal: number, highSpamTotal: number, nonSpamTotal: number, spamTotal: number, whitelistedTotal: number}} totals
- * @param {{lowSpamTotal: number, highSpamTotal: number, nonSpamTotal: number, spamTotal: number, whitelistedTotal: number}} counts
- * @returns {Object} - new totals object
+ * @param totals
+ * @param counts
+ * @returns - new totals object
  */
 interface BatchTotals {
   lowSpamTotal: number;

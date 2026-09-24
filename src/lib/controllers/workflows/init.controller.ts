@@ -10,9 +10,8 @@ const logger = rootLogger.forComponent('init-controller');
  * Run folder initialization workflow.
  * Resolves configured folder paths against the server's real delimiter, then
  * creates all required IMAP folders if they don't exist.
- * @param {Object} imap - ImapFlow client
- * @param {Object} [ctx]
- * @returns {Promise<void>}
+ * @param imap - ImapFlow client
+ * @param [ctx]
  */
 export async function runInit(
   imap: ImapFlow,

@@ -31,13 +31,13 @@ type TrainFn = typeof trainSpam;
  * `error` and swallowed here rather than rethrown. Batches already
  * processed before the error stay moved; anything not yet reached is simply
  * left in the training folder to be picked up on the next cycle.
- * @param {Object} imap - ImapFlow client
- * @param {string} folder - Training folder path
- * @param {string} destFolder - Destination folder after training
- * @param {Function} trainFn - Training function (trainSpam or trainHam)
- * @param {string} type - Training type ('spam' or 'ham')
- * @param {Object} ctx
- * @returns {Promise<void>} - Never rejects
+ * @param imap - ImapFlow client
+ * @param folder - Training folder path
+ * @param destFolder - Destination folder after training
+ * @param trainFn - Training function (trainSpam or trainHam)
+ * @param type - Training type ('spam' or 'ham')
+ * @param ctx
+ * @returns - Never rejects
  */
 async function runTraining(
   imap: ImapFlow,
@@ -109,9 +109,8 @@ async function runTraining(
 
 /**
  * Run spam training workflow. Never rejects - see `runTraining`.
- * @param {Object} imap - ImapFlow client
- * @param {Object} [ctx]
- * @returns {Promise<void>}
+ * @param imap - ImapFlow client
+ * @param [ctx]
  */
 export async function runSpam(
   imap: ImapFlow,
@@ -129,9 +128,8 @@ export async function runSpam(
 
 /**
  * Run ham training workflow. Never rejects - see `runTraining`.
- * @param {Object} imap - ImapFlow client
- * @param {Object} [ctx]
- * @returns {Promise<void>}
+ * @param imap - ImapFlow client
+ * @param [ctx]
  */
 export async function runHam(
   imap: ImapFlow,

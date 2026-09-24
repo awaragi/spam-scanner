@@ -17,7 +17,6 @@ const client = new OpenAI({
  * format contract, and optional user profile. Computed once and reused unchanged on
  * every call so it forms a byte-identical, cacheable prefix for providers that
  * support automatic prompt-prefix caching.
- * @returns {string}
  */
 export function buildSystemPrompt(): string {
   const profile = config.AI_USER_PROFILE
@@ -57,8 +56,7 @@ const SYSTEM_PROMPT = buildSystemPrompt();
 /**
  * Builds the per-email user message content. Contains only variable content -
  * never mixed with the static system prompt - with the body text last.
- * @param {{from: string, to: string, subject: string, date: string, text: string}} content
- * @returns {string}
+ * @param content
  */
 interface AiContent {
   from: string;
@@ -80,8 +78,7 @@ ${content.text}`;
 
 /**
  * Classifies an email's spam likelihood via an OpenAI-compatible chat-completions API.
- * @param {{from: string, to: string, subject: string, date: string, text: string}} content
- * @returns {Promise<{score: number, reasoning: string}>}
+ * @param content
  * @throws {Error} on request failure or a malformed AI response
  */
 export async function classifyEmail(

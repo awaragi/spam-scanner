@@ -16,13 +16,12 @@ const logger = rootLogger.forComponent('sender-list-training-controller');
 
 /**
  * Generic map training workflow handler
- * @param {Object} imap - ImapFlow client
- * @param {string} folder - Training folder path
- * @param {string} mapStateKey - State key identifying the mailbox's IMAP-backed whitelist/blacklist (see config.js STATE_KEY_WHITELIST_MAP/STATE_KEY_BLACKLIST_MAP)
- * @param {string} destFolder - Destination folder after processing
- * @param {string} type - Map type ('whitelist' or 'blacklist')
- * @param {Object} ctx
- * @returns {Promise<void>}
+ * @param imap - ImapFlow client
+ * @param folder - Training folder path
+ * @param mapStateKey - State key identifying the mailbox's IMAP-backed whitelist/blacklist (see config.js STATE_KEY_WHITELIST_MAP/STATE_KEY_BLACKLIST_MAP)
+ * @param destFolder - Destination folder after processing
+ * @param type - Map type ('whitelist' or 'blacklist')
+ * @param ctx
  */
 async function runMapTraining(
   imap: ImapFlow,
@@ -106,9 +105,8 @@ async function runMapTraining(
 /**
  * Run whitelist training workflow: extracts senders and updates the
  * mailbox's IMAP-backed whitelist.
- * @param {Object} imap - ImapFlow client
- * @param {Object} [ctx]
- * @returns {Promise<void>}
+ * @param imap - ImapFlow client
+ * @param [ctx]
  */
 export async function runWhitelist(
   imap: ImapFlow,
@@ -127,9 +125,8 @@ export async function runWhitelist(
 /**
  * Run blacklist training workflow: extracts senders and updates the
  * mailbox's IMAP-backed blacklist.
- * @param {Object} imap - ImapFlow client
- * @param {Object} [ctx]
- * @returns {Promise<void>}
+ * @param imap - ImapFlow client
+ * @param [ctx]
  */
 export async function runBlacklist(
   imap: ImapFlow,

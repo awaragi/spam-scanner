@@ -35,8 +35,7 @@ interface FailureAlert {
  * Identifying fields for log lines, sourced from the envelope directly (always
  * available, even if content extraction itself fails) rather than from the
  * AI-extracted content - so a UID alone is never the only way to find the email.
- * @param {Object} message
- * @returns {{subject: string, from: string}}
+ * @param message
  */
 function logIdentity(message: ClassifiableMessage): {
   subject: string;
@@ -55,10 +54,10 @@ function logIdentity(message: ClassifiableMessage): {
  * in the batch to cross the consecutive-same-reason alert threshold, records
  * it on `alertRef` (first crossing in the batch wins - later ones are still
  * fed to the tracker but don't overwrite `alertRef`).
- * @param {Object} message
- * @param {{value: Object|null}} alertRef
- * @param {Object} ctx
- * @returns {Promise<Object>} - message with `aiInfo: {score, reasoning, error}` attached
+ * @param message
+ * @param alertRef
+ * @param ctx
+ * @returns - message with `aiInfo: {score, reasoning, error}` attached
  */
 async function classifyOne<M extends ClassifiableMessage>(
   message: M,
@@ -102,9 +101,9 @@ async function classifyOne<M extends ClassifiableMessage>(
 /**
  * Runs AI classification on rspamd's nonSpam/lowSpam candidate buckets only.
  * Never throws - per-message failures are caught and fail open (no escalation).
- * @param {{nonSpamMessages: Array, lowSpamMessages: Array}} candidates
- * @param {Object} [ctx]
- * @returns {Promise<{nonSpamMessages: Array, lowSpamMessages: Array, aiFailureAlert: Object|null}>} - same
+ * @param candidates
+ * @param [ctx]
+ * @returns - same
  *   messages, each with `aiInfo` attached, plus `aiFailureAlert` (`{reason, count, lastError, lastAt}`)
  *   when this batch's failures newly crossed the consecutive-same-reason alert threshold
  */

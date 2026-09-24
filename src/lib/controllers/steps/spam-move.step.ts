@@ -9,10 +9,9 @@ const logger = rootLogger.forComponent('spam-move');
  * Moves confirmed-spam messages (rspamd-confirmed plus blacklisted) to
  * FOLDER_SPAM. Unconditional and separate from the label/folder disposal
  * strategies - every processing mode moves confirmed spam the same way.
- * @param {Object} imap - ImapFlow client
- * @param {Array} spamMessages
- * @param {Object} [ctx]
- * @returns {Promise<void>}
+ * @param imap - ImapFlow client
+ * @param spamMessages
+ * @param [ctx]
  */
 export async function moveConfirmedSpam(
   imap: ImapFlow,

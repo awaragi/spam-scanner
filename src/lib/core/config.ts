@@ -632,7 +632,7 @@ export const config = (() => {
  * that doesn't need them (e.g. a test). Every command-line entry point that
  * connects to IMAP calls this once at startup, before doing any other work.
  * See the `config-validation` capability.
- * @param {Object} [cfg]
+ * @param [cfg]
  * @throws {Error} listing every missing required field, if any are missing
  */
 export function assertRequiredConfig(cfg: Config = config): void {

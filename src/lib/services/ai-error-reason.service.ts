@@ -17,8 +17,8 @@ const APP_ERROR_PREFIXES: Array<[string, string]> = [
  * Normalizes an AI classification error into a small, stable reason code so
  * that repeated failures of the same underlying cause are recognized as the
  * same reason, even when the raw error text varies between occurrences.
- * @param {Error} err
- * @returns {string} - an `openai` SDK error class name (e.g. 'RateLimitError'),
+ * @param err
+ * @returns - an `openai` SDK error class name (e.g. 'RateLimitError'),
  *   a fixed app-level code (e.g. 'invalid_json'), or 'unknown'
  */
 export function categorizeAiError(err: unknown): string {

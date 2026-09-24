@@ -32,9 +32,9 @@ interface SchemaGroup {
  * env file onto the current structure/headers/comments while preserving
  * whatever it already sets. A key absent from `values` still falls back to
  * its schema default, same as when `values` is omitted entirely.
- * @param {Array<{title: string, schema: import('zod').ZodObject}>} groups
- * @param {Record<string, string>} [values]
- * @returns {string} the full file content, ending in a single trailing newline
+ * @param groups
+ * @param [values]
+ * @returns the full file content, ending in a single trailing newline
  */
 export function renderEnvFile(
   groups: TitledSchemaGroup[],
@@ -68,9 +68,8 @@ export function renderEnvFile(
  * migration, which keys fell back to their default (worth reviewing) and
  * which keys in `values` don't match any known config variable (e.g.
  * renamed or removed since the file was last generated).
- * @param {Array<{schema: import('zod').ZodObject}>} groups
- * @param {Record<string, string>} values
- * @returns {{defaultedKeys: string[], unknownKeys: string[]}}
+ * @param groups
+ * @param values
  */
 export function diffEnvValues(
   groups: SchemaGroup[],
@@ -88,8 +87,7 @@ export function diffEnvValues(
 /**
  * A field's `.default()` value as a string, or '' when it has none (e.g.
  * `.optional()` fields like `IMAP_HOST` with no safe default).
- * @param {import('zod').ZodTypeAny} field
- * @returns {string}
+ * @param field
  */
 function fieldDefault(field: DescribedField): string {
   const raw = field._def.defaultValue;

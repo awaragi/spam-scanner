@@ -11,12 +11,11 @@ const logger = rootLogger.forComponent('prompt-eval-controller');
  * Runs a full ai-prompt-eval pass: loads a labeled `.eml` dataset, classifies
  * it with the current production prompt/config, formats a report, and writes
  * it to a timestamped file. See the `ai-prompt-eval` capability.
- * @param {{bucketPaths: Record<string, string>, reportsDir: string}} options -
+ * @param options -
  *   `reportsDir` is mandatory (no default): the caller always states where
  *   reports go, per the `ai-prompt-eval` capability's "Report location is a
  *   required argument" requirement.
- * @param {Object} [ctx]
- * @returns {Promise<{reportPath: string, bucketCounts: Record<string, number>}>}
+ * @param [ctx]
  */
 export async function runPromptEval(
   {

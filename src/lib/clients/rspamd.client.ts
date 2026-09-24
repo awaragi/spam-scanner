@@ -11,8 +11,8 @@ const RSPAMD_PASSWORD = config.RSPAMD_PASSWORD;
  * meaningful for `/checkv2` (they let Rspamd evaluate SPF and IP-based
  * DNSBL checks against the real sending relay); learn endpoints don't score,
  * so callers never pass one.
- * @param {{ip?: string, helo?: string, from?: string, rcpt?: string}} [envelope]
- * @returns {Object} - Headers object with optional password and envelope data
+ * @param [envelope]
+ * @returns - Headers object with optional password and envelope data
  */
 interface RspamdEnvelope {
   ip?: string | null;
@@ -69,13 +69,13 @@ async function parseRspamdJson(response: Response): Promise<LearnResult> {
 
 /**
  * Checks email for spam using Rspamd /checkv2 endpoint
- * @param {string|Buffer} emailContent - Raw email content including headers
- * @param {{ip?: string, helo?: string, from?: string, rcpt?: string}} [envelope] -
+ * @param emailContent - Raw email content including headers
+ * @param [envelope] -
  *   Envelope data (connecting IP/HELO, envelope-from, recipient) so Rspamd
  *   can evaluate SPF and IP-based DNSBL checks against the real sending
  *   relay - see the `rspamd-envelope-data` capability. Any field may be
  *   omitted; only the ones present are sent.
- * @returns {Promise<Object>} - Parsed JSON response from Rspamd
+ * @returns - Parsed JSON response from Rspamd
  * @throws {Error} - If the request fails or Rspamd returns an error
  */
 type ClassifiableError = Error & { status?: number };
@@ -122,8 +122,8 @@ export async function checkEmail(
 
 /**
  * Trains Rspamd classifier with ham (non-spam) email
- * @param {string|Buffer} emailContent - Raw email content including headers
- * @returns {Promise<Object>} - Parsed JSON response from Rspamd
+ * @param emailContent - Raw email content including headers
+ * @returns - Parsed JSON response from Rspamd
  * @throws {Error} - If the request fails or Rspamd returns an error
  */
 export async function learnHam(
@@ -193,8 +193,8 @@ export async function learnHam(
 
 /**
  * Trains Rspamd classifier with spam email
- * @param {string|Buffer} emailContent - Raw email content including headers
- * @returns {Promise<Object>} - Parsed JSON response from Rspamd
+ * @param emailContent - Raw email content including headers
+ * @returns - Parsed JSON response from Rspamd
  * @throws {Error} - If the request fails or Rspamd returns an error
  */
 export async function learnSpam(

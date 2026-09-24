@@ -379,20 +379,28 @@ every piece of actual prose (what a param means, why a function behaves the way 
 does, examples, caveats). Do not delete a JSDoc block wholesale just because it has
 `@param`/`@returns` tags - only strip the type annotation portion of each tag line.
 
-- [ ] `grep -rn "@param {" src/ test/` (and `@returns {`, `@type {`) to find every JSDoc
-  type annotation across the repo.
-- [ ] For each match, edit the tag to drop only the `{type}` portion, keeping the name
+- [x] `grep -rn "@param {" src/ test/` (and `@returns {`, `@type {`) to find every JSDoc
+  type annotation across the repo. (335 matches across 43 files; no `@type {` hits
+  existed. Ran via a small Python script - manual brace-depth matching rather than
+  regex, since several types are themselves object/union literals with nested `{}` -
+  applied repo-wide in one pass instead of file-by-file.)
+- [x] For each match, edit the tag to drop only the `{type}` portion, keeping the name
   and description: e.g. `@param {string} email - the address to normalize` becomes
   `@param email - the address to normalize`, and `@returns {boolean}` (no description)
   is deleted as a line since it carries no remaining content - but `@returns {boolean}
   true if the address is already listed` becomes `@returns true if the address is
   already listed`.
-- [ ] Leave the rest of every JSDoc block untouched: the summary/description text above
+- [x] Leave the rest of every JSDoc block untouched: the summary/description text above
   the tags, `@throws` explanations, and any comment explaining non-obvious *why* stay
   exactly as they are.
-- [ ] After the pass, re-run `npm test`, `npx tsc --noEmit`, `npm run lint`, and
+- [x] After the pass, re-run `npm test`, `npx tsc --noEmit`, `npm run lint`, and
   `npm run format:check` to confirm nothing broke (this pass is comment-only, but
   Prettier's comment reformatting or a stray syntax slip is worth catching).
+  (501/501 tests pass, `tsc --noEmit` and `npm run lint` both clean.
+  `format:check` flags 17 files, but all are pre-existing drift unrelated to this
+  pass - verified by checking the 3 touched files' committed-HEAD versions against
+  Prettier directly, which already failed before this change; the other 14 flagged
+  files were never touched by this pass at all.)
 - [ ] Commit the cleanup pass as its own commit, separate from the conversion commit.
 
 ## Optional: OpenSpec

@@ -11,10 +11,9 @@ const ALERT_MESSAGE_ID_DOMAIN = 'spam-scanner.internal';
  * classification has been failing repeatedly for the same reason. Includes a
  * Message-ID (rspamd's MISSING_MID otherwise scores this a few points toward
  * "low spam", since a locally-appended message has no originating MTA to add one).
- * @param {{reason: string, count: number, lastError: string, lastAt: string}} alert
- * @param {string} imapUser
- * @param {{now?: () => Date, messageId?: () => string}} [opts]
- * @returns {string}
+ * @param alert
+ * @param imapUser
+ * @param [opts]
  */
 interface AiFailureAlert {
   reason: string;

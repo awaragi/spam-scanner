@@ -66,8 +66,8 @@ const filterExcludesComponents = LOG_FILTER_EXCLUDES
 
 /**
  * Check if a component should be logged based on filters
- * @param {string} component - Component name to check
- * @returns {boolean} - True if component should be logged
+ * @param component - Component name to check
+ * @returns - True if component should be logged
  */
 function shouldLogComponent(component: string): boolean {
   // If includes filter is set, component must be in the list
@@ -120,8 +120,7 @@ const options: pino.LoggerOptions = {
  * devDependency, so it's absent in the production Docker image
  * (`npm ci --omit=dev`). `resolveFn` is injectable so this is unit-testable
  * without needing to actually uninstall the package.
- * @param {(specifier: string) => string} resolveFn
- * @returns {boolean}
+ * @param resolveFn
  */
 export function canLoadPinoPretty(
   resolveFn: (specifier: string) => string = specifier =>
@@ -163,7 +162,7 @@ interface NoOpLogger extends Logger, ComponentLogger, RootLogger {}
 
 /**
  * Creates a no-op logger that doesn't log anything
- * @returns {Object} - Logger with all methods as no-ops
+ * @returns - Logger with all methods as no-ops
  */
 function createNoOpLogger(): NoOpLogger {
   const noOp = ((..._args: unknown[]) => {}) as pino.LogFn;
@@ -184,16 +183,16 @@ function createNoOpLogger(): NoOpLogger {
 
 /**
  * Adds forComponent method to a logger instance
- * @param {Object} logger - Pino logger instance
- * @returns {Object} - Logger with forComponent method
+ * @param logger - Pino logger instance
+ * @returns - Logger with forComponent method
  */
 function attachForComponent(logger: pino.Logger): RootLogger {
   const rootWithComponent = logger as unknown as RootLogger;
 
   /**
    * Creates a component-scoped child logger
-   * @param {string} component - Component name (e.g., 'rspamd', 'imap', 'config')
-   * @returns {Object} - Child logger with component context and forMessage method
+   * @param component - Component name (e.g., 'rspamd', 'imap', 'config')
+   * @returns - Child logger with component context and forMessage method
    */
   rootWithComponent.forComponent = function (
     this: pino.Logger,
@@ -210,8 +209,8 @@ function attachForComponent(logger: pino.Logger): RootLogger {
 
     /**
      * Creates a message-scoped child logger with UID correlation
-     * @param {number} uid - Email UID for correlation
-     * @returns {Object} - Child logger with both component and uid context
+     * @param uid - Email UID for correlation
+     * @returns - Child logger with both component and uid context
      */
     componentLogger.forMessage = function (
       this: pino.Logger,

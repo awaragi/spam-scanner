@@ -23,10 +23,10 @@ type LearnFn = typeof learnSpam;
  *   and fail the same way, on every future training run).
  * - A transient error (network, 5xx, timeout) rejects, so the caller can fail
  *   the whole batch for retry.
- * @param {Object} message - Message object with uid, envelope, raw
- * @param {Function} learnFn - Rspamd learn function (learnSpam or learnHam)
- * @param {string} type - Training type ('spam' or 'ham') for logging
- * @returns {Promise<Object|null>} - The message if learned, null if permanently skipped
+ * @param message - Message object with uid, envelope, raw
+ * @param learnFn - Rspamd learn function (learnSpam or learnHam)
+ * @param type - Training type ('spam' or 'ham') for logging
+ * @returns - The message if learned, null if permanently skipped
  */
 async function processWithRspamdLearn<M extends TrainableMessage>(
   message: M,
@@ -70,10 +70,10 @@ async function processWithRspamdLearn<M extends TrainableMessage>(
  * destination folder (they just weren't learned) so a poison message doesn't
  * pile up in the training folder forever. A transient failure rejects the
  * whole call so the caller can retry the batch.
- * @param {Array} messages - Array of messages to train
- * @param {Function} learnFn - Rspamd learn function (learnSpam or learnHam)
- * @param {string} type - Training type ('spam' or 'ham') for logging
- * @returns {Promise<{learned: Array, skipped: Array}>} - Messages actually learned, and
+ * @param messages - Array of messages to train
+ * @param learnFn - Rspamd learn function (learnSpam or learnHam)
+ * @param type - Training type ('spam' or 'ham') for logging
+ * @returns - Messages actually learned, and
  *   messages that permanently failed to learn but should still move on
  */
 async function trainBatch<M extends TrainableMessage>(
@@ -120,9 +120,8 @@ async function trainBatch<M extends TrainableMessage>(
 
 /**
  * Train Rspamd with spam messages
- * @param {Array} messages - Array of spam messages
- * @param {Object} [ctx] - unused today; present for interface consistency across steps
- * @returns {Promise<{learned: Array, skipped: Array}>}
+ * @param messages - Array of spam messages
+ * @param [ctx] - unused today; present for interface consistency across steps
  */
 export async function trainSpam<M extends TrainableMessage>(
   messages: M[],
@@ -134,9 +133,8 @@ export async function trainSpam<M extends TrainableMessage>(
 
 /**
  * Train Rspamd with ham (non-spam) messages
- * @param {Array} messages - Array of ham messages
- * @param {Object} [ctx] - unused today; present for interface consistency across steps
- * @returns {Promise<{learned: Array, skipped: Array}>}
+ * @param messages - Array of ham messages
+ * @param [ctx] - unused today; present for interface consistency across steps
  */
 export async function trainHam<M extends TrainableMessage>(
   messages: M[],

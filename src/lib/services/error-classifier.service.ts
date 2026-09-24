@@ -9,8 +9,8 @@
  * - including plain network errors that carry neither property - is treated
  * as transient by default, preserving today's "unknown failure fails the
  * batch for retry" behavior.
- * @param {Error} err - The error thrown while processing a single message
- * @returns {boolean} - true if the error is permanent for this message
+ * @param err - The error thrown while processing a single message
+ * @returns - true if the error is permanent for this message
  */
 type ClassifiableError = { permanent?: boolean; status?: number };
 

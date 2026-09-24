@@ -43,8 +43,8 @@ function summarizeBucket(entries: ResultEntry[]): string {
 }
 
 /**
- * @param {{bucketNames: string[], results: Array<{bucket: string, filename: string, score: number|null, reasoning: string|null, error: string|null}>, config: {model: string, maxInputTokens: number, maxOutputTokens: number, concurrency: number, escalateToLowThreshold: number, escalateToHighThreshold: number}, generatedAt: Date}} input
- * @returns {string} plain-text report
+ * @param input
+ * @returns plain-text report
  */
 interface PromptEvalConfig {
   model: string;

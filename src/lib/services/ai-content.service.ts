@@ -25,9 +25,8 @@ interface EnvelopedMessage {
  * MIME-aware (multipart-safe, transfer-encoding-decoded) and HTML-stripped via mailparser.
  * Domain policy: the AI input-token budget, resolved by the calling controller
  * from `ctx.config.AI_MAX_INPUT_TOKENS` and passed in as a plain number.
- * @param {Object} message - {uid, envelope, raw}
- * @param {{maxInputTokens: number}} opts
- * @returns {Promise<{from: string, to: string, subject: string, date: string, text: string}>}
+ * @param message - {uid, envelope, raw}
+ * @param opts
  */
 export async function extractAiContent(
   message: EnvelopedMessage,

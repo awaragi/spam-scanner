@@ -9,9 +9,8 @@ import { createDefaultContext, type Context } from '../../core/context.ts';
  * read switches the connection's selected mailbox and restores it
  * afterward, which isn't safe to run concurrently on a single IMAP
  * connection.
- * @param {Object} imap - ImapFlow client
- * @param {Object} [ctx]
- * @returns {Promise<{whitelistSet: Set<string>, blacklistSet: Set<string>}>}
+ * @param imap - ImapFlow client
+ * @param [ctx]
  */
 export async function loadSenderLists(
   imap: ImapFlow,

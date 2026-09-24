@@ -4,9 +4,9 @@
 
 /**
  * Validates a state object
- * @param {Object} state - State object to validate
+ * @param state - State object to validate
  * @throws {Error} - If state is invalid
- * @returns {boolean} - True if state is valid
+ * @returns - True if state is valid
  */
 const REQUIRED_STATE_PROPERTIES = [
   'last_uid',
@@ -81,10 +81,10 @@ export function validateState(state: unknown): state is ScannerState {
  * Formats an app-state body (JSON state or raw map content) as an email
  * message, using the shared X-App-State envelope both scanner state and
  * map-state backups rely on to be found again by `search`.
- * @param {string} stateKey - Key to identify the state
- * @param {string} body - Raw text to place in the message body
- * @param {string} [displayName] - From/To display name
- * @returns {string} - Formatted email message
+ * @param stateKey - Key to identify the state
+ * @param body - Raw text to place in the message body
+ * @param [displayName] - From/To display name
+ * @returns - Formatted email message
  */
 export function formatAppStateEmail(
   stateKey: string,
@@ -103,9 +103,9 @@ ${body}`;
 
 /**
  * Formats a state object as an email message
- * @param {Object} state - State object to format
- * @param {string} stateKey - Key to identify the state
- * @returns {string} - Formatted email message
+ * @param state - State object to format
+ * @param stateKey - Key to identify the state
+ * @returns - Formatted email message
  */
 export function formatStateAsEmail(state: unknown, stateKey: string): string {
   validateState(state);
@@ -117,8 +117,8 @@ export function formatStateAsEmail(state: unknown, stateKey: string): string {
 
 /**
  * Parses a state from email content
- * @param {string} emailContent - Email content containing state
- * @returns {Object|null} - Parsed state object or null if parsing failed
+ * @param emailContent - Email content containing state
+ * @returns - Parsed state object or null if parsing failed
  */
 export function parseStateFromEmail(emailContent: string): unknown {
   try {

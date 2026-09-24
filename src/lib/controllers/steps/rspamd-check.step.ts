@@ -45,10 +45,9 @@ type ScoredMessage<M> = M & { spamInfo: SpamInfo };
  * splitting, since it already handles repeated headers (`Received:`) and
  * `Return-Path:` address parsing correctly - a failure here never blocks
  * the Rspamd check itself, it just means less envelope data is sent.
- * @param {string|Buffer} raw - Raw email content
- * @param {Object} cfg - `ctx.config`
- * @param {Object} messageLogger
- * @returns {Promise<{ip: string|null, helo: string|null, from: string|null, rcpt: string|null}>}
+ * @param raw - Raw email content
+ * @param cfg - `ctx.config`
+ * @param messageLogger
  */
 async function buildEnvelope(
   raw: unknown,
@@ -170,9 +169,9 @@ async function processOneMessage<M extends RspamdMessage>(
  * this step's concern - it only calls rspamd and returns its raw
  * score/required; see `spam-classifier.service.js`'s `applyWhitelistAdjustments`
  * for the score adjustment.
- * @param {Array} messages - Array of message objects with uid, envelope, raw
- * @param {Object} [ctx]
- * @returns {Promise<Array>} - Array of messages with spamInfo attached
+ * @param messages - Array of message objects with uid, envelope, raw
+ * @param [ctx]
+ * @returns - Array of messages with spamInfo attached
  */
 export async function processWithRspamd<M extends RspamdMessage>(
   messages: M[],

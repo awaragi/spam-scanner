@@ -14,8 +14,7 @@ const logger = rootLogger.forComponent('eml-dataset-client');
  * shaped object, so the unmodified `extractAiContent` service can be called
  * exactly as production does (see the `ai-prompt-eval` capability and
  * design.md's "Synthesize an envelope once per file" decision).
- * @param {Record<string, string>} bucketPaths - bucket name -> folder path
- * @returns {Promise<{bucketNames: string[], messages: Array<{bucket: string, filename: string, uid: string, envelope: Object, raw: Buffer}>}>}
+ * @param bucketPaths - bucket name -> folder path
  *   `bucketNames` lists every bucket given, even one with zero `.eml` files,
  *   so the report can render an empty bucket's section.
  * @throws {Error} if a given bucket folder does not exist or is not readable

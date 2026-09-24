@@ -13,12 +13,12 @@ const logger = rootLogger.forComponent('list-update');
  * Update a mailbox's IMAP-backed whitelist/blacklist state with sender
  * addresses, in either `append` (merge with existing entries) or `override`
  * (replace existing entries entirely) mode.
- * @param {Object} imap - ImapFlow client
- * @param {string} mapStateKey - State key identifying the list (see config.js STATE_KEY_WHITELIST_MAP/STATE_KEY_BLACKLIST_MAP)
- * @param {Array<string>} senders - Array of sender email addresses
- * @param {'append'|'override'} [mode] - append merges with existing entries; override replaces them
- * @param {Object} [ctx] - unused today; present for interface consistency across steps
- * @returns {Promise<Object>} - {added, skipped, removed, total}
+ * @param imap - ImapFlow client
+ * @param mapStateKey - State key identifying the list (see config.js STATE_KEY_WHITELIST_MAP/STATE_KEY_BLACKLIST_MAP)
+ * @param senders - Array of sender email addresses
+ * @param [mode] - append merges with existing entries; override replaces them
+ * @param [ctx] - unused today; present for interface consistency across steps
+ * @returns - {added, skipped, removed, total}
  */
 export async function updateListState(
   imap: ImapFlow,

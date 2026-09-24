@@ -12,8 +12,7 @@ interface Addressed {
 
 /**
  * Formats an ImapFlow envelope address list as "Name <addr>, Name2 <addr2>".
- * @param {Array<{name?: string, address?: string}>} [addresses]
- * @returns {string}
+ * @param [addresses]
  */
 export function formatAddressList(addresses: unknown = []): string {
   if (!Array.isArray(addresses)) return '';
@@ -25,9 +24,8 @@ export function formatAddressList(addresses: unknown = []): string {
 
 /**
  * Truncates text to a token budget using a chars-per-token heuristic.
- * @param {string} text
- * @param {number} maxTokens
- * @returns {string}
+ * @param text
+ * @param maxTokens
  */
 export function truncateToTokenBudget(
   text: string | undefined,

@@ -17,8 +17,7 @@ interface EnvelopeAddressed {
 /**
  * Normalize an email address: trim, lowercase. Returns null for anything
  * that isn't a plausible address (no `@`), so callers can filter it out.
- * @param {string} email
- * @returns {string|null}
+ * @param email
  */
 export function normalizeEmail(email: unknown): string | null {
   if (!email || typeof email !== 'string') {
@@ -33,8 +32,8 @@ export function normalizeEmail(email: unknown): string | null {
 
 /**
  * Extracts a message's sender address from its IMAP envelope.
- * @param {Object} message - Message object with an `envelope` property
- * @returns {string|null} - Normalized sender address, or null if absent
+ * @param message - Message object with an `envelope` property
+ * @returns - Normalized sender address, or null if absent
  */
 export function senderAddressOf(message: EnvelopeAddressed): string | null {
   const address = message?.envelope?.from?.[0]?.address;
@@ -43,9 +42,9 @@ export function senderAddressOf(message: EnvelopeAddressed): string | null {
 
 /**
  * Merges normalized, deduplicated incoming addresses into an existing list.
- * @param {Array<string>} existing
- * @param {Array<string>} incoming
- * @returns {Array<string>} - Deduplicated union, existing entries first
+ * @param existing
+ * @param incoming
+ * @returns - Deduplicated union, existing entries first
  */
 const isString = (value: string | null): value is string => value !== null;
 
@@ -69,8 +68,7 @@ export function mergeAddresses(existing: string[], incoming: string[]) {
 /**
  * Normalizes and deduplicates a list of addresses, ignoring any existing
  * list entirely - used for `override` mode.
- * @param {Array<string>} incoming
- * @returns {Array<string>}
+ * @param incoming
  */
 export function overrideAddresses(incoming: string[]): string[] {
   const seen = new Set<string>();
@@ -92,9 +90,8 @@ export function overrideAddresses(incoming: string[]): string[] {
  * `txt` is the legacy newline-delimited map format; `json` is a JSON array
  * of address strings (the same shape list state is stored in, and what
  * the export script's `--format json` produces).
- * @param {string} raw
- * @param {'txt'|'json'} [format]
- * @returns {Array<string>}
+ * @param raw
+ * @param [format]
  */
 export function parseAddressList(
   raw: string,
@@ -109,9 +106,8 @@ export function parseAddressList(
  * Serializes a list of (already normalized) addresses for the export
  * script. `txt` is one address per line; `json` is the raw array,
  * pretty-printed.
- * @param {Array<string>} addresses
- * @param {'txt'|'json'} [format]
- * @returns {string}
+ * @param addresses
+ * @param [format]
  */
 export function serializeAddressList(
   addresses: string[],
@@ -131,7 +127,7 @@ export function serializeAddressList(
  * provider) - which senders use which ESP is mailbox-specific data, not a
  * generic pattern, so it belongs in the whitelist/blacklist itself (a domain
  * entry there is skipped by `isSenderListed`, not filtered here).
- * @param {string} email
+ * @param email
  */
 export function isHumanReadable(email: unknown): boolean {
   if (!email || typeof email !== 'string') return false;
@@ -181,10 +177,10 @@ export function isHumanReadable(email: unknown): boolean {
  * `listedEntries` (an exact match, or its domain already listed - see
  * `isSenderListed`) so training doesn't re-add what a domain entry already
  * covers.
- * @param {Record<string, string>} headers - Email headers with lowercase keys
- * @param {Set<string>} [listedEntries] - Normalized entries already in the
+ * @param headers - Email headers with lowercase keys
+ * @param [listedEntries] - Normalized entries already in the
  *   target list (see `isSenderListed`)
- * @returns {string[]} - Up to 2 clean sender addresses
+ * @returns - Up to 2 clean sender addresses
  */
 export function extractSenders(
   headers: Record<string, string>,
@@ -222,9 +218,9 @@ export function extractSenders(
 /**
  * Extract sender addresses from a batch of messages, for the map-training
  * workflows (see the `sender-lists` capability).
- * @param {Array} messages - Array of message objects with uid, headers
- * @param {Set<string>} [listedEntries] - Passed through to `extractSenders`
- * @returns {Array<string>} - Array of unique sender email addresses
+ * @param messages - Array of message objects with uid, headers
+ * @param [listedEntries] - Passed through to `extractSenders`
+ * @returns - Array of unique sender email addresses
  */
 interface HeaderedMessage {
   uid: number;
@@ -261,9 +257,8 @@ export function extractSenderAddresses(
  * Domain entries are added the same way as addresses (e.g. via
  * `import-list.js`) - `normalizeEmail` already accepts the "@domain" form
  * since it contains "@", so no separate storage/parsing path is needed.
- * @param {string|null} address - as returned by senderAddressOf
- * @param {Set<string>} entrySet - whitelist/blacklist entries (addresses and/or domains)
- * @returns {boolean}
+ * @param address - as returned by senderAddressOf
+ * @param entrySet - whitelist/blacklist entries (addresses and/or domains)
  */
 export function isSenderListed(
   address: string | null,
@@ -280,9 +275,8 @@ export function isSenderListed(
  * (e.g. a blacklist) - an exact address or a domain entry (see
  * `isSenderListed`) - used by scan.controller.js to route blacklisted
  * senders around rspamd/AI entirely.
- * @param {Array} messages
- * @param {Set<string>} addressSet
- * @returns {{matched: Array, rest: Array}}
+ * @param messages
+ * @param addressSet
  */
 export function partitionBySender<M extends EnvelopeAddressed>(
   messages: M[],
