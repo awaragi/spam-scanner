@@ -1,5 +1,6 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
-import type { ImapFlow } from 'imapflow';
+import { createNoOpRootLogger } from '../../support/logger-fakes.ts';
+import { asImapFlow } from '../../support/imap-fakes.ts';
 
 // Integration-style test: exercises the REAL folder-resolver.js, mailboxes-utils.js,
 // imap-client.js and init-workflow.js together against a fake slash-delimited IMAP
@@ -20,14 +21,7 @@ vi.mock('../../../src/lib/core/config.ts', () => ({
 }));
 
 vi.mock('../../../src/lib/core/logger.ts', () => ({
-  rootLogger: {
-    forComponent: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
-  },
+  rootLogger: createNoOpRootLogger(),
 }));
 
 import { resolveFolders } from '../../../src/lib/clients/folder-resolver.client.ts';
@@ -63,12 +57,6 @@ function makeSlashDelimitedFakeImap() {
   };
 }
 
-// Test double, not a real ImapFlow instance - cast only for passing it to
-// the (now strictly-typed) client/controller functions under test.
-function asImap(imap: ReturnType<typeof makeSlashDelimitedFakeImap>): ImapFlow {
-  return imap as unknown as ImapFlow;
-}
-
 describe('folder resolution, end-to-end against a slash-delimited server', () => {
   beforeEach(() => {
     resetMockConfig();
@@ -77,7 +65,7 @@ describe('folder resolution, end-to-end against a slash-delimited server', () =>
   test('runInit mutates config to the server real slash delimiter, not the configured dot form', async () => {
     const imap = makeSlashDelimitedFakeImap();
 
-    await runInit(asImap(imap));
+    await runInit(asImapFlow(imap));
 
     const createdPaths = imap.mailboxCreate.mock.calls.map(call => call[0]);
     expect(createdPaths).toContain('INBOX/scanner/train/spam');
@@ -88,16 +76,16 @@ describe('folder resolution, end-to-end against a slash-delimited server', () =>
 
   test('open() and moveMessages() use the resolved slash-joined config value after resolution', async () => {
     const imap = makeSlashDelimitedFakeImap();
-    await resolveFolders(asImap(imap));
+    await resolveFolders(asImapFlow(imap));
 
-    await open(asImap(imap), mockConfig.FOLDER_TRAIN_SPAM as string);
+    await open(asImapFlow(imap), mockConfig.FOLDER_TRAIN_SPAM as string);
     expect(imap.mailboxOpen).toHaveBeenCalledWith(
       'INBOX/scanner/train/spam',
       expect.any(Object)
     );
 
     await moveMessages(
-      asImap(imap),
+      asImapFlow(imap),
       [{ uid: 1 }],
       mockConfig.FOLDER_SPAM as string
     );

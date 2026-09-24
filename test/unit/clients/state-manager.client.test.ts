@@ -1,5 +1,6 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
-import type { ImapFlow } from 'imapflow';
+import { createNoOpRootLogger } from '../../support/logger-fakes.ts';
+import { asImapFlow } from '../../support/imap-fakes.ts';
 
 const { mockConfig, warn } = vi.hoisted(() => ({
   mockConfig: {
@@ -15,14 +16,7 @@ vi.mock('../../../src/lib/core/config.ts', () => ({
 }));
 
 vi.mock('../../../src/lib/core/logger.ts', () => ({
-  rootLogger: {
-    forComponent: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn,
-      error: vi.fn(),
-    }),
-  },
+  rootLogger: createNoOpRootLogger({ warn }),
 }));
 
 vi.mock('../../../src/lib/clients/imap.client.ts', () => ({
@@ -69,12 +63,6 @@ function makeImap(overrides = {}) {
   };
 }
 
-// Test doubles are plain mock objects, not real ImapFlow instances - this
-// cast is only for passing them to the (now strictly-typed) client functions.
-function asImap(imap: ReturnType<typeof makeImap>): ImapFlow {
-  return imap as unknown as ImapFlow;
-}
-
 // fetchMessagesByUIDs' real return shape is {uid, flags, envelope, raw} - no
 // `body` (see state-manager.client.ts's FetchedMessageWithBody comment).
 // This mirrors the `.body` access the code under test actually reads.
@@ -103,7 +91,7 @@ describe('writeScannerState', () => {
       callOrder.push('messageDelete');
     });
 
-    await writeScannerState(asImap(imap), {
+    await writeScannerState(asImapFlow(imap), {
       last_uid: 1,
       last_seen_date: 'd',
       last_checked: 'c',
@@ -117,7 +105,7 @@ describe('writeScannerState', () => {
     const imap = makeImap();
     mockedSearch.mockResolvedValue([]);
 
-    await writeScannerState(asImap(imap), {
+    await writeScannerState(asImapFlow(imap), {
       last_uid: 1,
       last_seen_date: 'd',
       last_checked: 'c',
@@ -133,7 +121,7 @@ describe('writeScannerState', () => {
     imap.append.mockRejectedValue(new Error('connection dropped'));
 
     await expect(
-      writeScannerState(asImap(imap), {
+      writeScannerState(asImapFlow(imap), {
         last_uid: 1,
         last_seen_date: 'd',
         last_checked: 'c',
@@ -161,7 +149,7 @@ describe('writeMapState', () => {
       callOrder.push('messageDelete');
     });
 
-    await writeMapState(asImap(imap), 'rspamd-whitelist-map', 'a@b.com');
+    await writeMapState(asImapFlow(imap), 'rspamd-whitelist-map', 'a@b.com');
 
     expect(callOrder).toEqual(['append', 'messageDelete']);
     expect(imap.messageDelete).toHaveBeenCalledWith([20], { uid: true });
@@ -173,7 +161,7 @@ describe('writeMapState', () => {
     imap.append.mockRejectedValue(new Error('connection dropped'));
 
     await expect(
-      writeMapState(asImap(imap), 'rspamd-whitelist-map', 'a@b.com')
+      writeMapState(asImapFlow(imap), 'rspamd-whitelist-map', 'a@b.com')
     ).rejects.toThrow('connection dropped');
 
     expect(imap.messageDelete).not.toHaveBeenCalled();
@@ -191,7 +179,7 @@ describe('readMapState', () => {
     mockedFetchMessagesByUIDs.mockResolvedValue(fakeFetched('raw'));
     mockedParseStateFromEmail.mockReturnValue(['a@b.com', 'c@d.com']);
 
-    const result = await readMapState(asImap(imap), 'rspamd-whitelist-map');
+    const result = await readMapState(asImapFlow(imap), 'rspamd-whitelist-map');
 
     expect(result).toEqual(['a@b.com', 'c@d.com']);
   });
@@ -202,7 +190,7 @@ describe('readMapState', () => {
     mockedFetchMessagesByUIDs.mockResolvedValue(fakeFetched('raw'));
     mockedParseStateFromEmail.mockReturnValue(['a@b.com']);
 
-    await readMapState(asImap(imap), 'rspamd-whitelist-map');
+    await readMapState(asImapFlow(imap), 'rspamd-whitelist-map');
 
     expect(mockedFetchMessagesByUIDs).toHaveBeenCalledWith(imap, [12]);
   });
@@ -211,7 +199,7 @@ describe('readMapState', () => {
     const imap = makeImap();
     mockedSearch.mockResolvedValue([]);
 
-    const result = await readMapState(asImap(imap), 'rspamd-whitelist-map');
+    const result = await readMapState(asImapFlow(imap), 'rspamd-whitelist-map');
 
     expect(result).toEqual([]);
     expect(mockedFetchMessagesByUIDs).not.toHaveBeenCalled();
@@ -223,7 +211,7 @@ describe('readMapState', () => {
     mockedFetchMessagesByUIDs.mockResolvedValue(fakeFetched('not json'));
     mockedParseStateFromEmail.mockReturnValue(null);
 
-    const result = await readMapState(asImap(imap), 'rspamd-whitelist-map');
+    const result = await readMapState(asImapFlow(imap), 'rspamd-whitelist-map');
 
     expect(result).toEqual([]);
   });
@@ -234,7 +222,7 @@ describe('readMapState', () => {
     mockedFetchMessagesByUIDs.mockResolvedValue(fakeFetched('a@b.com\nc@d.com'));
     mockedParseStateFromEmail.mockReturnValue(null);
 
-    const result = await readMapState(asImap(imap), 'rspamd-whitelist-map');
+    const result = await readMapState(asImapFlow(imap), 'rspamd-whitelist-map');
 
     expect(result).toEqual([]);
   });
@@ -256,7 +244,7 @@ describe('readScannerState', () => {
     mockedSearch.mockResolvedValue([5, 12, 8]);
     mockedFetchMessagesByUIDs.mockResolvedValue(fakeFetched('raw'));
 
-    await readScannerState(asImap(imap), undefined);
+    await readScannerState(asImapFlow(imap), undefined);
 
     expect(mockedFetchMessagesByUIDs).toHaveBeenCalledWith(imap, [12]);
   });
@@ -266,7 +254,7 @@ describe('readScannerState', () => {
     mockedSearch.mockResolvedValue([7]);
     mockedFetchMessagesByUIDs.mockResolvedValue(fakeFetched('raw'));
 
-    await readScannerState(asImap(imap), undefined);
+    await readScannerState(asImapFlow(imap), undefined);
 
     expect(mockedFetchMessagesByUIDs).toHaveBeenCalledWith(imap, [7]);
   });
@@ -277,7 +265,7 @@ describe('readScannerState', () => {
     mockedFetchMessagesByUIDs.mockResolvedValue(fakeFetched('not json'));
     mockedParseStateFromEmail.mockReturnValue(null);
 
-    await expect(readScannerState(asImap(imap), undefined)).rejects.toThrow(
+    await expect(readScannerState(asImapFlow(imap), undefined)).rejects.toThrow(
       'Failed to parse state from email'
     );
     expect(mockedValidateState).not.toHaveBeenCalled();
@@ -287,7 +275,7 @@ describe('readScannerState', () => {
     const imap = makeImap();
     mockedSearch.mockResolvedValue([]);
 
-    await expect(readScannerState(asImap(imap), undefined)).rejects.toThrow(
+    await expect(readScannerState(asImapFlow(imap), undefined)).rejects.toThrow(
       'Scanner state not found'
     );
   });
@@ -301,7 +289,7 @@ describe('readScannerState', () => {
       last_checked: 'c',
     };
 
-    const result = await readScannerState(asImap(imap), defaultState);
+    const result = await readScannerState(asImapFlow(imap), defaultState);
 
     expect(result.last_uid).toBe(0);
     expect(imap.status).not.toHaveBeenCalled();
@@ -319,7 +307,7 @@ describe('readScannerState', () => {
       last_checked: 'c',
     };
 
-    const result = await readScannerState(asImap(imap), defaultState, 'INBOX');
+    const result = await readScannerState(asImapFlow(imap), defaultState, 'INBOX');
 
     expect(imap.status).toHaveBeenCalledWith('INBOX', { uidNext: true });
     expect(result.last_uid).toBe(7384);
@@ -337,7 +325,7 @@ describe('readScannerState', () => {
       last_checked: 'c',
     };
 
-    const result = await readScannerState(asImap(imap), defaultState, 'INBOX');
+    const result = await readScannerState(asImapFlow(imap), defaultState, 'INBOX');
 
     expect(result.last_uid).toBe(0);
     expect(warn).toHaveBeenCalled();
@@ -355,7 +343,7 @@ describe('readScannerState', () => {
       last_checked: 'c',
     };
 
-    const result = await readScannerState(asImap(imap), defaultState, 'INBOX');
+    const result = await readScannerState(asImapFlow(imap), defaultState, 'INBOX');
 
     expect(result.last_uid).toBe(0);
     expect(imap.status).not.toHaveBeenCalled();
@@ -372,7 +360,7 @@ describe('readScannerState', () => {
       last_checked: 'c',
     };
 
-    const result = await readScannerState(asImap(imap), defaultState);
+    const result = await readScannerState(asImapFlow(imap), defaultState);
 
     expect(result.last_uid).toBe(0);
     expect(imap.status).not.toHaveBeenCalled();

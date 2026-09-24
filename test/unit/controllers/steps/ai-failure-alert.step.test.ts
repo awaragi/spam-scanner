@@ -1,18 +1,21 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { fixtureContext } from '../../../support/fixtures.ts';
+import { asImapFlow } from '../../../support/imap-fakes.ts';
 
 vi.mock('../../../../src/lib/clients/imap.client.ts', () => ({
-  appendMessage: vi.fn().mockResolvedValue(),
+  appendMessage: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('../../../../src/lib/clients/rspamd.client.ts', () => ({
-  learnHam: vi.fn().mockResolvedValue(),
+  learnHam: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { postAiFailureAlert } from '../../../../src/lib/controllers/steps/ai-failure-alert.step.ts';
 import { appendMessage } from '../../../../src/lib/clients/imap.client.ts';
 import { learnHam } from '../../../../src/lib/clients/rspamd.client.ts';
 
-const mockImap = {};
+const mockedAppendMessage = vi.mocked(appendMessage);
+const mockedLearnHam = vi.mocked(learnHam);
+const mockImap = asImapFlow({});
 
 function fixtureAlert(overrides = {}) {
   return {
@@ -27,8 +30,8 @@ function fixtureAlert(overrides = {}) {
 describe('postAiFailureAlert', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    appendMessage.mockResolvedValue();
-    learnHam.mockResolvedValue();
+    mockedAppendMessage.mockResolvedValue(undefined);
+    mockedLearnHam.mockResolvedValue({ success: true });
   });
 
   test('a null alert is a no-op: nothing appended, nothing trained', async () => {
@@ -36,8 +39,8 @@ describe('postAiFailureAlert', () => {
 
     await postAiFailureAlert(mockImap, null, ctx);
 
-    expect(appendMessage).not.toHaveBeenCalled();
-    expect(learnHam).not.toHaveBeenCalled();
+    expect(mockedAppendMessage).not.toHaveBeenCalled();
+    expect(mockedLearnHam).not.toHaveBeenCalled();
   });
 
   test('appends the alert to FOLDER_INBOX, marks the tracker notified, and trains rspamd ham on it', async () => {
@@ -47,15 +50,15 @@ describe('postAiFailureAlert', () => {
 
     await postAiFailureAlert(mockImap, alert, ctx);
 
-    expect(appendMessage).toHaveBeenCalledTimes(1);
-    const [imapArg, folderArg, rawArg] = appendMessage.mock.calls[0];
+    expect(mockedAppendMessage).toHaveBeenCalledTimes(1);
+    const [imapArg, folderArg, rawArg] = mockedAppendMessage.mock.calls[0];
     expect(imapArg).toBe(mockImap);
     expect(folderArg).toBe('INBOX');
     expect(rawArg).toContain('provider timeout');
     expect(ctx.aiFailureTracker.markNotified).toHaveBeenCalledWith(
       alert.reason
     );
-    expect(learnHam).toHaveBeenCalledWith(rawArg);
+    expect(mockedLearnHam).toHaveBeenCalledWith(rawArg);
   });
 
   test('addresses the alert to IMAP_NOTIFY_ADDRESS when set, instead of IMAP_USER', async () => {
@@ -68,7 +71,7 @@ describe('postAiFailureAlert', () => {
 
     await postAiFailureAlert(mockImap, fixtureAlert(), ctx);
 
-    const [, , rawArg] = appendMessage.mock.calls[0];
+    const [, , rawArg] = mockedAppendMessage.mock.calls[0];
     expect(rawArg).toContain('To: pierre@example.com');
   });
 
@@ -79,27 +82,27 @@ describe('postAiFailureAlert', () => {
 
     await postAiFailureAlert(mockImap, fixtureAlert(), ctx);
 
-    const [, , rawArg] = appendMessage.mock.calls[0];
+    const [, , rawArg] = mockedAppendMessage.mock.calls[0];
     expect(rawArg).toContain('To: owner@example.com');
   });
 
   test('an appendMessage failure is swallowed: never marks notified, never trains, never throws', async () => {
     const ctx = fixtureContext();
     vi.spyOn(ctx.aiFailureTracker, 'markNotified');
-    appendMessage.mockRejectedValue(new Error('IMAP append failed'));
+    mockedAppendMessage.mockRejectedValue(new Error('IMAP append failed'));
 
     await expect(
       postAiFailureAlert(mockImap, fixtureAlert(), ctx)
     ).resolves.toBeUndefined();
 
     expect(ctx.aiFailureTracker.markNotified).not.toHaveBeenCalled();
-    expect(learnHam).not.toHaveBeenCalled();
+    expect(mockedLearnHam).not.toHaveBeenCalled();
   });
 
   test('a learnHam failure is swallowed: the alert is still considered posted', async () => {
     const ctx = fixtureContext();
     vi.spyOn(ctx.aiFailureTracker, 'markNotified');
-    learnHam.mockRejectedValue(new Error('rspamd unreachable'));
+    mockedLearnHam.mockRejectedValue(new Error('rspamd unreachable'));
 
     await expect(
       postAiFailureAlert(mockImap, fixtureAlert(), ctx)

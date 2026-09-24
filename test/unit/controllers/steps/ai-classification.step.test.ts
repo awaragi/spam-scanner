@@ -8,7 +8,9 @@ vi.mock('../../../../src/lib/clients/ai.client.ts', () => ({
 import { classifyWithAi } from '../../../../src/lib/controllers/steps/ai-classification.step.ts';
 import { classifyEmail } from '../../../../src/lib/clients/ai.client.ts';
 
-function makeMessage(uid, envelope = {}) {
+const mockedClassifyEmail = vi.mocked(classifyEmail);
+
+function makeMessage(uid: number, envelope: Record<string, unknown> = {}) {
   return { uid, envelope, raw: `raw-${uid}` };
 }
 
@@ -33,7 +35,7 @@ describe('classifyWithAi', () => {
   });
 
   test('attaches aiInfo on success and preserves bucket split/order', async () => {
-    classifyEmail.mockImplementation(async content => ({
+    mockedClassifyEmail.mockImplementation(async content => ({
       score: 20,
       reasoning: `reason-${content.text}`,
     }));
@@ -61,7 +63,7 @@ describe('classifyWithAi', () => {
 
   test('fails open on a per-message error without affecting sibling messages or rethrowing', async () => {
     let call = 0;
-    classifyEmail.mockImplementation(async () => {
+    mockedClassifyEmail.mockImplementation(async () => {
       call++;
       if (call === 2) throw new Error('provider timeout');
       return { score: 15, reasoning: 'ok' };
@@ -84,7 +86,7 @@ describe('classifyWithAi', () => {
     let inFlight = 0;
     let maxInFlight = 0;
 
-    classifyEmail.mockImplementation(async () => {
+    mockedClassifyEmail.mockImplementation(async () => {
       inFlight++;
       maxInFlight = Math.max(maxInFlight, inFlight);
       await new Promise(resolve => setTimeout(resolve, 5));
@@ -101,7 +103,7 @@ describe('classifyWithAi', () => {
   });
 
   test('aiFailureAlert is null when nothing fails', async () => {
-    classifyEmail.mockResolvedValue({ score: 5, reasoning: 'ok' });
+    mockedClassifyEmail.mockResolvedValue({ score: 5, reasoning: 'ok' });
     const ctx = fixtureContext();
 
     const result = await classifyWithAi(
@@ -116,7 +118,7 @@ describe('classifyWithAi', () => {
   });
 
   test('aiFailureAlert is null when failures stay below ctx.config.AI_FAILURE_ALERT_THRESHOLD', async () => {
-    classifyEmail.mockRejectedValue(new Error('provider timeout'));
+    mockedClassifyEmail.mockRejectedValue(new Error('provider timeout'));
     const ctx = fixtureContext({ config: { AI_FAILURE_ALERT_THRESHOLD: 3 } });
 
     const result = await classifyWithAi(
@@ -131,7 +133,7 @@ describe('classifyWithAi', () => {
   });
 
   test('aiFailureAlert surfaces reason/count/lastError once failures cross the threshold', async () => {
-    classifyEmail.mockRejectedValue(new Error('provider timeout'));
+    mockedClassifyEmail.mockRejectedValue(new Error('provider timeout'));
     const ctx = fixtureContext({ config: { AI_FAILURE_ALERT_THRESHOLD: 3 } });
 
     const result = await classifyWithAi(
@@ -147,14 +149,14 @@ describe('classifyWithAi', () => {
       count: 3,
       lastError: 'provider timeout',
     });
-    expect(result.aiFailureAlert.lastAt).toEqual(expect.any(String));
+    expect(result.aiFailureAlert?.lastAt).toEqual(expect.any(String));
   });
 
   test('a success resets ctx.aiFailureTracker so a later failure streak starts over', async () => {
     const ctx = fixtureContext({ config: { AI_FAILURE_ALERT_THRESHOLD: 2 } });
-    classifyEmail.mockRejectedValueOnce(new Error('boom'));
-    classifyEmail.mockResolvedValueOnce({ score: 1, reasoning: 'ok' });
-    classifyEmail.mockRejectedValueOnce(new Error('boom'));
+    mockedClassifyEmail.mockRejectedValueOnce(new Error('boom'));
+    mockedClassifyEmail.mockResolvedValueOnce({ score: 1, reasoning: 'ok' });
+    mockedClassifyEmail.mockRejectedValueOnce(new Error('boom'));
 
     await classifyWithAi(
       { nonSpamMessages: [makeMessage(1)], lowSpamMessages: [] },
@@ -175,7 +177,7 @@ describe('classifyWithAi', () => {
   });
 
   test('resolves maxInputTokens from ctx.config.AI_MAX_INPUT_TOKENS', async () => {
-    classifyEmail.mockResolvedValue({ score: 1, reasoning: 'ok' });
+    mockedClassifyEmail.mockResolvedValue({ score: 1, reasoning: 'ok' });
     const ctx = fixtureContext({ config: { AI_MAX_INPUT_TOKENS: 6000 } });
     const message = {
       uid: 1,
@@ -188,7 +190,7 @@ describe('classifyWithAi', () => {
       ctx
     );
 
-    const [content] = classifyEmail.mock.calls[0];
+    const [content] = mockedClassifyEmail.mock.calls[0];
     // 6000 tokens * 4 chars/token = 24000 chars, plus the truncation marker.
     expect(content.text.length).toBeLessThanOrEqual(
       24000 + '…[truncated]'.length

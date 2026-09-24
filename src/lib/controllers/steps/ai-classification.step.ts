@@ -3,9 +3,33 @@ import { formatAddressList } from '../../utils/ai-content.util.ts';
 import { extractAiContent } from '../../services/ai-content.service.ts';
 import { classifyEmail } from '../../clients/ai.client.ts';
 import { mapWithConcurrency } from '../../utils/concurrency.util.ts';
-import { createDefaultContext } from '../../core/context.ts';
+import { createDefaultContext, type Context } from '../../core/context.ts';
 
 const logger = rootLogger.forComponent('ai-classification');
+
+interface ClassifiableMessage {
+  uid: number;
+  raw: unknown;
+  envelope?: {
+    subject?: string;
+    from?: Array<{ name?: string; address?: string }>;
+    to?: Array<{ name?: string; address?: string }>;
+    date?: unknown;
+  };
+}
+
+interface AiInfo {
+  score: number | null;
+  reasoning: string | null;
+  error: string | null;
+}
+
+interface FailureAlert {
+  reason: string | null;
+  count: number;
+  lastError: string | null;
+  lastAt: string | null;
+}
 
 /**
  * Identifying fields for log lines, sourced from the envelope directly (always
@@ -14,7 +38,10 @@ const logger = rootLogger.forComponent('ai-classification');
  * @param {Object} message
  * @returns {{subject: string, from: string}}
  */
-function logIdentity(message) {
+function logIdentity(message: ClassifiableMessage): {
+  subject: string;
+  from: string;
+} {
   return {
     subject: message.envelope?.subject || '',
     from: formatAddressList(message.envelope?.from),
@@ -33,7 +60,11 @@ function logIdentity(message) {
  * @param {Object} ctx
  * @returns {Promise<Object>} - message with `aiInfo: {score, reasoning, error}` attached
  */
-async function classifyOne(message, alertRef, ctx) {
+async function classifyOne<M extends ClassifiableMessage>(
+  message: M,
+  alertRef: { value: FailureAlert | null },
+  ctx: Context
+): Promise<M & { aiInfo: AiInfo }> {
   const messageLogger = logger.forMessage(message.uid);
   const identity = logIdentity(message);
   try {
@@ -48,8 +79,9 @@ async function classifyOne(message, alertRef, ctx) {
     ctx.aiFailureTracker.recordSuccess();
     return { ...message, aiInfo: { score, reasoning, error: null } };
   } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
     messageLogger.error(
-      { ...identity, error: err.message },
+      { ...identity, error: errorMessage },
       'AI classification failed - message stays in original bucket (fail-open)'
     );
     const { shouldAlert, reason, count, lastError, lastAt } =
@@ -62,7 +94,7 @@ async function classifyOne(message, alertRef, ctx) {
     }
     return {
       ...message,
-      aiInfo: { score: null, reasoning: null, error: err.message },
+      aiInfo: { score: null, reasoning: null, error: errorMessage },
     };
   }
 }
@@ -76,20 +108,25 @@ async function classifyOne(message, alertRef, ctx) {
  *   messages, each with `aiInfo` attached, plus `aiFailureAlert` (`{reason, count, lastError, lastAt}`)
  *   when this batch's failures newly crossed the consecutive-same-reason alert threshold
  */
-export async function classifyWithAi(
-  { nonSpamMessages, lowSpamMessages },
-  ctx = createDefaultContext()
-) {
+export async function classifyWithAi<M extends ClassifiableMessage>(
+  {
+    nonSpamMessages,
+    lowSpamMessages,
+  }: { nonSpamMessages: M[]; lowSpamMessages: M[] },
+  ctx: Context = createDefaultContext()
+): Promise<{
+  nonSpamMessages: (M & { aiInfo: AiInfo })[];
+  lowSpamMessages: (M & { aiInfo: AiInfo })[];
+  aiFailureAlert: FailureAlert | null;
+}> {
   const all = [...nonSpamMessages, ...lowSpamMessages];
   if (all.length === 0) {
     return { nonSpamMessages: [], lowSpamMessages: [], aiFailureAlert: null };
   }
 
-  const alertRef = { value: null };
-  const results = await mapWithConcurrency(
-    all,
-    ctx.config.AI_CONCURRENCY,
-    item => classifyOne(item, alertRef, ctx)
+  const alertRef: { value: FailureAlert | null } = { value: null };
+  const results = await mapWithConcurrency(all, ctx.config.AI_CONCURRENCY, item =>
+    classifyOne(item, alertRef, ctx)
   );
 
   logger.info(

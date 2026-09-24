@@ -1,5 +1,5 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
-import type { ImapFlow } from 'imapflow';
+import { asImapFlow } from '../../support/imap-fakes.ts';
 
 const { mockConfig } = vi.hoisted(() => ({
   mockConfig: {} as Record<string, unknown>,
@@ -17,7 +17,7 @@ import { resolveFolders } from '../../../src/lib/clients/folder-resolver.client.
 import { getImapDelimiter } from '../../../src/lib/clients/imap.client.ts';
 
 const mockedGetImapDelimiter = vi.mocked(getImapDelimiter);
-const fakeImap = {} as unknown as ImapFlow;
+const fakeImap = asImapFlow({});
 
 function resetMockConfig() {
   for (const key of Object.keys(mockConfig)) {

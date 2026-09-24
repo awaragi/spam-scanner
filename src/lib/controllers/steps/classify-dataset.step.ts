@@ -2,9 +2,30 @@ import { rootLogger } from '../../core/logger.ts';
 import { extractAiContent } from '../../services/ai-content.service.ts';
 import { classifyEmail } from '../../clients/ai.client.ts';
 import { mapWithConcurrency } from '../../utils/concurrency.util.ts';
-import { createDefaultContext } from '../../core/context.ts';
+import { createDefaultContext, type Context } from '../../core/context.ts';
 
 const logger = rootLogger.forComponent('classify-dataset');
+
+interface DatasetMessage {
+  bucket: string;
+  filename: string;
+  uid: string;
+  raw: unknown;
+  envelope?: {
+    subject?: string;
+    from?: Array<{ name?: string; address?: string }>;
+    to?: Array<{ name?: string; address?: string }>;
+    date?: unknown;
+  };
+}
+
+interface DatasetResult {
+  bucket: string;
+  filename: string;
+  score: number | null;
+  reasoning: string | null;
+  error: string | null;
+}
 
 /**
  * Classifies a single dataset message, never throwing - failures are caught
@@ -14,7 +35,10 @@ const logger = rootLogger.forComponent('classify-dataset');
  * @param {Object} ctx
  * @returns {Promise<{bucket: string, filename: string, score: number|null, reasoning: string|null, error: string|null}>}
  */
-async function classifyOne(message, ctx) {
+async function classifyOne(
+  message: DatasetMessage,
+  ctx: Context
+): Promise<DatasetResult> {
   const { bucket, filename } = message;
   try {
     const content = await extractAiContent(message, {
@@ -23,8 +47,9 @@ async function classifyOne(message, ctx) {
     const { score, reasoning } = await classifyEmail(content);
     return { bucket, filename, score, reasoning, error: null };
   } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
     logger.error(
-      { bucket, filename, error: err.message },
+      { bucket, filename, error: errorMessage },
       'Dataset message classification failed'
     );
     return {
@@ -32,7 +57,7 @@ async function classifyOne(message, ctx) {
       filename,
       score: null,
       reasoning: null,
-      error: err.message,
+      error: errorMessage,
     };
   }
 }
@@ -44,7 +69,10 @@ async function classifyOne(message, ctx) {
  * @param {Object} [ctx]
  * @returns {Promise<Array<{bucket: string, filename: string, score: number|null, reasoning: string|null, error: string|null}>>}
  */
-export async function classifyDataset(messages, ctx = createDefaultContext()) {
+export async function classifyDataset(
+  messages: DatasetMessage[],
+  ctx: Context = createDefaultContext()
+): Promise<DatasetResult[]> {
   if (messages.length === 0) return [];
 
   const results = await mapWithConcurrency(
