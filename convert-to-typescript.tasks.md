@@ -401,7 +401,7 @@ does, examples, caveats). Do not delete a JSDoc block wholesale just because it 
   pass - verified by checking the 3 touched files' committed-HEAD versions against
   Prettier directly, which already failed before this change; the other 14 flagged
   files were never touched by this pass at all.)
-- [ ] Commit the cleanup pass as its own commit, separate from the conversion commit.
+- [x] Commit the cleanup pass as its own commit, separate from the conversion commit.
 
 ## Optional: OpenSpec
 
