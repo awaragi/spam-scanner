@@ -4,7 +4,7 @@ import os from 'os';
 import path from 'path';
 import { writeReport } from '../../../src/lib/clients/report-file.client.ts';
 
-const tempDirs = [];
+const tempDirs: string[] = [];
 
 async function makeTempDir() {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'report-file-client-'));

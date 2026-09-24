@@ -1,4 +1,5 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
+import type { ImapFlow } from 'imapflow';
 
 const { mockConfig, warn } = vi.hoisted(() => ({
   mockConfig: {
@@ -52,6 +53,11 @@ import {
   validateState,
 } from '../../../src/lib/services/state-format.service.ts';
 
+const mockedSearch = vi.mocked(search);
+const mockedFetchMessagesByUIDs = vi.mocked(fetchMessagesByUIDs);
+const mockedParseStateFromEmail = vi.mocked(parseStateFromEmail);
+const mockedValidateState = vi.mocked(validateState);
+
 function makeImap(overrides = {}) {
   return {
     mailbox: { path: 'INBOX' },
@@ -63,6 +69,23 @@ function makeImap(overrides = {}) {
   };
 }
 
+// Test doubles are plain mock objects, not real ImapFlow instances - this
+// cast is only for passing them to the (now strictly-typed) client functions.
+function asImap(imap: ReturnType<typeof makeImap>): ImapFlow {
+  return imap as unknown as ImapFlow;
+}
+
+// fetchMessagesByUIDs' real return shape is {uid, flags, envelope, raw} - no
+// `body` (see state-manager.client.ts's FetchedMessageWithBody comment).
+// This mirrors the `.body` access the code under test actually reads.
+function fakeFetched(
+  body: string
+): Awaited<ReturnType<typeof fetchMessagesByUIDs>> {
+  return [{ body }] as unknown as Awaited<
+    ReturnType<typeof fetchMessagesByUIDs>
+  >;
+}
+
 describe('writeScannerState', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -70,9 +93,9 @@ describe('writeScannerState', () => {
 
   test('append is called before messageDelete (append-before-delete ordering)', async () => {
     const imap = makeImap();
-    search.mockResolvedValue([10]);
+    mockedSearch.mockResolvedValue([10]);
 
-    const callOrder = [];
+    const callOrder: string[] = [];
     imap.append.mockImplementation(async () => {
       callOrder.push('append');
     });
@@ -80,7 +103,7 @@ describe('writeScannerState', () => {
       callOrder.push('messageDelete');
     });
 
-    await writeScannerState(imap, {
+    await writeScannerState(asImap(imap), {
       last_uid: 1,
       last_seen_date: 'd',
       last_checked: 'c',
@@ -92,9 +115,9 @@ describe('writeScannerState', () => {
 
   test('no previous state: append happens, messageDelete is never called', async () => {
     const imap = makeImap();
-    search.mockResolvedValue([]);
+    mockedSearch.mockResolvedValue([]);
 
-    await writeScannerState(imap, {
+    await writeScannerState(asImap(imap), {
       last_uid: 1,
       last_seen_date: 'd',
       last_checked: 'c',
@@ -106,11 +129,11 @@ describe('writeScannerState', () => {
 
   test('append failure: messageDelete is never called, old state message is preserved', async () => {
     const imap = makeImap();
-    search.mockResolvedValue([10]);
+    mockedSearch.mockResolvedValue([10]);
     imap.append.mockRejectedValue(new Error('connection dropped'));
 
     await expect(
-      writeScannerState(imap, {
+      writeScannerState(asImap(imap), {
         last_uid: 1,
         last_seen_date: 'd',
         last_checked: 'c',
@@ -128,9 +151,9 @@ describe('writeMapState', () => {
 
   test('append is called before messageDelete (append-before-delete ordering)', async () => {
     const imap = makeImap();
-    search.mockResolvedValue([20]);
+    mockedSearch.mockResolvedValue([20]);
 
-    const callOrder = [];
+    const callOrder: string[] = [];
     imap.append.mockImplementation(async () => {
       callOrder.push('append');
     });
@@ -138,7 +161,7 @@ describe('writeMapState', () => {
       callOrder.push('messageDelete');
     });
 
-    await writeMapState(imap, 'rspamd-whitelist-map', 'a@b.com');
+    await writeMapState(asImap(imap), 'rspamd-whitelist-map', 'a@b.com');
 
     expect(callOrder).toEqual(['append', 'messageDelete']);
     expect(imap.messageDelete).toHaveBeenCalledWith([20], { uid: true });
@@ -146,11 +169,11 @@ describe('writeMapState', () => {
 
   test('append failure: messageDelete is never called, old map message is preserved', async () => {
     const imap = makeImap();
-    search.mockResolvedValue([20]);
+    mockedSearch.mockResolvedValue([20]);
     imap.append.mockRejectedValue(new Error('connection dropped'));
 
     await expect(
-      writeMapState(imap, 'rspamd-whitelist-map', 'a@b.com')
+      writeMapState(asImap(imap), 'rspamd-whitelist-map', 'a@b.com')
     ).rejects.toThrow('connection dropped');
 
     expect(imap.messageDelete).not.toHaveBeenCalled();
@@ -164,54 +187,54 @@ describe('readMapState', () => {
 
   test('reads back a previously written JSON list', async () => {
     const imap = makeImap();
-    search.mockResolvedValue([9]);
-    fetchMessagesByUIDs.mockResolvedValue([{ body: 'raw' }]);
-    parseStateFromEmail.mockReturnValue(['a@b.com', 'c@d.com']);
+    mockedSearch.mockResolvedValue([9]);
+    mockedFetchMessagesByUIDs.mockResolvedValue(fakeFetched('raw'));
+    mockedParseStateFromEmail.mockReturnValue(['a@b.com', 'c@d.com']);
 
-    const result = await readMapState(imap, 'rspamd-whitelist-map');
+    const result = await readMapState(asImap(imap), 'rspamd-whitelist-map');
 
     expect(result).toEqual(['a@b.com', 'c@d.com']);
   });
 
   test('multiple matching state messages: reads the highest-UID one', async () => {
     const imap = makeImap();
-    search.mockResolvedValue([5, 12, 8]);
-    fetchMessagesByUIDs.mockResolvedValue([{ body: 'raw' }]);
-    parseStateFromEmail.mockReturnValue(['a@b.com']);
+    mockedSearch.mockResolvedValue([5, 12, 8]);
+    mockedFetchMessagesByUIDs.mockResolvedValue(fakeFetched('raw'));
+    mockedParseStateFromEmail.mockReturnValue(['a@b.com']);
 
-    await readMapState(imap, 'rspamd-whitelist-map');
+    await readMapState(asImap(imap), 'rspamd-whitelist-map');
 
-    expect(fetchMessagesByUIDs).toHaveBeenCalledWith(imap, [12]);
+    expect(mockedFetchMessagesByUIDs).toHaveBeenCalledWith(imap, [12]);
   });
 
   test('no matching state message: returns [] rather than throwing', async () => {
     const imap = makeImap();
-    search.mockResolvedValue([]);
+    mockedSearch.mockResolvedValue([]);
 
-    const result = await readMapState(imap, 'rspamd-whitelist-map');
+    const result = await readMapState(asImap(imap), 'rspamd-whitelist-map');
 
     expect(result).toEqual([]);
-    expect(fetchMessagesByUIDs).not.toHaveBeenCalled();
+    expect(mockedFetchMessagesByUIDs).not.toHaveBeenCalled();
   });
 
   test('unparseable JSON body: returns [] rather than throwing', async () => {
     const imap = makeImap();
-    search.mockResolvedValue([9]);
-    fetchMessagesByUIDs.mockResolvedValue([{ body: 'not json' }]);
-    parseStateFromEmail.mockReturnValue(null);
+    mockedSearch.mockResolvedValue([9]);
+    mockedFetchMessagesByUIDs.mockResolvedValue(fakeFetched('not json'));
+    mockedParseStateFromEmail.mockReturnValue(null);
 
-    const result = await readMapState(imap, 'rspamd-whitelist-map');
+    const result = await readMapState(asImap(imap), 'rspamd-whitelist-map');
 
     expect(result).toEqual([]);
   });
 
   test('JSON body that is not an array (e.g. a legacy plain-text backup): returns []', async () => {
     const imap = makeImap();
-    search.mockResolvedValue([9]);
-    fetchMessagesByUIDs.mockResolvedValue([{ body: 'a@b.com\nc@d.com' }]);
-    parseStateFromEmail.mockReturnValue(null);
+    mockedSearch.mockResolvedValue([9]);
+    mockedFetchMessagesByUIDs.mockResolvedValue(fakeFetched('a@b.com\nc@d.com'));
+    mockedParseStateFromEmail.mockReturnValue(null);
 
-    const result = await readMapState(imap, 'rspamd-whitelist-map');
+    const result = await readMapState(asImap(imap), 'rspamd-whitelist-map');
 
     expect(result).toEqual([]);
   });
@@ -221,7 +244,7 @@ describe('readScannerState', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockConfig.SCAN_INITIAL_STATE = 'new';
-    parseStateFromEmail.mockReturnValue({
+    mockedParseStateFromEmail.mockReturnValue({
       last_uid: 42,
       last_seen_date: 'd',
       last_checked: 'c',
@@ -230,55 +253,55 @@ describe('readScannerState', () => {
 
   test('multiple matching state messages: reads the highest-UID one', async () => {
     const imap = makeImap();
-    search.mockResolvedValue([5, 12, 8]);
-    fetchMessagesByUIDs.mockResolvedValue([{ body: 'raw' }]);
+    mockedSearch.mockResolvedValue([5, 12, 8]);
+    mockedFetchMessagesByUIDs.mockResolvedValue(fakeFetched('raw'));
 
-    await readScannerState(imap, undefined);
+    await readScannerState(asImap(imap), undefined);
 
-    expect(fetchMessagesByUIDs).toHaveBeenCalledWith(imap, [12]);
+    expect(mockedFetchMessagesByUIDs).toHaveBeenCalledWith(imap, [12]);
   });
 
   test('single matching state message: reads it', async () => {
     const imap = makeImap();
-    search.mockResolvedValue([7]);
-    fetchMessagesByUIDs.mockResolvedValue([{ body: 'raw' }]);
+    mockedSearch.mockResolvedValue([7]);
+    mockedFetchMessagesByUIDs.mockResolvedValue(fakeFetched('raw'));
 
-    await readScannerState(imap, undefined);
+    await readScannerState(asImap(imap), undefined);
 
-    expect(fetchMessagesByUIDs).toHaveBeenCalledWith(imap, [7]);
+    expect(mockedFetchMessagesByUIDs).toHaveBeenCalledWith(imap, [7]);
   });
 
   test('unparseable state message: throws "Failed to parse", not masked by validateState', async () => {
     const imap = makeImap();
-    search.mockResolvedValue([7]);
-    fetchMessagesByUIDs.mockResolvedValue([{ body: 'not json' }]);
-    parseStateFromEmail.mockReturnValue(null);
+    mockedSearch.mockResolvedValue([7]);
+    mockedFetchMessagesByUIDs.mockResolvedValue(fakeFetched('not json'));
+    mockedParseStateFromEmail.mockReturnValue(null);
 
-    await expect(readScannerState(imap, undefined)).rejects.toThrow(
+    await expect(readScannerState(asImap(imap), undefined)).rejects.toThrow(
       'Failed to parse state from email'
     );
-    expect(validateState).not.toHaveBeenCalled();
+    expect(mockedValidateState).not.toHaveBeenCalled();
   });
 
   test('no state, no default: throws', async () => {
     const imap = makeImap();
-    search.mockResolvedValue([]);
+    mockedSearch.mockResolvedValue([]);
 
-    await expect(readScannerState(imap, undefined)).rejects.toThrow(
+    await expect(readScannerState(asImap(imap), undefined)).rejects.toThrow(
       'Scanner state not found'
     );
   });
 
   test('no state, default given, no mailboxPath: falls back to the caller-supplied default last_uid unchanged', async () => {
     const imap = makeImap();
-    search.mockResolvedValue([]);
+    mockedSearch.mockResolvedValue([]);
     const defaultState = {
       last_uid: 0,
       last_seen_date: 'd',
       last_checked: 'c',
     };
 
-    const result = await readScannerState(imap, defaultState);
+    const result = await readScannerState(asImap(imap), defaultState);
 
     expect(result.last_uid).toBe(0);
     expect(imap.status).not.toHaveBeenCalled();
@@ -289,14 +312,14 @@ describe('readScannerState', () => {
     const imap = makeImap({
       status: vi.fn().mockResolvedValue({ uidNext: 7385 }),
     });
-    search.mockResolvedValue([]);
+    mockedSearch.mockResolvedValue([]);
     const defaultState = {
       last_uid: 0,
       last_seen_date: 'd',
       last_checked: 'c',
     };
 
-    const result = await readScannerState(imap, defaultState, 'INBOX');
+    const result = await readScannerState(asImap(imap), defaultState, 'INBOX');
 
     expect(imap.status).toHaveBeenCalledWith('INBOX', { uidNext: true });
     expect(result.last_uid).toBe(7384);
@@ -307,14 +330,14 @@ describe('readScannerState', () => {
     const imap = makeImap({
       status: vi.fn().mockResolvedValue({ uidNext: 1 }),
     });
-    search.mockResolvedValue([]);
+    mockedSearch.mockResolvedValue([]);
     const defaultState = {
       last_uid: 0,
       last_seen_date: 'd',
       last_checked: 'c',
     };
 
-    const result = await readScannerState(imap, defaultState, 'INBOX');
+    const result = await readScannerState(asImap(imap), defaultState, 'INBOX');
 
     expect(result.last_uid).toBe(0);
     expect(warn).toHaveBeenCalled();
@@ -325,14 +348,14 @@ describe('readScannerState', () => {
     const imap = makeImap({
       status: vi.fn().mockResolvedValue({ uidNext: 7385 }),
     });
-    search.mockResolvedValue([]);
+    mockedSearch.mockResolvedValue([]);
     const defaultState = {
       last_uid: 0,
       last_seen_date: 'd',
       last_checked: 'c',
     };
 
-    const result = await readScannerState(imap, defaultState, 'INBOX');
+    const result = await readScannerState(asImap(imap), defaultState, 'INBOX');
 
     expect(result.last_uid).toBe(0);
     expect(imap.status).not.toHaveBeenCalled();
@@ -342,14 +365,14 @@ describe('readScannerState', () => {
   test('no state, SCAN_INITIAL_STATE=all, no mailboxPath: falls back to the caller-supplied default last_uid unchanged', async () => {
     mockConfig.SCAN_INITIAL_STATE = 'all';
     const imap = makeImap();
-    search.mockResolvedValue([]);
+    mockedSearch.mockResolvedValue([]);
     const defaultState = {
       last_uid: 0,
       last_seen_date: 'd',
       last_checked: 'c',
     };
 
-    const result = await readScannerState(imap, defaultState);
+    const result = await readScannerState(asImap(imap), defaultState);
 
     expect(result.last_uid).toBe(0);
     expect(imap.status).not.toHaveBeenCalled();

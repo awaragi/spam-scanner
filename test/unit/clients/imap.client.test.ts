@@ -1,4 +1,5 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
+import type { ImapFlow } from 'imapflow';
 
 const { fakeConfig, fakeImapFlow } = vi.hoisted(() => ({
   fakeConfig: {},
@@ -6,7 +7,16 @@ const { fakeConfig, fakeImapFlow } = vi.hoisted(() => ({
 }));
 vi.mock('../../../src/lib/core/config.ts', () => ({ config: fakeConfig }));
 vi.mock('../../../src/lib/core/logger.ts', () => {
-  const noOpLogger = {
+  interface NoOpLogger {
+    debug: ReturnType<typeof vi.fn>;
+    info: ReturnType<typeof vi.fn>;
+    warn: ReturnType<typeof vi.fn>;
+    error: ReturnType<typeof vi.fn>;
+    fatal: ReturnType<typeof vi.fn>;
+    trace: ReturnType<typeof vi.fn>;
+    forMessage?: () => NoOpLogger;
+  }
+  const noOpLogger: NoOpLogger = {
     debug: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
@@ -145,7 +155,10 @@ describe('fetchMessageHeadersByUIDs', () => {
     }
     const mockImap = { fetch: vi.fn().mockReturnValue(fakeFetch()) };
 
-    const result = await fetchMessageHeadersByUIDs(mockImap, [1, 2]);
+    const result = await fetchMessageHeadersByUIDs(
+      mockImap as unknown as ImapFlow,
+      [1, 2]
+    );
 
     expect(mockImap.fetch).toHaveBeenCalledWith(
       { uid: '1,2' },
@@ -161,8 +174,8 @@ describe('fetchMessageHeadersByUIDs', () => {
 
 describe('safeLogout', () => {
   test('calls imap.logout()', async () => {
-    const imap = { logout: vi.fn().mockResolvedValue() };
-    await safeLogout(imap);
+    const imap = { logout: vi.fn().mockResolvedValue(undefined) };
+    await safeLogout(imap as unknown as ImapFlow);
     expect(imap.logout).toHaveBeenCalled();
   });
 
@@ -170,13 +183,26 @@ describe('safeLogout', () => {
     const imap = {
       logout: vi.fn().mockRejectedValue(new Error('no connection')),
     };
-    await expect(safeLogout(imap)).resolves.toBeUndefined();
+    await expect(
+      safeLogout(imap as unknown as ImapFlow)
+    ).resolves.toBeUndefined();
   });
 });
 
 describe('waitForNewMail', () => {
-  let mockLock;
-  let mockImap;
+  interface MockLock {
+    release: ReturnType<typeof vi.fn>;
+  }
+  interface MockImap {
+    getMailboxLock: ReturnType<typeof vi.fn>;
+    mailbox: { exists: number; uidNext?: number };
+    once: ReturnType<typeof vi.fn>;
+    off: ReturnType<typeof vi.fn>;
+    idle: ReturnType<typeof vi.fn>;
+  }
+
+  let mockLock: MockLock;
+  let mockImap: MockImap;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -184,16 +210,18 @@ describe('waitForNewMail', () => {
     mockImap = {
       getMailboxLock: vi.fn().mockResolvedValue(mockLock),
       mailbox: { exists: 0 },
-      once: vi.fn().mockImplementation((event, cb) => {
-        if (event === 'exists') cb({});
-      }),
+      once: vi
+        .fn()
+        .mockImplementation((event: string, cb: (arg?: unknown) => void) => {
+          if (event === 'exists') cb({});
+        }),
       off: vi.fn(),
       idle: vi.fn().mockResolvedValue(undefined),
     };
   });
 
   test('acquires the mailbox lock in read-only mode', async () => {
-    await waitForNewMail(mockImap, 'INBOX');
+    await waitForNewMail(mockImap as unknown as ImapFlow, 'INBOX');
 
     expect(mockImap.getMailboxLock).toHaveBeenCalledWith('INBOX', {
       readOnly: true,
@@ -201,7 +229,7 @@ describe('waitForNewMail', () => {
   });
 
   test('registers exists and error listeners before acquiring the lock', async () => {
-    const callOrder = [];
+    const callOrder: string[] = [];
     mockImap.once.mockImplementation((event, cb) => {
       callOrder.push(`once:${event}`);
       if (event === 'exists') cb({});
@@ -211,7 +239,7 @@ describe('waitForNewMail', () => {
       return Promise.resolve(mockLock);
     });
 
-    await waitForNewMail(mockImap, 'INBOX');
+    await waitForNewMail(mockImap as unknown as ImapFlow, 'INBOX');
 
     expect(callOrder.indexOf('once:exists')).toBeLessThan(
       callOrder.indexOf('getMailboxLock')
@@ -222,13 +250,13 @@ describe('waitForNewMail', () => {
   });
 
   test('enters IDLE immediately after acquiring the lock', async () => {
-    await waitForNewMail(mockImap, 'INBOX');
+    await waitForNewMail(mockImap as unknown as ImapFlow, 'INBOX');
 
     expect(mockImap.idle).toHaveBeenCalledOnce();
   });
 
   test('releases the lock and removes listeners after idle resolves', async () => {
-    await waitForNewMail(mockImap, 'INBOX');
+    await waitForNewMail(mockImap as unknown as ImapFlow, 'INBOX');
 
     expect(mockLock.release).toHaveBeenCalledOnce();
     expect(mockImap.off).toHaveBeenCalledWith('exists', expect.any(Function));
@@ -239,7 +267,7 @@ describe('waitForNewMail', () => {
     mockImap.once.mockImplementation(() => {}); // don't auto-resolve
     mockImap.getMailboxLock.mockRejectedValue(new Error('connection lost'));
 
-    await expect(waitForNewMail(mockImap, 'INBOX')).rejects.toThrow(
+    await expect(waitForNewMail(mockImap as unknown as ImapFlow, 'INBOX')).rejects.toThrow(
       'connection lost'
     );
 
@@ -253,7 +281,7 @@ describe('waitForNewMail', () => {
       if (event === 'error') cb(new Error('socket closed'));
     });
 
-    await expect(waitForNewMail(mockImap, 'INBOX')).rejects.toThrow(
+    await expect(waitForNewMail(mockImap as unknown as ImapFlow, 'INBOX')).rejects.toThrow(
       'socket closed'
     );
 
@@ -265,7 +293,7 @@ describe('waitForNewMail', () => {
       if (event === 'close') cb();
     });
 
-    await expect(waitForNewMail(mockImap, 'INBOX')).rejects.toThrow(
+    await expect(waitForNewMail(mockImap as unknown as ImapFlow, 'INBOX')).rejects.toThrow(
       'IMAP connection closed while waiting for EXISTS'
     );
 
@@ -276,13 +304,13 @@ describe('waitForNewMail', () => {
     test('resolves on its own after watchdogMs elapses with no activity', async () => {
       mockImap.once.mockImplementation(() => {}); // never fires naturally
 
-      await waitForNewMail(mockImap, 'INBOX', { watchdogMs: 10 });
+      await waitForNewMail(mockImap as unknown as ImapFlow, 'INBOX', { watchdogMs: 10 });
 
       expect(mockLock.release).toHaveBeenCalledOnce();
     });
 
     test('watchdogMs: 0 disables the watchdog (default test config has no activity, so this would hang if not for the test-level cb)', async () => {
-      await waitForNewMail(mockImap, 'INBOX', { watchdogMs: 0 });
+      await waitForNewMail(mockImap as unknown as ImapFlow, 'INBOX', { watchdogMs: 0 });
 
       expect(mockLock.release).toHaveBeenCalledOnce();
     });
@@ -293,7 +321,7 @@ describe('waitForNewMail', () => {
       mockImap.once.mockImplementation(() => {}); // would hang if catch-up didn't short-circuit
       mockImap.mailbox = { exists: 5, uidNext: 10 };
 
-      await waitForNewMail(mockImap, 'INBOX', { lastUid: 5, watchdogMs: 0 });
+      await waitForNewMail(mockImap as unknown as ImapFlow, 'INBOX', { lastUid: 5, watchdogMs: 0 });
 
       expect(mockImap.idle).not.toHaveBeenCalled();
       expect(mockLock.release).toHaveBeenCalledOnce();
@@ -302,7 +330,7 @@ describe('waitForNewMail', () => {
     test('enters IDLE normally when lastUid is already caught up with the mailbox', async () => {
       mockImap.mailbox = { exists: 5, uidNext: 10 };
 
-      await waitForNewMail(mockImap, 'INBOX', { lastUid: 9 });
+      await waitForNewMail(mockImap as unknown as ImapFlow, 'INBOX', { lastUid: 9 });
 
       expect(mockImap.idle).toHaveBeenCalledOnce();
     });
@@ -310,7 +338,7 @@ describe('waitForNewMail', () => {
     test('ignores a non-numeric lastUid and enters IDLE normally', async () => {
       mockImap.mailbox = { exists: 5, uidNext: 10 };
 
-      await waitForNewMail(mockImap, 'INBOX', { lastUid: undefined });
+      await waitForNewMail(mockImap as unknown as ImapFlow, 'INBOX', { lastUid: undefined });
 
       expect(mockImap.idle).toHaveBeenCalledOnce();
     });
@@ -322,7 +350,7 @@ describe('waitForNewMail', () => {
       const controller = new AbortController();
       controller.abort();
 
-      await waitForNewMail(mockImap, 'INBOX', {
+      await waitForNewMail(mockImap as unknown as ImapFlow, 'INBOX', {
         signal: controller.signal,
         watchdogMs: 0,
       });
@@ -335,7 +363,7 @@ describe('waitForNewMail', () => {
       mockImap.once.mockImplementation(() => {}); // never fires naturally
       const controller = new AbortController();
 
-      const promise = waitForNewMail(mockImap, 'INBOX', {
+      const promise = waitForNewMail(mockImap as unknown as ImapFlow, 'INBOX', {
         signal: controller.signal,
         watchdogMs: 0,
       });

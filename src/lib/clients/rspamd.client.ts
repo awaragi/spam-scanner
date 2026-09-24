@@ -14,8 +14,22 @@ const RSPAMD_PASSWORD = config.RSPAMD_PASSWORD;
  * @param {{ip?: string, helo?: string, from?: string, rcpt?: string}} [envelope]
  * @returns {Object} - Headers object with optional password and envelope data
  */
-function buildHeaders(envelope = {}) {
-  const headers = {
+interface RspamdEnvelope {
+  ip?: string | null;
+  helo?: string | null;
+  from?: string | null;
+  rcpt?: string | null;
+}
+
+interface LearnResult {
+  success: boolean;
+  message?: string;
+  alreadyLearned?: boolean;
+  error?: string;
+}
+
+function buildHeaders(envelope: RspamdEnvelope = {}): Record<string, string> {
+  const headers: Record<string, string> = {
     'Content-Type': 'text/plain',
   };
 
@@ -31,13 +45,13 @@ function buildHeaders(envelope = {}) {
   return headers;
 }
 
-function isAlreadyLearned(result) {
-  const error =
-    typeof result?.error === 'string' ? result.error.toLowerCase() : '';
+function isAlreadyLearned(result: unknown): boolean {
+  const rawError = (result as { error?: unknown } | null)?.error;
+  const error = typeof rawError === 'string' ? rawError.toLowerCase() : '';
   return error.includes('already learned');
 }
 
-async function parseRspamdJson(response) {
+async function parseRspamdJson(response: Response): Promise<LearnResult> {
   const text = await response.text();
   if (!text) {
     return { success: true, message: '' };
@@ -46,9 +60,10 @@ async function parseRspamdJson(response) {
   try {
     return JSON.parse(text);
   } catch (err) {
-    throw new Error(`Rspamd response parse failed: ${err.message}`, {
-      cause: err,
-    });
+    throw new Error(
+      `Rspamd response parse failed: ${err instanceof Error ? err.message : String(err)}`,
+      { cause: err }
+    );
   }
 }
 
@@ -63,7 +78,12 @@ async function parseRspamdJson(response) {
  * @returns {Promise<Object>} - Parsed JSON response from Rspamd
  * @throws {Error} - If the request fails or Rspamd returns an error
  */
-export async function checkEmail(emailContent, envelope = {}) {
+type ClassifiableError = Error & { status?: number };
+
+export async function checkEmail(
+  emailContent: string | Buffer | null | undefined,
+  envelope: RspamdEnvelope = {}
+): Promise<unknown> {
   if (!emailContent) {
     throw new Error('Email content is required');
   }
@@ -78,7 +98,7 @@ export async function checkEmail(emailContent, envelope = {}) {
 
     if (!response.ok) {
       const error = await response.text();
-      const err = new Error(
+      const err: ClassifiableError = new Error(
         `Rspamd check failed with status ${response.status}: ${error}`
       );
       err.status = response.status;
@@ -90,7 +110,10 @@ export async function checkEmail(emailContent, envelope = {}) {
     return result;
   } catch (err) {
     logger.error(
-      { error: err.message, url: `${RSPAMD_URL}/checkv2` },
+      {
+        error: err instanceof Error ? err.message : String(err),
+        url: `${RSPAMD_URL}/checkv2`,
+      },
       'Rspamd check request failed'
     );
     throw err;
@@ -103,7 +126,9 @@ export async function checkEmail(emailContent, envelope = {}) {
  * @returns {Promise<Object>} - Parsed JSON response from Rspamd
  * @throws {Error} - If the request fails or Rspamd returns an error
  */
-export async function learnHam(emailContent) {
+export async function learnHam(
+  emailContent: string | Buffer
+): Promise<LearnResult> {
   if (!emailContent) {
     throw new Error('Email content is required');
   }
@@ -118,7 +143,7 @@ export async function learnHam(emailContent) {
 
     if (!response.ok) {
       const error = await response.text();
-      let parsed;
+      let parsed: LearnResult | null;
       try {
         parsed = JSON.parse(error);
       } catch {
@@ -156,7 +181,10 @@ export async function learnHam(emailContent) {
     return result;
   } catch (err) {
     logger.error(
-      { error: err.message, url: `${RSPAMD_URL}/learnham` },
+      {
+        error: err instanceof Error ? err.message : String(err),
+        url: `${RSPAMD_URL}/learnham`,
+      },
       'Rspamd learn ham request failed'
     );
     throw err;
@@ -169,7 +197,9 @@ export async function learnHam(emailContent) {
  * @returns {Promise<Object>} - Parsed JSON response from Rspamd
  * @throws {Error} - If the request fails or Rspamd returns an error
  */
-export async function learnSpam(emailContent) {
+export async function learnSpam(
+  emailContent: string | Buffer
+): Promise<LearnResult> {
   if (!emailContent) {
     throw new Error('Email content is required');
   }
@@ -184,7 +214,7 @@ export async function learnSpam(emailContent) {
 
     if (!response.ok) {
       const error = await response.text();
-      let parsed;
+      let parsed: LearnResult | null;
       try {
         parsed = JSON.parse(error);
       } catch {
@@ -222,7 +252,10 @@ export async function learnSpam(emailContent) {
     return result;
   } catch (err) {
     logger.error(
-      { error: err.message, url: `${RSPAMD_URL}/learnspam` },
+      {
+        error: err instanceof Error ? err.message : String(err),
+        url: `${RSPAMD_URL}/learnspam`,
+      },
       'Rspamd learn spam request failed'
     );
     throw err;

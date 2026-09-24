@@ -19,7 +19,7 @@ const client = new OpenAI({
  * support automatic prompt-prefix caching.
  * @returns {string}
  */
-export function buildSystemPrompt() {
+export function buildSystemPrompt(): string {
   const profile = config.AI_USER_PROFILE
     ? `\nMailbox owner context (use to judge relevance/legitimacy): ${config.AI_USER_PROFILE}\n`
     : '';
@@ -60,7 +60,15 @@ const SYSTEM_PROMPT = buildSystemPrompt();
  * @param {{from: string, to: string, subject: string, date: string, text: string}} content
  * @returns {string}
  */
-export function buildUserContent(content) {
+interface AiContent {
+  from: string;
+  to: string;
+  subject: string;
+  date: string;
+  text: string;
+}
+
+export function buildUserContent(content: AiContent): string {
   return `From: ${content.from}
 To: ${content.to}
 Subject: ${content.subject}
@@ -76,7 +84,9 @@ ${content.text}`;
  * @returns {Promise<{score: number, reasoning: string}>}
  * @throws {Error} on request failure or a malformed AI response
  */
-export async function classifyEmail(content) {
+export async function classifyEmail(
+  content: AiContent
+): Promise<{ score: number; reasoning: string }> {
   try {
     const response = await client.chat.completions.create({
       model: config.AI_MODEL,
@@ -104,7 +114,11 @@ export async function classifyEmail(content) {
     return result;
   } catch (err) {
     logger.error(
-      { subject: content.subject, from: content.from, error: err.message },
+      {
+        subject: content.subject,
+        from: content.from,
+        error: err instanceof Error ? err.message : String(err),
+      },
       'AI classification request failed'
     );
     throw err;

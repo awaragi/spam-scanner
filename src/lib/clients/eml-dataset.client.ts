@@ -20,20 +20,35 @@ const logger = rootLogger.forComponent('eml-dataset-client');
  *   so the report can render an empty bucket's section.
  * @throws {Error} if a given bucket folder does not exist or is not readable
  */
-export async function loadEmlDataset(bucketPaths) {
+interface DatasetMessage {
+  bucket: string;
+  filename: string;
+  uid: string;
+  envelope: {
+    from: Array<{ address?: string; name?: string }>;
+    to: Array<{ address?: string; name?: string }>;
+    subject: string;
+    date: Date | undefined;
+  };
+  raw: Buffer;
+}
+
+export async function loadEmlDataset(
+  bucketPaths: Record<string, string>
+): Promise<{ bucketNames: string[]; messages: DatasetMessage[] }> {
   const bucketNames = Object.keys(bucketPaths);
-  const messages = [];
+  const messages: DatasetMessage[] = [];
 
   for (const bucket of bucketNames) {
     const bucketPath = bucketPaths[bucket];
-    let files;
+    let files: string[];
     try {
       files = (await fs.readdir(bucketPath, { withFileTypes: true }))
         .filter(entry => entry.isFile() && entry.name.endsWith('.eml'))
         .map(entry => entry.name);
     } catch (err) {
       throw new Error(
-        `Bucket folder not readable: ${bucket} (${bucketPath}) (${err.message})`,
+        `Bucket folder not readable: ${bucket} (${bucketPath}) (${err instanceof Error ? err.message : String(err)})`,
         { cause: err }
       );
     }

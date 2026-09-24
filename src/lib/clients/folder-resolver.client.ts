@@ -1,3 +1,4 @@
+import type { ImapFlow } from 'imapflow';
 import { config } from '../core/config.ts';
 import { splitFolderParts } from '../utils/mailboxes.util.ts';
 import { getImapDelimiter } from './imap.client.ts';
@@ -17,7 +18,7 @@ const logger = rootLogger.forComponent('folder-resolver');
  * @param {Object} imap - Connected ImapFlow client
  * @returns {Promise<void>}
  */
-export async function resolveFolders(imap) {
+export async function resolveFolders(imap: ImapFlow): Promise<void> {
   const delimiter = await getImapDelimiter(imap);
   if (!delimiter) {
     throw new Error(
@@ -25,15 +26,17 @@ export async function resolveFolders(imap) {
     );
   }
 
+  const mutableConfig = config as unknown as Record<string, unknown>;
+
   for (const key of Object.keys(config)) {
     if (!key.startsWith('FOLDER_')) {
       continue;
     }
-    const value = config[key];
+    const value = mutableConfig[key];
     if (typeof value !== 'string') {
       continue;
     }
-    config[key] = splitFolderParts(value).join(delimiter);
+    mutableConfig[key] = splitFolderParts(value).join(delimiter);
   }
 
   logger.debug({ delimiter }, 'Resolved folder paths');

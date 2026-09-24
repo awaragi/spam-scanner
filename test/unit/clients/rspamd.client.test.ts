@@ -28,7 +28,7 @@ describe('rspamd-client', () => {
         subject: 'Test',
       };
 
-      global.fetch.mockResolvedValueOnce({
+      vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
       });
@@ -48,15 +48,15 @@ describe('rspamd-client', () => {
 
     test('should pass an abort signal so a stalled request times out', async () => {
       const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
-      global.fetch.mockResolvedValueOnce({
+      vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ action: 'no action', score: 0 }),
       });
 
       await checkEmail(emailContent);
 
-      const options = global.fetch.mock.calls[0][1];
-      expect(options.signal).toBeInstanceOf(AbortSignal);
+      const options = vi.mocked(global.fetch).mock.calls[0][1];
+      expect(options?.signal).toBeInstanceOf(AbortSignal);
     });
 
     test('should include password header when configured', async () => {
@@ -82,7 +82,7 @@ describe('rspamd-client', () => {
     test('should throw error on non-ok response', async () => {
       const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
 
-      global.fetch.mockResolvedValueOnce({
+      vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
         ok: false,
         status: 400,
         text: async () => 'Bad Request',
@@ -96,7 +96,7 @@ describe('rspamd-client', () => {
     test('should attach the HTTP status to the thrown error on non-ok response', async () => {
       const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
 
-      global.fetch.mockResolvedValueOnce({
+      vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
         ok: false,
         status: 400,
         text: async () => 'Bad Request',
@@ -120,14 +120,14 @@ describe('rspamd-client', () => {
     test('should throw error on network failure', async () => {
       const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
 
-      global.fetch.mockRejectedValueOnce(new Error('Network error'));
+      vi.mocked(global.fetch).mockRejectedValueOnce(new Error('Network error'));
 
       await expect(checkEmail(emailContent)).rejects.toThrow('Network error');
     });
 
     test('should send envelope data as IP/Helo/From/Rcpt headers when provided', async () => {
       const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
-      global.fetch.mockResolvedValueOnce({
+      vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ action: 'no action', score: 0 }),
       });
@@ -155,7 +155,7 @@ describe('rspamd-client', () => {
 
     test('should omit envelope headers that are absent, null, or not provided at all', async () => {
       const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
-      global.fetch.mockResolvedValueOnce({
+      vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ action: 'no action', score: 0 }),
       });
@@ -179,7 +179,7 @@ describe('rspamd-client', () => {
       const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
       const mockResponse = { success: true, message: 'Learned successfully' };
 
-      global.fetch.mockResolvedValueOnce({
+      vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
         ok: true,
         text: async () => JSON.stringify(mockResponse),
       });
@@ -204,7 +204,7 @@ describe('rspamd-client', () => {
         error: '<msgid@example.com> has been already learned as ham, ignore it',
       };
 
-      global.fetch.mockResolvedValueOnce({
+      vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
         ok: true,
         text: async () => JSON.stringify(mockResponse),
       });
@@ -221,7 +221,7 @@ describe('rspamd-client', () => {
     test('should throw error on non-ok response', async () => {
       const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
 
-      global.fetch.mockResolvedValueOnce({
+      vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
         ok: false,
         status: 401,
         text: async () => 'Unauthorized',
@@ -239,7 +239,7 @@ describe('rspamd-client', () => {
     test('should throw error on network failure', async () => {
       const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
 
-      global.fetch.mockRejectedValueOnce(new Error('Connection refused'));
+      vi.mocked(global.fetch).mockRejectedValueOnce(new Error('Connection refused'));
 
       await expect(learnHam(emailContent)).rejects.toThrow(
         'Connection refused'
@@ -249,7 +249,7 @@ describe('rspamd-client', () => {
     test('should handle empty response body', async () => {
       const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
 
-      global.fetch.mockResolvedValueOnce({
+      vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
         ok: true,
         text: async () => '',
       });
@@ -268,7 +268,7 @@ describe('rspamd-client', () => {
       const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
       const mockResponse = { success: true, message: 'Learned successfully' };
 
-      global.fetch.mockResolvedValueOnce({
+      vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
         ok: true,
         text: async () => JSON.stringify(mockResponse),
       });
@@ -294,7 +294,7 @@ describe('rspamd-client', () => {
           '<msgid@example.com> has been already learned as spam, ignore it',
       };
 
-      global.fetch.mockResolvedValueOnce({
+      vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
         ok: true,
         text: async () => JSON.stringify(mockResponse),
       });
@@ -311,7 +311,7 @@ describe('rspamd-client', () => {
     test('should throw error on non-ok response', async () => {
       const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
 
-      global.fetch.mockResolvedValueOnce({
+      vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
         ok: false,
         status: 503,
         text: async () => 'Service Unavailable',
@@ -329,7 +329,7 @@ describe('rspamd-client', () => {
     test('should throw error on network failure', async () => {
       const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
 
-      global.fetch.mockRejectedValueOnce(new Error('Timeout'));
+      vi.mocked(global.fetch).mockRejectedValueOnce(new Error('Timeout'));
 
       await expect(learnSpam(emailContent)).rejects.toThrow('Timeout');
     });
@@ -337,7 +337,7 @@ describe('rspamd-client', () => {
     test('should handle empty response body', async () => {
       const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
 
-      global.fetch.mockResolvedValueOnce({
+      vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
         ok: true,
         text: async () => '',
       });

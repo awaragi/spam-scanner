@@ -18,7 +18,7 @@ import {
   buildUserContent,
 } from '../../../src/lib/clients/ai.client.ts';
 
-function mockReply(content) {
+function mockReply(content: string | undefined) {
   createCompletionMock.mockResolvedValueOnce({
     choices: [{ message: { content } }],
   });

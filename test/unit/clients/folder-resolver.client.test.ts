@@ -1,7 +1,8 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
+import type { ImapFlow } from 'imapflow';
 
 const { mockConfig } = vi.hoisted(() => ({
-  mockConfig: {},
+  mockConfig: {} as Record<string, unknown>,
 }));
 
 vi.mock('../../../src/lib/core/config.ts', () => ({
@@ -14,6 +15,9 @@ vi.mock('../../../src/lib/clients/imap.client.ts', () => ({
 
 import { resolveFolders } from '../../../src/lib/clients/folder-resolver.client.ts';
 import { getImapDelimiter } from '../../../src/lib/clients/imap.client.ts';
+
+const mockedGetImapDelimiter = vi.mocked(getImapDelimiter);
+const fakeImap = {} as unknown as ImapFlow;
 
 function resetMockConfig() {
   for (const key of Object.keys(mockConfig)) {
@@ -41,9 +45,9 @@ describe('folder-resolver', () => {
   });
 
   test('dot-delimited server: FOLDER_* values are left unchanged in config', async () => {
-    getImapDelimiter.mockResolvedValue('.');
+    mockedGetImapDelimiter.mockResolvedValue('.');
 
-    await resolveFolders({});
+    await resolveFolders(fakeImap);
 
     expect(mockConfig.FOLDER_TRAIN_SPAM).toBe('INBOX.scanner.train.spam');
     expect(mockConfig.FOLDER_INBOX).toBe('INBOX');
@@ -51,45 +55,45 @@ describe('folder-resolver', () => {
   });
 
   test('slash-delimited server: dot-joined FOLDER_* config values are mutated to slashes', async () => {
-    getImapDelimiter.mockResolvedValue('/');
+    mockedGetImapDelimiter.mockResolvedValue('/');
 
-    await resolveFolders({});
+    await resolveFolders(fakeImap);
 
     expect(mockConfig.FOLDER_TRAIN_SPAM).toBe('INBOX/scanner/train/spam');
     expect(mockConfig.FOLDER_SPAM_LOW).toBe('INBOX/spam/low');
   });
 
   test('non-FOLDER_ config values are left untouched', async () => {
-    getImapDelimiter.mockResolvedValue('/');
+    mockedGetImapDelimiter.mockResolvedValue('/');
 
-    await resolveFolders({});
+    await resolveFolders(fakeImap);
 
     expect(mockConfig.SPAM_PROCESSING_MODE).toBe('folder');
   });
 
   test('a non-string FOLDER_-prefixed value is skipped rather than crashing', async () => {
-    getImapDelimiter.mockResolvedValue('/');
+    mockedGetImapDelimiter.mockResolvedValue('/');
     mockConfig.FOLDER_CREATE_MISSING = true;
 
-    await expect(resolveFolders({})).resolves.toBeUndefined();
+    await expect(resolveFolders(fakeImap)).resolves.toBeUndefined();
     expect(mockConfig.FOLDER_CREATE_MISSING).toBe(true);
   });
 
   test('no delimiter discoverable: resolveFolders throws, config is untouched', async () => {
-    getImapDelimiter.mockResolvedValue(null);
+    mockedGetImapDelimiter.mockResolvedValue(null);
 
-    await expect(resolveFolders({})).rejects.toThrow(
+    await expect(resolveFolders(fakeImap)).rejects.toThrow(
       /could not determine IMAP server delimiter/
     );
     expect(mockConfig.FOLDER_TRAIN_SPAM).toBe('INBOX.scanner.train.spam');
   });
 
   test('calling resolveFolders twice is idempotent (splitFolderParts treats . / \\ uniformly)', async () => {
-    getImapDelimiter.mockResolvedValue('/');
+    mockedGetImapDelimiter.mockResolvedValue('/');
 
-    await resolveFolders({});
+    await resolveFolders(fakeImap);
     const afterFirst = mockConfig.FOLDER_TRAIN_SPAM;
-    await resolveFolders({});
+    await resolveFolders(fakeImap);
     const afterSecond = mockConfig.FOLDER_TRAIN_SPAM;
 
     expect(afterFirst).toBe('INBOX/scanner/train/spam');

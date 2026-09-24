@@ -1,4 +1,10 @@
 import { ImapFlow } from 'imapflow';
+import type {
+  MailboxObject,
+  SearchObject,
+  ExistsEvent,
+  Logger as ImapFlowLogger,
+} from 'imapflow';
 import { setTimeout as delay } from 'timers/promises';
 import { config } from '../core/config.ts';
 import { rootLogger } from '../core/logger.ts';
@@ -10,11 +16,14 @@ import { collectFoldersToCreate } from '../utils/mailboxes.util.ts';
 
 const logger = rootLogger.forComponent('imap');
 
-export function newClient() {
+export function newClient(): ImapFlow {
   const imapflowLogger = rootLogger.forComponent('imapflow');
 
   return new ImapFlow({
-    host: config.IMAP_HOST,
+    // IMAP_HOST/IMAP_USER/IMAP_PASSWORD have no safe default (see
+    // core/config.ts) - every real entry point calls assertRequiredConfig()
+    // before connecting, so these are guaranteed set despite the optional type.
+    host: config.IMAP_HOST as string,
     port: config.IMAP_PORT,
     secure: config.IMAP_TLS === true,
     // Only set when secure=false (secure=true + doSTARTTLS=true is invalid):
@@ -23,8 +32,8 @@ export function newClient() {
     // See the `imap-transport-security` capability.
     doSTARTTLS: config.IMAP_TLS ? undefined : true,
     auth: {
-      user: config.IMAP_USER,
-      pass: config.IMAP_PASSWORD,
+      user: config.IMAP_USER as string,
+      pass: config.IMAP_PASSWORD as string,
     },
     logger: {
       debug: imapflowLogger.debug.bind(imapflowLogger),
@@ -33,7 +42,7 @@ export function newClient() {
       error: imapflowLogger.error.bind(imapflowLogger),
       fatal: imapflowLogger.fatal.bind(imapflowLogger),
       trace: imapflowLogger.trace.bind(imapflowLogger),
-    },
+    } as ImapFlowLogger,
     emitLogs: false,
     maxIdleTime: 29 * 60 * 1000,
   });
@@ -47,12 +56,12 @@ export function newClient() {
  * @param {ImapFlow} imap
  * @returns {Promise<void>}
  */
-export async function safeLogout(imap) {
+export async function safeLogout(imap: ImapFlow): Promise<void> {
   try {
     await imap.logout();
   } catch (err) {
     logger.debug(
-      { error: err.message },
+      { error: err instanceof Error ? err.message : String(err) },
       'Logout failed (connection likely never established)'
     );
   }
@@ -63,7 +72,9 @@ export async function safeLogout(imap) {
  * @param {ImapFlow} imap - An active and connected ImapFlow client instance.
  * @returns {Promise<string|null>} The folder delimiter (e.g., "/", "."), or null if not found.
  */
-export async function getImapDelimiter(imap) {
+export async function getImapDelimiter(
+  imap: ImapFlow
+): Promise<string | null> {
   const mailboxes = await imap.list();
   for (const mailbox of mailboxes) {
     if (mailbox.delimiter) {
@@ -73,7 +84,10 @@ export async function getImapDelimiter(imap) {
   return null;
 }
 
-export async function createAppFolders(imap, folders) {
+export async function createAppFolders(
+  imap: ImapFlow,
+  folders: string[]
+): Promise<void> {
   if (folders.length === 0) {
     return;
   }
@@ -97,7 +111,15 @@ export async function createAppFolders(imap, folders) {
     }
   }
 }
-export async function findFirstUIDOnDate(imap, folder, dateString) {
+export async function findFirstUIDOnDate(
+  imap: ImapFlow,
+  folder: string,
+  dateString: string | undefined
+): Promise<{
+  last_uid: number;
+  last_seen_date: string;
+  last_checked: string;
+} | null> {
   try {
     // Open the mailbox in read-only mode
     await imap.mailboxOpen(folder, { readOnly: true });
@@ -109,7 +131,7 @@ export async function findFirstUIDOnDate(imap, folder, dateString) {
     // Search for messages
     const results = await imap.search(criteria);
 
-    if (!results.length) {
+    if (!results || !results.length) {
       logger.debug({ folder }, 'No messages found');
       return null;
     }
@@ -123,7 +145,9 @@ export async function findFirstUIDOnDate(imap, folder, dateString) {
     }
 
     const last_uid = message.uid;
-    const last_seen_date = message.envelope.date.toISOString();
+    // envelope/date are guaranteed by the `{ envelope: true }` fetch query
+    // above, even though imapflow's own types mark both optional.
+    const last_seen_date = message.envelope!.date!.toISOString();
     const last_checked = new Date().toISOString();
 
     return {
@@ -132,7 +156,10 @@ export async function findFirstUIDOnDate(imap, folder, dateString) {
       last_checked,
     };
   } catch (err) {
-    logger.error({ folder, error: err.message }, 'Error in findFirstUIDOnDate');
+    logger.error(
+      { folder, error: err instanceof Error ? err.message : String(err) },
+      'Error in findFirstUIDOnDate'
+    );
     throw err;
   }
 }
@@ -146,10 +173,22 @@ export async function findFirstUIDOnDate(imap, folder, dateString) {
  * @param {Object} message - The message object from ImapFlow
  * @returns {{uid: number, flags: string[], envelope: Object, raw: Buffer}}
  */
-export function processMessage(message) {
+interface RawMessage {
+  uid: number;
+  flags?: unknown;
+  envelope?: unknown;
+  source?: Buffer;
+}
+
+export function processMessage(message: RawMessage): {
+  uid: number;
+  flags: unknown;
+  envelope: unknown;
+  raw: Buffer;
+} {
   const { uid, flags, envelope } = message;
   const messageLogger = logger.forMessage(uid);
-  const raw = stripSpamHeadersBuffer(message.source);
+  const raw = stripSpamHeadersBuffer(message.source!);
 
   messageLogger.debug('Message read');
 
@@ -173,10 +212,18 @@ export function processMessage(message) {
  * @param {Object} message - The message object from ImapFlow (fetched with `headers: true`)
  * @returns {{uid: number, headers: Record<string, string>}}
  */
-export function processMessageHeaders(message) {
+interface HeaderMessage {
+  uid: number;
+  headers?: Buffer;
+}
+
+export function processMessageHeaders(message: HeaderMessage): {
+  uid: number;
+  headers: Record<string, string>;
+} {
   const { uid, headers: headerBuffer } = message;
   const messageLogger = logger.forMessage(uid);
-  const { headers } = parseEmail(`${headerBuffer.toString()}\r\n\r\n`);
+  const { headers } = parseEmail(`${headerBuffer!.toString()}\r\n\r\n`);
 
   messageLogger.debug('Message headers read');
 
@@ -186,7 +233,11 @@ export function processMessageHeaders(message) {
 /**
  * Open folder and return the box object
  */
-export async function open(imap, folder, readOnly = false) {
+export async function open(
+  imap: ImapFlow,
+  folder: string,
+  readOnly = false
+): Promise<MailboxObject> {
   try {
     // Check if the client is already connected
     if (!imap.usable) {
@@ -199,7 +250,10 @@ export async function open(imap, folder, readOnly = false) {
     logger.debug({ folder, messageCount: mailbox.exists }, 'Opened folder');
     return mailbox;
   } catch (err) {
-    logger.error({ folder, error: err.message }, 'Failed to open folder');
+    logger.error(
+      { folder, error: err instanceof Error ? err.message : String(err) },
+      'Failed to open folder'
+    );
     throw err;
   }
 }
@@ -207,7 +261,7 @@ export async function open(imap, folder, readOnly = false) {
 /**
  * Get message count from an opened folder box
  */
-export function count(box) {
+export function count(box: MailboxObject): number {
   return box.exists;
 }
 
@@ -217,13 +271,16 @@ export function count(box) {
  * @param {Array|Object} query - Search query (array for node-imap compatibility, object for ImapFlow)
  * @returns {Promise<Array>} - Array of message UIDs
  */
-export async function search(imap, query) {
+export async function search(
+  imap: ImapFlow,
+  query: SearchObject
+): Promise<number[]> {
   try {
     // Convert node-imap style query to ImapFlow style if needed
     logger.debug({ query: query }, 'Searching messages');
     const results = await imap.search(query, { uid: true });
 
-    if (!results.length) {
+    if (!results || !results.length) {
       logger.debug({ query }, 'No messages found');
       return [];
     } else {
@@ -231,7 +288,10 @@ export async function search(imap, query) {
       return results;
     }
   } catch (err) {
-    logger.error({ query, error: err.message }, 'Error searching messages');
+    logger.error(
+      { query, error: err instanceof Error ? err.message : String(err) },
+      'Error searching messages'
+    );
     throw err;
   }
 }
@@ -242,9 +302,12 @@ export async function search(imap, query) {
  * @param {Array} uids - Array of UIDs to fetch
  * @returns {Promise<Array>} - Array of message objects with uid, flags, envelope, and a raw Buffer
  */
-export async function fetchMessagesByUIDs(imap, uids) {
+export async function fetchMessagesByUIDs(
+  imap: ImapFlow,
+  uids: number[]
+): Promise<ReturnType<typeof processMessage>[]> {
   try {
-    const messages = [];
+    const messages: ReturnType<typeof processMessage>[] = [];
     // Convert uids to a comma-separated string if it's an array
     const _messages = imap.fetch(
       { uid: uids.join(',') },
@@ -269,7 +332,7 @@ export async function fetchMessagesByUIDs(imap, uids) {
     return messages;
   } catch (err) {
     logger.error(
-      { error: err.message, uids },
+      { error: err instanceof Error ? err.message : String(err), uids },
       'Error fetching messages by UIDs'
     );
     throw err;
@@ -283,9 +346,12 @@ export async function fetchMessagesByUIDs(imap, uids) {
  * @param {Array} uids - Array of UIDs to fetch
  * @returns {Promise<Array>} - Array of `{uid, headers}` objects
  */
-export async function fetchMessageHeadersByUIDs(imap, uids) {
+export async function fetchMessageHeadersByUIDs(
+  imap: ImapFlow,
+  uids: number[]
+): Promise<ReturnType<typeof processMessageHeaders>[]> {
   try {
-    const messages = [];
+    const messages: ReturnType<typeof processMessageHeaders>[] = [];
     const _messages = imap.fetch(
       { uid: uids.join(',') },
       { uid: true, headers: true },
@@ -303,7 +369,7 @@ export async function fetchMessageHeadersByUIDs(imap, uids) {
     return messages;
   } catch (err) {
     logger.error(
-      { error: err.message, uids },
+      { error: err instanceof Error ? err.message : String(err), uids },
       'Error fetching message headers by UIDs'
     );
     throw err;
@@ -317,7 +383,11 @@ export async function fetchMessageHeadersByUIDs(imap, uids) {
  * @param {String} dest - Destination folder
  * @returns {Promise<void>}
  */
-export async function moveMessage(imap, uid, dest) {
+export async function moveMessage(
+  imap: ImapFlow,
+  uid: number,
+  dest: string
+): Promise<void> {
   const messageLogger = logger.forMessage(uid);
   try {
     messageLogger.debug({ destFolder: dest }, 'Moving message by UID');
@@ -329,14 +399,20 @@ export async function moveMessage(imap, uid, dest) {
       'Successfully moved message by UID'
     );
 
-    // Expunge to ensure the move is committed
+    // Expunge to ensure the move is committed. Not part of ImapFlow's own
+    // public API/types (nor called by anything in this codebase - this
+    // function itself is unused) - cast preserves the exact pre-existing
+    // runtime behavior rather than silently "fixing" it as part of this
+    // language migration.
     logger.debug('Expunging to finalize the move operation');
-    await imap.mailboxExpunge();
+    await (
+      imap as unknown as { mailboxExpunge(): Promise<void> }
+    ).mailboxExpunge();
 
     messageLogger.debug({ destFolder: dest }, 'Move completed with expunge');
   } catch (err) {
     messageLogger.error(
-      { destFolder: dest, error: err.message },
+      { destFolder: dest, error: err instanceof Error ? err.message : String(err) },
       'Failed to move message by UID'
     );
     throw err;
@@ -350,7 +426,11 @@ export async function moveMessage(imap, uid, dest) {
  * @param {String} destFolder - Destination folder
  * @returns {Promise<void>}
  */
-export async function moveMessages(imap, messages, destFolder) {
+export async function moveMessages(
+  imap: ImapFlow,
+  messages: Array<{ uid: number }>,
+  destFolder: string
+): Promise<void> {
   if (messages.length === 0) {
     return;
   }
@@ -365,7 +445,10 @@ export async function moveMessages(imap, messages, destFolder) {
 
     logger.debug({ total: messages.length, destFolder }, 'All messages moved');
   } catch (err) {
-    logger.error({ destFolder, error: err.message }, 'Failed to move messages');
+    logger.error(
+      { destFolder, error: err instanceof Error ? err.message : String(err) },
+      'Failed to move messages'
+    );
     throw err;
   }
 }
@@ -378,12 +461,20 @@ export async function moveMessages(imap, messages, destFolder) {
  * @param {Array} flags - IMAP flags to set on append (e.g. ['\\Seen']); omit to leave the message unread
  * @returns {Promise<void>}
  */
-export async function appendMessage(imap, folder, raw, flags = []) {
+export async function appendMessage(
+  imap: ImapFlow,
+  folder: string,
+  raw: string | Buffer,
+  flags: string[] = []
+): Promise<void> {
   try {
     await imap.append(folder, raw, flags);
     logger.debug({ folder, flags }, 'Appended message');
   } catch (err) {
-    logger.error({ folder, error: err.message }, 'Failed to append message');
+    logger.error(
+      { folder, error: err instanceof Error ? err.message : String(err) },
+      'Failed to append message'
+    );
     throw err;
   }
 }
@@ -397,11 +488,11 @@ export async function appendMessage(imap, folder, raw, flags = []) {
  * @returns {Promise<void>} - Resolves when all labels are updated
  */
 export async function updateLabels(
-  imap,
-  messages,
-  labelsToSet = [],
-  labelsToUnset = []
-) {
+  imap: ImapFlow,
+  messages: Array<{ uid: number }>,
+  labelsToSet: string[] = [],
+  labelsToUnset: string[] = []
+): Promise<void> {
   if (
     messages.length === 0 ||
     (labelsToSet.length === 0 && labelsToUnset.length === 0)
@@ -414,11 +505,16 @@ export async function updateLabels(
   try {
     // Extract UIDs from messages
     const uids = messages.map(message => message.uid);
+    // imapflow's own SearchObject type declares `uid` as a single
+    // SequenceString, but its actual range-resolving implementation accepts
+    // (and joins) a `uid: number[]` array too - a gap in its own types, not
+    // in this code.
+    const uidRange = { uid: uids } as unknown as SearchObject;
 
     // Add labels if there are any to set
     if (labelsToSet.length > 0) {
       logger.debug({ uids, flags: labelsToSet }, 'Adding flags to messages');
-      await imap.messageFlagsAdd({ uid: uids }, labelsToSet, options);
+      await imap.messageFlagsAdd(uidRange, labelsToSet, options);
       logger.debug({ uids, flags: labelsToSet }, 'Flags added successfully');
     }
 
@@ -428,7 +524,7 @@ export async function updateLabels(
         { uids, flags: labelsToUnset },
         'Removing flags from messages'
       );
-      await imap.messageFlagsRemove({ uid: uids }, labelsToUnset, options);
+      await imap.messageFlagsRemove(uidRange, labelsToUnset, options);
       logger.debug(
         { uids, flags: labelsToUnset },
         'Flags removed successfully'
@@ -440,7 +536,10 @@ export async function updateLabels(
       'All message flags updated'
     );
   } catch (err) {
-    logger.error({ error: err.message }, 'Failed to update message flags');
+    logger.error(
+      { error: err instanceof Error ? err.message : String(err) },
+      'Failed to update message flags'
+    );
     throw err;
   }
 }
@@ -473,15 +572,22 @@ export async function updateLabels(
  * @returns {Promise<void>}
  */
 export async function waitForNewMail(
-  imap,
-  folder,
-  { signal, lastUid, watchdogMs = config.IDLE_WATCHDOG_MS } = {}
-) {
-  let onExists, onError, onClose, onAbort;
+  imap: ImapFlow,
+  folder: string,
+  {
+    signal,
+    lastUid,
+    watchdogMs = config.IDLE_WATCHDOG_MS,
+  }: { signal?: AbortSignal; lastUid?: number; watchdogMs?: number } = {}
+): Promise<void> {
+  let onExists: (data: ExistsEvent) => void;
+  let onError: (err: Error) => void;
+  let onClose: () => void;
+  let onAbort: () => void;
 
   // Register listeners before acquiring the lock so no notification is missed
   // between the lock being granted and the listener being attached.
-  const existsPromise = new Promise((resolve, reject) => {
+  const existsPromise = new Promise<void>((resolve, reject) => {
     onExists = data => {
       logger.debug({ folder, data }, 'EXISTS notification received');
       resolve();
@@ -513,7 +619,7 @@ export async function waitForNewMail(
     }
   });
 
-  function cleanupListeners() {
+  function cleanupListeners(): void {
     imap.off('exists', onExists);
     imap.off('error', onError);
     imap.off('close', onClose);
@@ -538,6 +644,11 @@ export async function waitForNewMail(
       return;
     }
 
+    // getMailboxLock above has already SELECTed the mailbox, so `imap.mailbox`
+    // is a real MailboxObject here, not the `false` idle state imapflow's own
+    // type also allows.
+    const mailbox = imap.mailbox as MailboxObject;
+
     // Pre-IDLE catch-up: the mailbox SELECT behind getMailboxLock already
     // reflects any mail that arrived between the last scan (a separate
     // connection) and now. IDLE only reports EXISTS for mail arriving after
@@ -545,27 +656,32 @@ export async function waitForNewMail(
     // unprocessed until the next unrelated EXISTS event.
     if (
       typeof lastUid === 'number' &&
-      typeof imap.mailbox?.uidNext === 'number' &&
-      imap.mailbox.uidNext - 1 > lastUid
+      typeof mailbox?.uidNext === 'number' &&
+      mailbox.uidNext - 1 > lastUid
     ) {
       logger.debug(
-        { folder, lastUid, uidNext: imap.mailbox.uidNext },
+        { folder, lastUid, uidNext: mailbox.uidNext },
         'New mail already present before IDLE - skipping wait'
       );
       return;
     }
 
     logger.debug(
-      { folder, exists: imap.mailbox.exists },
+      { folder, exists: mailbox.exists },
       'Watching for new messages'
     );
     // Immediately enter IDLE without waiting for the 15-second autoidle delay.
     // Errors here are expected when IDLE is interrupted (e.g. lock released).
     imap
       .idle()
-      .catch(err => logger.debug({ folder, error: err.message }, 'IDLE ended'));
+      .catch(err =>
+        logger.debug(
+          { folder, error: err instanceof Error ? err.message : String(err) },
+          'IDLE ended'
+        )
+      );
 
-    const racers = [existsPromise];
+    const racers: Promise<void>[] = [existsPromise];
     if (watchdogMs > 0) {
       racers.push(
         delay(watchdogMs, undefined, { signal: watchdogController.signal })
@@ -575,7 +691,7 @@ export async function waitForNewMail(
               'IDLE watchdog elapsed - recycling'
             )
           )
-          .catch(err => {
+          .catch((err: Error) => {
             if (err.name !== 'AbortError') throw err;
           })
       );

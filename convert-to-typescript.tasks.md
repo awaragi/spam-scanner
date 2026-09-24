@@ -200,14 +200,26 @@ Add real types to (files already renamed to `.ts` in Phase 0):
 
 ## Layer: `clients` (7 files)
 
-- [ ] `ai.client.ts` (+ test)
-- [ ] `eml-dataset.client.ts` (+ test)
-- [ ] `folder-resolver.client.ts` (+ test)
-- [ ] `imap.client.ts` (+ test)
-- [ ] `report-file.client.ts` (+ test)
-- [ ] `rspamd.client.ts` (+ test)
-- [ ] `state-manager.client.ts` (+ test)
-- [ ] Layer gate (scoped): tests, `tsc`, `eslint` clean for the files above
+- [x] `ai.client.ts` (+ test)
+- [x] `eml-dataset.client.ts` (no test file exists for it)
+- [x] `folder-resolver.client.ts` (+ test)
+- [x] `imap.client.ts` (+ test) - real `imapflow` types used throughout; found and
+  preserved (not fixed - out of this migration's scope) two pre-existing gaps
+  between imapflow's own `.d.ts` and its real runtime behavior: `mailboxExpunge()`
+  doesn't exist on `ImapFlow` at all (only called by `moveMessage()`, which has no
+  callers anywhere in the codebase - dead code, cast with a comment), and
+  `messageFlagsAdd`/`messageFlagsRemove`'s `range.uid` types as a single
+  `SequenceString` but its real implementation accepts (and joins) a `uid: number[]`
+  array too (cast with a comment). Also found `state-manager.client.ts` reads
+  `messages[0].body`, a field `fetchMessagesByUIDs` doesn't return (only
+  `uid`/`flags`/`envelope`/`raw`) - preserved as-is (see that file's
+  `FetchedMessageWithBody` comment) since fixing it would change runtime behavior;
+  flagged to the user as a likely real bug worth a separate follow-up.
+- [x] `report-file.client.ts` (+ test)
+- [x] `rspamd.client.ts` (+ test)
+- [x] `state-manager.client.ts` (+ test)
+- [x] Layer gate (scoped): tests, `tsc`, `eslint` clean for the files above
+  (82 tests passing)
 
 ## Pulled-forward: `test/support` (before controllers layer)
 

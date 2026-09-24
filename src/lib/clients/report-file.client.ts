@@ -9,7 +9,7 @@ const logger = rootLogger.forComponent('report-file-client');
  * @param {Date} date
  * @returns {string}
  */
-function timestampFor(date) {
+function timestampFor(date: Date): string {
   return date.toISOString().replace(/:/g, '-').split('.')[0];
 }
 
@@ -23,10 +23,10 @@ function timestampFor(date) {
  * @returns {Promise<string>} the written file's path
  */
 export async function writeReport(
-  reportsDir,
-  reportText,
-  generatedAt = new Date()
-) {
+  reportsDir: string,
+  reportText: string,
+  generatedAt: Date = new Date()
+): Promise<string> {
   await fs.mkdir(reportsDir, { recursive: true });
   const filePath = path.join(reportsDir, `${timestampFor(generatedAt)}.txt`);
   await fs.writeFile(filePath, reportText, 'utf-8');
