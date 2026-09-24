@@ -1,5 +1,6 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { fixtureContext } from '../../../support/fixtures.ts';
+import { asImapFlow } from '../../../support/imap-fakes.ts';
 
 const { fakeImapClient, fakeStateManager } = await vi.hoisted(async () => {
   const { createFakeImapClient, createFakeStateManagerClient } = await import(
@@ -21,20 +22,21 @@ const { runWhitelist, runBlacklist } = await import(
   '../../../../src/lib/controllers/workflows/sender-list-training.controller.ts'
 );
 
-const mockImap = {};
+const mockImap = asImapFlow({});
 
-function makeMessage(uid, from) {
+function makeMessage(uid: number, from: string | undefined) {
   return { uid, headers: { from } };
 }
 
 // Wires fakeImapClient.search to return the UIDs of `messages`, and
 // fetchMessageHeadersByUIDs to return the corresponding fixture messages for
 // whatever sub-batch of UIDs it's called with.
-function stubUidsAndFetch(messages) {
+function stubUidsAndFetch(messages: ReturnType<typeof makeMessage>[]) {
   const byUid = new Map(messages.map(m => [m.uid, m]));
   fakeImapClient.search.mockResolvedValue(messages.map(m => m.uid));
   fakeImapClient.fetchMessageHeadersByUIDs.mockImplementation(
-    async (imap, batchUids) => batchUids.map(uid => byUid.get(uid))
+    async (_imap: unknown, batchUids: number[]) =>
+      batchUids.map(uid => byUid.get(uid))
   );
 }
 

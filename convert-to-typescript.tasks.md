@@ -253,13 +253,20 @@ Add real types to (files already renamed to `.ts` in Phase 0):
 
 ## Layer: `controllers/workflows` (6 files)
 
-- [ ] `idle.controller.ts` (+ test)
-- [ ] `init.controller.ts` (+ test)
-- [ ] `prompt-eval.controller.ts` (+ test)
-- [ ] `scan.controller.ts` (+ test)
-- [ ] `sender-list-training.controller.ts` (+ test)
-- [ ] `train.controller.ts` (+ test)
-- [ ] Layer gate (scoped): tests, `tsc`, `eslint` clean for the files above
+- [x] `idle.controller.ts` (+ test)
+- [x] `init.controller.ts` (+ test)
+- [x] `prompt-eval.controller.ts` (+ test)
+- [x] `scan.controller.ts` (+ test) - the pipeline's unification point: defined one
+  concrete local `ScanMessage` interface, cast `fetchMessagesByUIDs`'s `unknown`
+  flags/envelope to it once at the top, then let generic inference flow through
+  every downstream step/service call. Exported `AiFailureAlert` from
+  `ai-failure-alert.step.ts` and cast at the one call site where it meets
+  `ai-classification.step.ts`'s looser (nullable-field) `FailureAlert` type -
+  both are real, by the time `shouldAlert` is true the fields are always set.
+- [x] `sender-list-training.controller.ts` (+ test)
+- [x] `train.controller.ts` (+ test)
+- [x] Layer gate (scoped): tests, `tsc`, `eslint` clean for the files above
+  (35 tests passing)
 
 ## Layer: `admin` (11 files)
 

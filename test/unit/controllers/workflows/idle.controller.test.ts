@@ -1,14 +1,16 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { fixtureContext } from '../../../support/fixtures.ts';
+import { asImapFlow } from '../../../support/imap-fakes.ts';
 
 vi.mock('../../../../src/lib/clients/imap.client.ts', () => ({
-  waitForNewMail: vi.fn().mockResolvedValue(),
+  waitForNewMail: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { runIdle } from '../../../../src/lib/controllers/workflows/idle.controller.ts';
 import { waitForNewMail } from '../../../../src/lib/clients/imap.client.ts';
 
-const mockImap = {};
+const mockedWaitForNewMail = vi.mocked(waitForNewMail);
+const mockImap = asImapFlow({});
 
 describe('runIdle', () => {
   beforeEach(() => {
@@ -21,6 +23,6 @@ describe('runIdle', () => {
 
     await runIdle(mockImap, options, ctx);
 
-    expect(waitForNewMail).toHaveBeenCalledWith(mockImap, 'INBOX', options);
+    expect(mockedWaitForNewMail).toHaveBeenCalledWith(mockImap, 'INBOX', options);
   });
 });

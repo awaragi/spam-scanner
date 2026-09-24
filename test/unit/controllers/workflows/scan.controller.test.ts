@@ -5,6 +5,7 @@ import {
   fixtureRspamdCheck,
   fixtureAiResult,
 } from '../../../support/fixtures.ts';
+import { asImapFlow } from '../../../support/imap-fakes.ts';
 
 // vi.mock() factories are hoisted above imports/consts, so anything they
 // reference has to come from vi.hoisted() - and vi.hoisted()'s own callback
@@ -63,15 +64,15 @@ beforeEach(() => {
   fakeStateManager.readMapState.mockResolvedValue([]);
   fakeStateManager.writeScannerState.mockResolvedValue(true);
   fakeImapClient.open.mockResolvedValue({ uidValidity: 1n, uidNext: 200 });
-  fakeImapClient.appendMessage.mockResolvedValue();
-  fakeImapClient.moveMessages.mockResolvedValue();
+  fakeImapClient.appendMessage.mockResolvedValue(undefined);
+  fakeImapClient.moveMessages.mockResolvedValue(undefined);
   fakeRspamdClient.checkEmail.mockResolvedValue(fixtureRspamdCheck());
-  fakeRspamdClient.learnHam.mockResolvedValue();
+  fakeRspamdClient.learnHam.mockResolvedValue({ success: true });
   fakeAiClient.classifyEmail.mockResolvedValue(fixtureAiResult());
 });
 
 test('a blacklisted sender is moved to spam without ever reaching rspamd or AI', async () => {
-  const fakeImap = {}; // opaque token - only reference-equality matters in assertions below
+  const fakeImap = asImapFlow({}); // opaque token - only reference-equality matters in assertions below
   const ctx = fixtureContext(); // plain object literal - no vi.mock() involved at all
 
   fakeStateManager.readScannerState.mockResolvedValue({
@@ -112,7 +113,7 @@ describe('UID filter', () => {
     });
     fakeImapClient.search.mockResolvedValue([7384]); // server wraps 7385:* -> [7384]
 
-    const result = await runScan({}, ctx);
+    const result = await runScan(asImapFlow({}), ctx);
 
     expect(fakeImapClient.fetchMessagesByUIDs).not.toHaveBeenCalled();
     expect(result).toEqual({ processed: 0, last_uid: 7384 });
@@ -132,7 +133,7 @@ describe('UID filter', () => {
       newUIDs.map(uid => fixtureMessage({ uid }))
     );
 
-    const result = await runScan({}, ctx);
+    const result = await runScan(asImapFlow({}), ctx);
 
     expect(fakeImapClient.fetchMessagesByUIDs).toHaveBeenCalledWith(
       {},
@@ -158,7 +159,7 @@ describe('UID filter', () => {
       newUIDs.map(uid => fixtureMessage({ uid }))
     );
 
-    await runScan({}, ctx);
+    await runScan(asImapFlow({}), ctx);
 
     expect(fakeImapClient.fetchMessagesByUIDs).toHaveBeenCalledWith(
       {},
@@ -186,14 +187,14 @@ describe('last_uid advancement past permanently-skipped messages', () => {
     fakeRspamdClient.checkEmail.mockImplementation(async () => {
       call++;
       if (call === 1) {
-        const err = new Error('bad request');
+        const err: Error & { status?: number } = new Error('bad request');
         err.status = 400;
         throw err;
       }
       return { score: 1, required_score: 15 };
     });
 
-    await runScan({}, ctx);
+    await runScan(asImapFlow({}), ctx);
 
     expect(fakeStateManager.writeScannerState).toHaveBeenCalledWith(
       {},
@@ -219,7 +220,7 @@ describe('AI escalation wiring', () => {
       required_score: 15,
     }); // clean tier
 
-    await runScan({}, ctx);
+    await runScan(asImapFlow({}), ctx);
 
     expect(fakeAiClient.classifyEmail).not.toHaveBeenCalled();
   });
@@ -251,7 +252,7 @@ describe('AI escalation wiring', () => {
       reasoning: 'looks like phishing',
     });
 
-    await runScan({}, ctx);
+    await runScan(asImapFlow({}), ctx);
 
     expect(fakeImapClient.moveMessages).toHaveBeenCalledWith(
       {},
@@ -280,14 +281,14 @@ describe('AI escalation wiring', () => {
       fixtureRspamdCheck({ score: 1, required: 15, authenticated: true })
     );
 
-    await runScan({}, ctx);
+    await runScan(asImapFlow({}), ctx);
 
     expect(fakeAiClient.classifyEmail).not.toHaveBeenCalled();
     // Stays in a clean-tier outcome: never appears in the low-spam-folder move call.
     const lowSpamCall = fakeImapClient.moveMessages.mock.calls.find(
       call => call[2] === ctx.config.FOLDER_SPAM_LOW
     );
-    expect(lowSpamCall[1]).toEqual([]);
+    expect(lowSpamCall?.[1]).toEqual([]);
   });
 
   test('AI_ENABLED=true: an unauthenticated whitelisted clean-tier message is still sent to AI', async () => {
@@ -312,7 +313,7 @@ describe('AI escalation wiring', () => {
       fixtureRspamdCheck({ score: 1, required: 15 })
     );
 
-    await runScan({}, ctx);
+    await runScan(asImapFlow({}), ctx);
 
     expect(fakeAiClient.classifyEmail).toHaveBeenCalled();
   });
@@ -342,7 +343,7 @@ describe('AI failure alert wiring', () => {
     });
     fakeAiClient.classifyEmail.mockRejectedValue(new Error('provider timeout'));
 
-    await runScan({}, ctx);
+    await runScan(asImapFlow({}), ctx);
 
     expect(fakeImapClient.appendMessage).toHaveBeenCalledTimes(1);
     const [, folderArg, rawArg] = fakeImapClient.appendMessage.mock.calls[0];
@@ -373,7 +374,7 @@ describe('AI failure alert wiring', () => {
       new Error('IMAP append failed')
     );
 
-    const result = await runScan({}, ctx);
+    const result = await runScan(asImapFlow({}), ctx);
 
     expect(result).toEqual({ processed: 1, last_uid: 101 });
     expect(fakeRspamdClient.learnHam).not.toHaveBeenCalled();
@@ -393,7 +394,7 @@ describe('UIDVALIDITY tracking', () => {
     fakeImapClient.open.mockResolvedValue({ uidValidity: 222n, uidNext: 6 });
     fakeImapClient.search.mockResolvedValue([]);
 
-    const result = await runScan({}, ctx);
+    const result = await runScan(asImapFlow({}), ctx);
 
     expect(fakeImapClient.fetchMessagesByUIDs).not.toHaveBeenCalled();
     expect(result).toEqual({ processed: 0, last_uid: 5 });
@@ -408,7 +409,11 @@ describe('UIDVALIDITY tracking', () => {
 
 describe('processing mode', () => {
   test('an unknown SPAM_PROCESSING_MODE throws', async () => {
-    const ctx = fixtureContext({ config: { SPAM_PROCESSING_MODE: 'invalid' } });
+    const ctx = fixtureContext({
+      config: {
+        SPAM_PROCESSING_MODE: 'invalid' as unknown as 'label' | 'folder',
+      },
+    });
     fakeStateManager.readScannerState.mockResolvedValue({
       last_uid: 100,
       last_seen_date: '',
@@ -423,6 +428,6 @@ describe('processing mode', () => {
       required_score: 15,
     });
 
-    await expect(runScan({}, ctx)).rejects.toThrow('Unknown processing mode');
+    await expect(runScan(asImapFlow({}), ctx)).rejects.toThrow('Unknown processing mode');
   });
 });

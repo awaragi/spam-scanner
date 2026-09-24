@@ -1,5 +1,6 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { fixtureContext } from '../../../support/fixtures.ts';
+import { asImapFlow } from '../../../support/imap-fakes.ts';
 
 const { fakeImapClient, fakeRspamdClient } = await vi.hoisted(async () => {
   const { createFakeImapClient, createFakeRspamdClient } = await import(
@@ -18,20 +19,21 @@ const { runSpam, runHam } = await import(
   '../../../../src/lib/controllers/workflows/train.controller.ts'
 );
 
-const mockImap = {};
+const mockImap = asImapFlow({});
 
-function makeMessage(uid) {
+function makeMessage(uid: number) {
   return { uid, envelope: { subject: `subject-${uid}` }, raw: `raw-${uid}` };
 }
 
 // Wires fakeImapClient.search to return `uids`, and fetchMessagesByUIDs to
 // return the corresponding fixture messages for whatever sub-batch of UIDs
 // it's called with - mirrors the real client's search-then-batch-fetch shape.
-function stubUidsAndFetch(uids) {
+function stubUidsAndFetch(uids: number[]) {
   const byUid = new Map(uids.map(uid => [uid, makeMessage(uid)]));
   fakeImapClient.search.mockResolvedValue(uids);
   fakeImapClient.fetchMessagesByUIDs.mockImplementation(
-    async (imap, batchUids) => batchUids.map(uid => byUid.get(uid))
+    async (_imap: unknown, batchUids: number[]) =>
+      batchUids.map(uid => byUid.get(uid))
   );
   return byUid;
 }
@@ -112,7 +114,7 @@ describe('train.controller: per-message failure isolation', () => {
     stubUidsAndFetch([1, 2, 3]);
     fakeRspamdClient.learnSpam.mockImplementation(async raw => {
       if (raw === 'raw-2') {
-        const err = new Error('bad request');
+        const err: Error & { status?: number } = new Error('bad request');
         err.status = 400;
         throw err;
       }

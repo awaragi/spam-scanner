@@ -1,5 +1,6 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { fixtureContext } from '../../../support/fixtures.ts';
+import { asImapFlow } from '../../../support/imap-fakes.ts';
 
 vi.mock('../../../../src/lib/clients/imap.client.ts', () => ({
   createAppFolders: vi.fn(),
@@ -13,27 +14,29 @@ import { runInit } from '../../../../src/lib/controllers/workflows/init.controll
 import { createAppFolders } from '../../../../src/lib/clients/imap.client.ts';
 import { resolveFolders } from '../../../../src/lib/clients/folder-resolver.client.ts';
 
-const mockImap = {};
+const mockedCreateAppFolders = vi.mocked(createAppFolders);
+const mockedResolveFolders = vi.mocked(resolveFolders);
+const mockImap = asImapFlow({});
 
 describe('runInit', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    resolveFolders.mockResolvedValue();
+    mockedResolveFolders.mockResolvedValue(undefined);
   });
 
   test('resolveFolders runs before createAppFolders', async () => {
-    const callOrder = [];
-    resolveFolders.mockImplementation(async () => {
+    const callOrder: string[] = [];
+    mockedResolveFolders.mockImplementation(async () => {
       callOrder.push('resolveFolders');
     });
-    createAppFolders.mockImplementation(async () => {
+    mockedCreateAppFolders.mockImplementation(async () => {
       callOrder.push('createAppFolders');
     });
 
     await runInit(mockImap, fixtureContext());
 
     expect(callOrder).toEqual(['resolveFolders', 'createAppFolders']);
-    expect(resolveFolders).toHaveBeenCalledWith(mockImap);
+    expect(mockedResolveFolders).toHaveBeenCalledWith(mockImap);
   });
 
   test('createAppFolders is called with ctx.config.FOLDER_* values', async () => {
@@ -51,7 +54,7 @@ describe('runInit', () => {
 
     await runInit(mockImap, ctx);
 
-    expect(createAppFolders).toHaveBeenCalledWith(mockImap, [
+    expect(mockedCreateAppFolders).toHaveBeenCalledWith(mockImap, [
       'INBOX/scanner/train/spam',
       'INBOX/scanner/train/ham',
       'INBOX/scanner/train/whitelist',
@@ -72,7 +75,7 @@ describe('runInit', () => {
 
     await runInit(mockImap, ctx);
 
-    const folders = createAppFolders.mock.calls[0][1];
+    const folders = mockedCreateAppFolders.mock.calls[0][1];
     expect(folders).toContain('spam.low');
     expect(folders).toContain('spam.high');
   });
@@ -82,15 +85,15 @@ describe('runInit', () => {
       config: { SPAM_PROCESSING_MODE: 'label', FOLDER_SPAM: 'INBOX.spam' },
     });
     await runInit(mockImap, labelCtx);
-    expect(createAppFolders.mock.calls[0][1]).toContain('INBOX.spam');
+    expect(mockedCreateAppFolders.mock.calls[0][1]).toContain('INBOX.spam');
 
     vi.clearAllMocks();
-    resolveFolders.mockResolvedValue();
+    mockedResolveFolders.mockResolvedValue();
 
     const folderCtx = fixtureContext({
       config: { SPAM_PROCESSING_MODE: 'folder', FOLDER_SPAM: 'INBOX.spam' },
     });
     await runInit(mockImap, folderCtx);
-    expect(createAppFolders.mock.calls[0][1]).toContain('INBOX.spam');
+    expect(mockedCreateAppFolders.mock.calls[0][1]).toContain('INBOX.spam');
   });
 });

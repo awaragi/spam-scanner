@@ -16,32 +16,37 @@ import { loadEmlDataset } from '../../../../src/lib/clients/eml-dataset.client.t
 import { classifyEmail } from '../../../../src/lib/clients/ai.client.ts';
 import { writeReport } from '../../../../src/lib/clients/report-file.client.ts';
 
-function makeMessage(bucket, filename) {
+const mockedLoadEmlDataset = vi.mocked(loadEmlDataset);
+const mockedClassifyEmail = vi.mocked(classifyEmail);
+const mockedWriteReport = vi.mocked(writeReport);
+
+function makeMessage(bucket: string, filename: string) {
   return {
     bucket,
     filename,
     uid: `${bucket}/${filename}`,
     envelope: {
       from: [{ address: 'sender@example.com' }],
+      to: [],
       subject: '',
       date: new Date(),
     },
-    raw: `From: sender@example.com\r\n\r\nBody`,
+    raw: Buffer.from(`From: sender@example.com\r\n\r\nBody`),
   };
 }
 
 describe('runPromptEval', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    writeReport.mockResolvedValue('.temp/reports/2026-01-01T00-00-00.txt');
+    mockedWriteReport.mockResolvedValue('.temp/reports/2026-01-01T00-00-00.txt');
   });
 
   test('wires load -> classify -> format -> write in order and returns the report path', async () => {
-    loadEmlDataset.mockResolvedValue({
+    mockedLoadEmlDataset.mockResolvedValue({
       bucketNames: ['ham', 'marketing', 'spam'],
       messages: [makeMessage('ham', 'a.eml'), makeMessage('spam', 'b.eml')],
     });
-    classifyEmail.mockResolvedValue({ score: 10, reasoning: 'ok' });
+    mockedClassifyEmail.mockResolvedValue({ score: 10, reasoning: 'ok' });
 
     const ctx = fixtureContext({
       config: { AI_MODEL: 'gpt-4o-mini', AI_MAX_OUTPUT_TOKENS: 2000 },
@@ -57,10 +62,10 @@ describe('runPromptEval', () => {
       ctx
     );
 
-    expect(loadEmlDataset).toHaveBeenCalledWith(bucketPaths);
-    expect(classifyEmail).toHaveBeenCalledTimes(2);
-    expect(writeReport).toHaveBeenCalledTimes(1);
-    const [reportsDir, reportText] = writeReport.mock.calls[0];
+    expect(mockedLoadEmlDataset).toHaveBeenCalledWith(bucketPaths);
+    expect(mockedClassifyEmail).toHaveBeenCalledTimes(2);
+    expect(mockedWriteReport).toHaveBeenCalledTimes(1);
+    const [reportsDir, reportText] = mockedWriteReport.mock.calls[0];
     expect(reportsDir).toBe('.temp/reports');
     expect(reportText).toContain('== ham (1) ==');
     expect(reportText).toContain('== marketing (0) ==');
@@ -74,7 +79,7 @@ describe('runPromptEval', () => {
   });
 
   test('honors the given reportsDir', async () => {
-    loadEmlDataset.mockResolvedValue({ bucketNames: [], messages: [] });
+    mockedLoadEmlDataset.mockResolvedValue({ bucketNames: [], messages: [] });
 
     await runPromptEval(
       {
@@ -84,7 +89,7 @@ describe('runPromptEval', () => {
       fixtureContext()
     );
 
-    expect(writeReport).toHaveBeenCalledWith(
+    expect(mockedWriteReport).toHaveBeenCalledWith(
       '/tmp/custom-reports',
       expect.any(String),
       expect.any(Date)
@@ -92,11 +97,11 @@ describe('runPromptEval', () => {
   });
 
   test('supports a partial set of buckets (e.g. just one folder given)', async () => {
-    loadEmlDataset.mockResolvedValue({
+    mockedLoadEmlDataset.mockResolvedValue({
       bucketNames: ['spam'],
       messages: [makeMessage('spam', 'only.eml')],
     });
-    classifyEmail.mockResolvedValue({ score: 90, reasoning: 'phishing' });
+    mockedClassifyEmail.mockResolvedValue({ score: 90, reasoning: 'phishing' });
 
     const result = await runPromptEval(
       {
@@ -106,7 +111,7 @@ describe('runPromptEval', () => {
       fixtureContext()
     );
 
-    expect(loadEmlDataset).toHaveBeenCalledWith({
+    expect(mockedLoadEmlDataset).toHaveBeenCalledWith({
       spam: '.temp/messages/spam',
     });
     expect(result.bucketCounts).toEqual({ spam: 1 });

@@ -1,3 +1,4 @@
+import type { ImapFlow } from 'imapflow';
 import { rootLogger } from '../../core/logger.ts';
 import {
   open,
@@ -9,7 +10,7 @@ import {
 import { extractSenderAddresses } from '../../services/sender-lists.service.ts';
 import { readMapState } from '../../clients/state-manager.client.ts';
 import { updateListState } from '../steps/list-update.step.ts';
-import { createDefaultContext } from '../../core/context.ts';
+import { createDefaultContext, type Context } from '../../core/context.ts';
 
 const logger = rootLogger.forComponent('sender-list-training-controller');
 
@@ -24,13 +25,13 @@ const logger = rootLogger.forComponent('sender-list-training-controller');
  * @returns {Promise<void>}
  */
 async function runMapTraining(
-  imap,
-  folder,
-  mapStateKey,
-  destFolder,
-  type,
-  ctx
-) {
+  imap: ImapFlow,
+  folder: string,
+  mapStateKey: string,
+  destFolder: string,
+  type: string,
+  ctx: Context
+): Promise<void> {
   try {
     const box = await open(imap, folder);
     const messageCount = count(box);
@@ -91,7 +92,11 @@ async function runMapTraining(
     }
   } catch (error) {
     logger.error(
-      { folder, type, error: error.message },
+      {
+        folder,
+        type,
+        error: error instanceof Error ? error.message : String(error),
+      },
       `Error in ${type} workflow`
     );
     throw error;
@@ -105,7 +110,10 @@ async function runMapTraining(
  * @param {Object} [ctx]
  * @returns {Promise<void>}
  */
-export async function runWhitelist(imap, ctx = createDefaultContext()) {
+export async function runWhitelist(
+  imap: ImapFlow,
+  ctx: Context = createDefaultContext()
+): Promise<void> {
   await runMapTraining(
     imap,
     ctx.config.FOLDER_TRAIN_WHITELIST,
@@ -123,7 +131,10 @@ export async function runWhitelist(imap, ctx = createDefaultContext()) {
  * @param {Object} [ctx]
  * @returns {Promise<void>}
  */
-export async function runBlacklist(imap, ctx = createDefaultContext()) {
+export async function runBlacklist(
+  imap: ImapFlow,
+  ctx: Context = createDefaultContext()
+): Promise<void> {
   await runMapTraining(
     imap,
     ctx.config.FOLDER_TRAIN_BLACKLIST,

@@ -1,3 +1,4 @@
+import type { ImapFlow } from 'imapflow';
 import { rootLogger } from '../../core/logger.ts';
 import { writeScannerState } from '../../clients/state-manager.client.ts';
 import { fetchMessagesByUIDs } from '../../clients/imap.client.ts';
@@ -15,15 +16,48 @@ import {
   sumBatchTotals,
 } from '../../services/scan-progress.service.ts';
 import { classifyWithAi } from '../steps/ai-classification.step.ts';
-import { postAiFailureAlert } from '../steps/ai-failure-alert.step.ts';
+import {
+  postAiFailureAlert,
+  type AiFailureAlert,
+} from '../steps/ai-failure-alert.step.ts';
 import { applyLabels } from '../steps/label-apply.step.ts';
 import { moveToFolders } from '../steps/folder-move.step.ts';
 import { locatePendingMessages } from '../steps/pending-messages.step.ts';
 import { loadSenderLists } from '../steps/sender-list-lookup.step.ts';
 import { moveConfirmedSpam } from '../steps/spam-move.step.ts';
-import { createDefaultContext } from '../../core/context.ts';
+import { createDefaultContext, type Context } from '../../core/context.ts';
+import type { ScannerState } from '../../services/state-format.service.ts';
 
 const logger = rootLogger.forComponent('scan-controller');
+
+/**
+ * The one concrete message shape this controller threads through the whole
+ * pipeline (fetch -> blacklist split -> rspamd -> whitelist -> categorize ->
+ * AI -> dispose -> progress). Every step/service function it calls takes its
+ * own small structural interface (see each file's own local Message-shaped
+ * type) - this is the shape that satisfies all of them simultaneously.
+ */
+interface ScanMessage {
+  uid: number;
+  flags: unknown;
+  envelope: {
+    subject?: string;
+    date: unknown;
+    from?: Array<{ address?: string; name?: string }>;
+    to?: Array<{ address?: string; name?: string }>;
+  };
+  raw: Buffer;
+}
+
+type ProcessFn = (
+  imap: ImapFlow,
+  categorized: {
+    nonSpamMessages: Array<{ uid: number }>;
+    lowSpamMessages: Array<{ uid: number }>;
+    highSpamMessages: Array<{ uid: number }>;
+  },
+  ctx?: Context
+) => Promise<void>;
 
 /**
  * Resolves the processing strategy for a categorized batch. Ordinary
@@ -33,7 +67,7 @@ const logger = rootLogger.forComponent('scan-controller');
  * @param {string} mode
  * @returns {(imap: Object, categorized: Object, ctx: Object) => Promise<void>}
  */
-function resolveProcessFn(mode) {
+function resolveProcessFn(mode: string | undefined): ProcessFn {
   switch (mode || 'label') {
     case 'label':
       return applyLabels;
@@ -56,10 +90,26 @@ function resolveProcessFn(mode) {
  * @param {Object} ctx
  * @returns {Promise<Object>} - Counts of processed messages by category
  */
-async function scanBatch(imap, uids, state, processFn, lists, ctx) {
+async function scanBatch(
+  imap: ImapFlow,
+  uids: number[],
+  state: ScannerState,
+  processFn: ProcessFn,
+  lists: { whitelistSet: Set<string>; blacklistSet: Set<string> },
+  ctx: Context
+): Promise<{
+  lowSpamTotal: number;
+  highSpamTotal: number;
+  nonSpamTotal: number;
+  spamTotal: number;
+  whitelistedTotal: number;
+}> {
   const { config: cfg } = ctx;
   const { whitelistSet, blacklistSet } = lists;
-  const messages = await fetchMessagesByUIDs(imap, uids);
+  const messages = (await fetchMessagesByUIDs(
+    imap,
+    uids
+  )) as unknown as ScanMessage[];
 
   // Blacklist check precedes the rspamd call entirely (see the `sender-lists`
   // capability) - a blacklisted sender is confirmed spam unconditionally,
@@ -99,7 +149,15 @@ async function scanBatch(imap, uids, state, processFn, lists, ctx) {
       },
       ctx
     );
-    await postAiFailureAlert(imap, aiResults.aiFailureAlert, ctx);
+    // classifyWithAi's tracker-derived FailureAlert allows null fields before
+    // any failure occurs; by the time shouldAlert is true (the only time
+    // aiFailureAlert is non-null) reason/count/lastError/lastAt are always
+    // set together as real values - see AiFailureTracker.recordFailure.
+    await postAiFailureAlert(
+      imap,
+      aiResults.aiFailureAlert as AiFailureAlert | null,
+      ctx
+    );
 
     const escalated = applyAiEscalation(
       {
@@ -179,7 +237,10 @@ async function scanBatch(imap, uids, state, processFn, lists, ctx) {
  * @param {Object} [ctx]
  * @returns {Promise<{processed: number, last_uid: number}>} - Count of messages fetched and processed, and the resulting last_uid
  */
-export async function runScan(imap, ctx = createDefaultContext()) {
+export async function runScan(
+  imap: ImapFlow,
+  ctx: Context = createDefaultContext()
+): Promise<{ processed: number; last_uid: number }> {
   const { config: cfg } = ctx;
 
   try {
@@ -232,7 +293,10 @@ export async function runScan(imap, ctx = createDefaultContext()) {
     return { processed: uids.length, last_uid: state.last_uid };
   } catch (error) {
     logger.error(
-      { folder: cfg.FOLDER_INBOX, error: error.message },
+      {
+        folder: cfg.FOLDER_INBOX,
+        error: error instanceof Error ? error.message : String(error),
+      },
       'Error in scan workflow'
     );
     throw error;

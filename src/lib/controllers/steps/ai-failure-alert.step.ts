@@ -7,7 +7,7 @@ import { createDefaultContext, type Context } from '../../core/context.ts';
 
 const logger = rootLogger.forComponent('ai-failure-alert');
 
-interface AiFailureAlert {
+export interface AiFailureAlert {
   reason: string;
   count: number;
   lastError: string;

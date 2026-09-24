@@ -1,3 +1,4 @@
+import type { ImapFlow } from 'imapflow';
 import { rootLogger } from '../../core/logger.ts';
 import {
   open,
@@ -7,9 +8,18 @@ import {
   moveMessages,
 } from '../../clients/imap.client.ts';
 import { trainSpam, trainHam } from '../steps/rspamd-training.step.ts';
-import { createDefaultContext } from '../../core/context.ts';
+import { createDefaultContext, type Context } from '../../core/context.ts';
 
 const logger = rootLogger.forComponent('train-controller');
+
+interface TrainMessage {
+  uid: number;
+  flags: unknown;
+  envelope: { subject?: string };
+  raw: Buffer;
+}
+
+type TrainFn = typeof trainSpam;
 
 /**
  * Generic training workflow handler.
@@ -29,7 +39,14 @@ const logger = rootLogger.forComponent('train-controller');
  * @param {Object} ctx
  * @returns {Promise<void>} - Never rejects
  */
-async function runTraining(imap, folder, destFolder, trainFn, type, ctx) {
+async function runTraining(
+  imap: ImapFlow,
+  folder: string,
+  destFolder: string,
+  trainFn: TrainFn,
+  type: string,
+  ctx: Context
+): Promise<void> {
   try {
     const box = await open(imap, folder);
     const messageCount = count(box);
@@ -57,7 +74,10 @@ async function runTraining(imap, folder, destFolder, trainFn, type, ctx) {
         'Learn batch'
       );
       const batchUids = uids.slice(i, i + BATCH_PROCESS_SIZE);
-      const batchMessages = await fetchMessagesByUIDs(imap, batchUids);
+      const batchMessages = (await fetchMessagesByUIDs(
+        imap,
+        batchUids
+      )) as unknown as TrainMessage[];
       const { learned, skipped } = await trainFn(batchMessages, ctx);
       if (skipped.length > 0) {
         logger.warn(
@@ -77,7 +97,11 @@ async function runTraining(imap, folder, destFolder, trainFn, type, ctx) {
     );
   } catch (error) {
     logger.error(
-      { folder, type, error: error.message },
+      {
+        folder,
+        type,
+        error: error instanceof Error ? error.message : String(error),
+      },
       `Error in ${type} training workflow - skipping this training step for this cycle, will retry next cycle`
     );
   }
@@ -89,7 +113,10 @@ async function runTraining(imap, folder, destFolder, trainFn, type, ctx) {
  * @param {Object} [ctx]
  * @returns {Promise<void>}
  */
-export async function runSpam(imap, ctx = createDefaultContext()) {
+export async function runSpam(
+  imap: ImapFlow,
+  ctx: Context = createDefaultContext()
+): Promise<void> {
   await runTraining(
     imap,
     ctx.config.FOLDER_TRAIN_SPAM,
@@ -106,7 +133,10 @@ export async function runSpam(imap, ctx = createDefaultContext()) {
  * @param {Object} [ctx]
  * @returns {Promise<void>}
  */
-export async function runHam(imap, ctx = createDefaultContext()) {
+export async function runHam(
+  imap: ImapFlow,
+  ctx: Context = createDefaultContext()
+): Promise<void> {
   await runTraining(
     imap,
     ctx.config.FOLDER_TRAIN_HAM,

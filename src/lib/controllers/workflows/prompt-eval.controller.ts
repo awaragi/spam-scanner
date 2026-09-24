@@ -1,5 +1,5 @@
 import { rootLogger } from '../../core/logger.ts';
-import { createDefaultContext } from '../../core/context.ts';
+import { createDefaultContext, type Context } from '../../core/context.ts';
 import { loadEmlDataset } from '../../clients/eml-dataset.client.ts';
 import { writeReport } from '../../clients/report-file.client.ts';
 import { classifyDataset } from '../steps/classify-dataset.step.ts';
@@ -19,9 +19,12 @@ const logger = rootLogger.forComponent('prompt-eval-controller');
  * @returns {Promise<{reportPath: string, bucketCounts: Record<string, number>}>}
  */
 export async function runPromptEval(
-  { bucketPaths, reportsDir },
-  ctx = createDefaultContext()
-) {
+  {
+    bucketPaths,
+    reportsDir,
+  }: { bucketPaths: Record<string, string>; reportsDir: string },
+  ctx: Context = createDefaultContext()
+): Promise<{ reportPath: string; bucketCounts: Record<string, number> }> {
   const { bucketNames, messages } = await loadEmlDataset(bucketPaths);
   logger.info(
     { bucketPaths, buckets: bucketNames, total: messages.length },

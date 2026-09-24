@@ -1,5 +1,6 @@
+import type { ImapFlow } from 'imapflow';
 import { waitForNewMail } from '../../clients/imap.client.ts';
-import { createDefaultContext } from '../../core/context.ts';
+import { createDefaultContext, type Context } from '../../core/context.ts';
 
 /**
  * Waits for new mail to arrive in FOLDER_INBOX. Thin pass-through to
@@ -11,9 +12,9 @@ import { createDefaultContext } from '../../core/context.ts';
  * @returns {Promise<void>}
  */
 export async function runIdle(
-  imap,
-  options = {},
-  ctx = createDefaultContext()
-) {
+  imap: ImapFlow,
+  options: { signal?: AbortSignal; lastUid?: number; watchdogMs?: number } = {},
+  ctx: Context = createDefaultContext()
+): Promise<void> {
   await waitForNewMail(imap, ctx.config.FOLDER_INBOX, options);
 }

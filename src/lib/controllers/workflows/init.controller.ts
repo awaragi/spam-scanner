@@ -1,7 +1,8 @@
+import type { ImapFlow } from 'imapflow';
 import { createAppFolders } from '../../clients/imap.client.ts';
 import { rootLogger } from '../../core/logger.ts';
 import { resolveFolders } from '../../clients/folder-resolver.client.ts';
-import { createDefaultContext } from '../../core/context.ts';
+import { createDefaultContext, type Context } from '../../core/context.ts';
 
 const logger = rootLogger.forComponent('init-controller');
 
@@ -13,7 +14,10 @@ const logger = rootLogger.forComponent('init-controller');
  * @param {Object} [ctx]
  * @returns {Promise<void>}
  */
-export async function runInit(imap, ctx = createDefaultContext()) {
+export async function runInit(
+  imap: ImapFlow,
+  ctx: Context = createDefaultContext()
+): Promise<void> {
   await resolveFolders(imap);
 
   const { config } = ctx;
