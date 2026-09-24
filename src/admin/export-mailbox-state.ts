@@ -19,7 +19,7 @@ assertRequiredConfig();
 
 const logger = rootLogger.forComponent('export-mailbox-state');
 
-const argv = yargs(hideBin(process.argv))
+const argv = await yargs(hideBin(process.argv))
   .usage('Usage: $0 [--file <path>]')
   .option('file', {
     type: 'string',
@@ -61,7 +61,10 @@ try {
     );
   }
 } catch (err) {
-  logger.error({ error: err.message }, 'Export failed');
+  logger.error(
+    { error: err instanceof Error ? err.message : String(err) },
+    'Export failed'
+  );
   process.exitCode = 1;
 } finally {
   await safeLogout(imap);

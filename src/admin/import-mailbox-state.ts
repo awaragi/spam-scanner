@@ -17,7 +17,7 @@ assertRequiredConfig();
 
 const logger = rootLogger.forComponent('import-mailbox-state');
 
-const argv = yargs(hideBin(process.argv))
+const argv = await yargs(hideBin(process.argv))
   .usage('Usage: $0 --file <path> [--mode append|override]')
   .option('file', {
     type: 'string',
@@ -26,7 +26,7 @@ const argv = yargs(hideBin(process.argv))
   })
   .option('mode', {
     type: 'string',
-    choices: ['append', 'override'],
+    choices: ['append', 'override'] as const,
     default: 'append',
     describe:
       'Applies to whitelist/blacklist only: append merges with existing IMAP-backed entries; override replaces them entirely. scannerState, if present, always fully replaces the destination scanner state.',
@@ -34,39 +34,47 @@ const argv = yargs(hideBin(process.argv))
   .strict()
   .help().argv;
 
+interface MailboxStateBundle {
+  scannerState?: unknown;
+  whitelist?: string[];
+  blacklist?: string[];
+}
+
 const imap = newClient();
 
 try {
   const raw = await fs.readFile(argv.file, 'utf-8');
-  const bundle = JSON.parse(raw);
+  const bundle: MailboxStateBundle = JSON.parse(raw);
 
   await imap.connect();
 
-  const restored = [];
+  const restored: string[] = [];
 
   if (bundle.scannerState !== undefined) {
     await writeScannerState(imap, bundle.scannerState);
     restored.push('scannerState');
   }
 
-  let whitelistResult = null;
+  let whitelistResult: Awaited<ReturnType<typeof updateListState>> | null =
+    null;
   if (bundle.whitelist !== undefined) {
     whitelistResult = await updateListState(
       imap,
       config.STATE_KEY_WHITELIST_MAP,
       bundle.whitelist,
-      argv.mode
+      argv.mode as 'append' | 'override'
     );
     restored.push('whitelist');
   }
 
-  let blacklistResult = null;
+  let blacklistResult: Awaited<ReturnType<typeof updateListState>> | null =
+    null;
   if (bundle.blacklist !== undefined) {
     blacklistResult = await updateListState(
       imap,
       config.STATE_KEY_BLACKLIST_MAP,
       bundle.blacklist,
-      argv.mode
+      argv.mode as 'append' | 'override'
     );
     restored.push('blacklist');
   }
@@ -81,7 +89,10 @@ try {
   logger.info(summary, 'Import complete');
   console.log(JSON.stringify(summary, null, 2));
 } catch (err) {
-  logger.error({ error: err.message }, 'Import failed');
+  logger.error(
+    { error: err instanceof Error ? err.message : String(err) },
+    'Import failed'
+  );
   process.exitCode = 1;
 } finally {
   await safeLogout(imap);

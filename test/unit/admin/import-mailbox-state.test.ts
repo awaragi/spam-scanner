@@ -1,8 +1,8 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const { connect, logout, newClient } = vi.hoisted(() => {
-  const connect = vi.fn().mockResolvedValue();
-  const logout = vi.fn().mockResolvedValue();
+  const connect = vi.fn().mockResolvedValue(undefined);
+  const logout = vi.fn().mockResolvedValue(undefined);
   return { connect, logout, newClient: vi.fn(() => ({ connect, logout })) };
 });
 
@@ -14,7 +14,7 @@ const { updateListState } = vi.hoisted(() => ({ updateListState: vi.fn() }));
 
 vi.mock('../../../src/lib/clients/imap.client.ts', () => ({
   newClient,
-  safeLogout: imap => imap.logout(),
+  safeLogout: (imap: { logout: () => Promise<void> }) => imap.logout(),
 }));
 
 vi.mock('fs/promises', () => ({ default: { readFile } }));
@@ -49,7 +49,7 @@ vi.mock('../../../src/lib/core/logger.ts', () => ({
   },
 }));
 
-async function runScript(args) {
+async function runScript(args: string[]) {
   const originalArgv = process.argv;
   process.argv = ['node', 'import-mailbox-state.ts', ...args];
   vi.resetModules();

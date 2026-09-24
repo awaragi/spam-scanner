@@ -16,19 +16,19 @@ assertRequiredConfig();
 
 const logger = rootLogger.forComponent('export-list');
 
-const argv = yargs(hideBin(process.argv))
+const argv = await yargs(hideBin(process.argv))
   .usage(
     'Usage: $0 --list <whitelist|blacklist> [--format txt|json] [--file <path>]'
   )
   .option('list', {
     type: 'string',
-    choices: ['whitelist', 'blacklist'],
+    choices: ['whitelist', 'blacklist'] as const,
     demandOption: true,
     describe: 'Which mailbox-backed list to export',
   })
   .option('format', {
     type: 'string',
-    choices: ['txt', 'json'],
+    choices: ['txt', 'json'] as const,
     default: 'txt',
     describe:
       'txt = one address per line (legacy map format); json = a JSON array of addresses',
@@ -50,7 +50,10 @@ const imap = newClient();
 try {
   await imap.connect();
   const addresses = await readMapState(imap, mapStateKey);
-  const output = serializeAddressList(addresses, argv.format);
+  const output = serializeAddressList(
+    addresses,
+    argv.format as 'txt' | 'json'
+  );
 
   if (argv.file) {
     await fs.writeFile(argv.file, output, 'utf-8');
@@ -71,7 +74,10 @@ try {
     );
   }
 } catch (err) {
-  logger.error({ error: err.message }, 'Export failed');
+  logger.error(
+    { error: err instanceof Error ? err.message : String(err) },
+    'Export failed'
+  );
   process.exitCode = 1;
 } finally {
   await safeLogout(imap);

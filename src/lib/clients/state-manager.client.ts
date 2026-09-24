@@ -46,7 +46,7 @@ function currentMailboxPath(imap: ImapFlow): string | undefined {
 
 export async function readScannerState(
   imap: ImapFlow,
-  defaultState: ScannerState | undefined,
+  defaultState?: ScannerState,
   mailboxPath?: string
 ): Promise<ScannerState> {
   // remember original mailbox

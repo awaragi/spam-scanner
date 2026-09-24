@@ -17,13 +17,13 @@ assertRequiredConfig();
 
 const logger = rootLogger.forComponent('import-list');
 
-const argv = yargs(hideBin(process.argv))
+const argv = await yargs(hideBin(process.argv))
   .usage(
     'Usage: $0 --list <whitelist|blacklist> --file <path> [--mode append|override] [--format txt|json]'
   )
   .option('list', {
     type: 'string',
-    choices: ['whitelist', 'blacklist'],
+    choices: ['whitelist', 'blacklist'] as const,
     demandOption: true,
     describe: 'Which mailbox-backed list to import into',
   })
@@ -35,14 +35,14 @@ const argv = yargs(hideBin(process.argv))
   })
   .option('mode', {
     type: 'string',
-    choices: ['append', 'override'],
+    choices: ['append', 'override'] as const,
     default: 'append',
     describe:
       'append merges with existing IMAP-backed entries; override replaces them entirely',
   })
   .option('format', {
     type: 'string',
-    choices: ['txt', 'json'],
+    choices: ['txt', 'json'] as const,
     default: 'txt',
     describe:
       'txt = one address per line (legacy map format); json = a JSON array of addresses',
@@ -59,10 +59,15 @@ const imap = newClient();
 
 try {
   const raw = await fs.readFile(argv.file, 'utf-8');
-  const addresses = parseAddressList(raw, argv.format);
+  const addresses = parseAddressList(raw, argv.format as 'txt' | 'json');
 
   await imap.connect();
-  const result = await updateListState(imap, mapStateKey, addresses, argv.mode);
+  const result = await updateListState(
+    imap,
+    mapStateKey,
+    addresses,
+    argv.mode as 'append' | 'override'
+  );
 
   const summary = {
     list: argv.list,
@@ -75,7 +80,10 @@ try {
   logger.info(summary, 'Import complete');
   console.log(JSON.stringify(summary, null, 2));
 } catch (err) {
-  logger.error({ error: err.message }, 'Import failed');
+  logger.error(
+    { error: err instanceof Error ? err.message : String(err) },
+    'Import failed'
+  );
   process.exitCode = 1;
 } finally {
   await safeLogout(imap);

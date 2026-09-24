@@ -9,7 +9,7 @@ import { assertRequiredConfig } from '../lib/core/config.ts';
 
 assertRequiredConfig();
 
-const argv = yargs(hideBin(process.argv))
+const argv = await yargs(hideBin(process.argv))
   .usage('Usage: $0 <folder> [--since YYYY-MM-DD]')
   .option('since', {
     type: 'string',
@@ -22,7 +22,7 @@ const imap = newClient();
 
 try {
   await imap.connect();
-  const result = await findFirstUIDOnDate(imap, folder, argv.since);
+  const result = await findFirstUIDOnDate(imap, String(folder), argv.since);
 
   if (result) {
     console.log(JSON.stringify(result, null, 2));

@@ -15,7 +15,7 @@ assertRequiredConfig();
 const HOME = config.HOME;
 const mailbox = config.FOLDER_INBOX;
 
-const argv = yargs(hideBin(process.argv))
+const argv = await yargs(hideBin(process.argv))
   .usage('Usage: $0 --uid <uid> | --message-id <message-id>')
   .option('uid', {
     type: 'number',
@@ -40,7 +40,10 @@ const MESSAGE_ID = argv.messageId;
 const logger = rootLogger.forComponent('read-email');
 const imap = newClient();
 
-async function fetchAndSaveEmail(uid, messageId) {
+async function fetchAndSaveEmail(
+  uid: number | undefined,
+  messageId: string | undefined
+): Promise<void> {
   try {
     await imap.connect();
     await imap.getMailboxLock(mailbox);
@@ -62,7 +65,8 @@ async function fetchAndSaveEmail(uid, messageId) {
     for await (const _message of messages) {
       const message = processMessage(_message);
       const uid = message.uid;
-      const subject = message.envelope.subject || 'no-subject';
+      const envelope = message.envelope as { subject?: string } | undefined;
+      const subject = envelope?.subject || 'no-subject';
       const sanitizedSubject = subject.replace(/[^a-z0-9]/gi, '-');
       const filename = `Test-Email-${uid}-${sanitizedSubject}.eml`;
       const filepath = path.join(HOME, filename);

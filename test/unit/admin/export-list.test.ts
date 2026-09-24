@@ -1,8 +1,8 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const { connect, logout, newClient } = vi.hoisted(() => {
-  const connect = vi.fn().mockResolvedValue();
-  const logout = vi.fn().mockResolvedValue();
+  const connect = vi.fn().mockResolvedValue(undefined);
+  const logout = vi.fn().mockResolvedValue(undefined);
   return { connect, logout, newClient: vi.fn(() => ({ connect, logout })) };
 });
 
@@ -11,7 +11,7 @@ const { readMapState } = vi.hoisted(() => ({ readMapState: vi.fn() }));
 
 vi.mock('../../../src/lib/clients/imap.client.ts', () => ({
   newClient,
-  safeLogout: imap => imap.logout(),
+  safeLogout: (imap: { logout: () => Promise<void> }) => imap.logout(),
 }));
 
 vi.mock('fs/promises', () => ({ default: { writeFile } }));
@@ -43,7 +43,7 @@ vi.mock('../../../src/lib/core/logger.ts', () => ({
 // export-list.js is a top-level-await script, not an exported function - it
 // runs immediately on import, driven by process.argv. Each test re-imports
 // it fresh (via vi.resetModules()) with a different argv.
-async function runScript(args) {
+async function runScript(args: string[]) {
   const originalArgv = process.argv;
   process.argv = ['node', 'export-list.ts', ...args];
   vi.resetModules();
@@ -54,16 +54,18 @@ async function runScript(args) {
   }
 }
 
+function spyOnStdoutWrite() {
+  return vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+}
+
 describe('export-list', () => {
-  let stdoutSpy;
+  let stdoutSpy: ReturnType<typeof spyOnStdoutWrite>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     process.exitCode = undefined;
-    stdoutSpy = vi
-      .spyOn(process.stdout, 'write')
-      .mockImplementation(() => true);
-    writeFile.mockResolvedValue();
+    stdoutSpy = spyOnStdoutWrite();
+    writeFile.mockResolvedValue(undefined);
     readMapState.mockResolvedValue(['a@b.com', 'c@d.com']);
   });
 
@@ -159,7 +161,7 @@ describe('export-list', () => {
     const { parseAddressList } = await import(
       '../../../src/lib/services/sender-lists.service.ts'
     );
-    const reimported = parseAddressList(exported, 'json');
+    const reimported = parseAddressList(exported as string, 'json');
 
     expect(reimported).toEqual(['a@b.com', 'c@d.com']);
   });

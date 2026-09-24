@@ -1,8 +1,8 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const { connect, logout, newClient } = vi.hoisted(() => {
-  const connect = vi.fn().mockResolvedValue();
-  const logout = vi.fn().mockResolvedValue();
+  const connect = vi.fn().mockResolvedValue(undefined);
+  const logout = vi.fn().mockResolvedValue(undefined);
   return { connect, logout, newClient: vi.fn(() => ({ connect, logout })) };
 });
 
@@ -14,7 +14,7 @@ const { readScannerState, readMapState } = vi.hoisted(() => ({
 
 vi.mock('../../../src/lib/clients/imap.client.ts', () => ({
   newClient,
-  safeLogout: imap => imap.logout(),
+  safeLogout: (imap: { logout: () => Promise<void> }) => imap.logout(),
 }));
 
 vi.mock('fs/promises', () => ({ default: { writeFile } }));
@@ -44,7 +44,7 @@ vi.mock('../../../src/lib/core/logger.ts', () => ({
   },
 }));
 
-async function runScript(args) {
+async function runScript(args: string[]) {
   const originalArgv = process.argv;
   process.argv = ['node', 'export-mailbox-state.ts', ...args];
   vi.resetModules();
@@ -61,18 +61,20 @@ const SCANNER_STATE = {
   last_checked: '2026-01-01T00:00:00.000Z',
 };
 
+function spyOnStdoutWrite() {
+  return vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+}
+
 describe('export-mailbox-state', () => {
-  let stdoutSpy;
+  let stdoutSpy: ReturnType<typeof spyOnStdoutWrite>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     process.exitCode = undefined;
-    stdoutSpy = vi
-      .spyOn(process.stdout, 'write')
-      .mockImplementation(() => true);
-    writeFile.mockResolvedValue();
+    stdoutSpy = spyOnStdoutWrite();
+    writeFile.mockResolvedValue(undefined);
     readScannerState.mockResolvedValue(SCANNER_STATE);
-    readMapState.mockImplementation((imap, key) =>
+    readMapState.mockImplementation((_imap: unknown, key: string) =>
       Promise.resolve(
         key === 'rspamd-whitelist-map' ? ['a@b.com'] : ['bad@evil.com']
       )
@@ -87,7 +89,7 @@ describe('export-mailbox-state', () => {
   test('bundles scannerState, whitelist, and blacklist into one object', async () => {
     await runScript([]);
 
-    const written = JSON.parse(stdoutSpy.mock.calls[0][0]);
+    const written = JSON.parse(stdoutSpy.mock.calls[0][0] as string);
     expect(written).toEqual({
       scannerState: SCANNER_STATE,
       whitelist: ['a@b.com'],
@@ -120,12 +122,12 @@ describe('export-mailbox-state', () => {
   });
 
   test('reads scanner state, then whitelist, then blacklist sequentially, not concurrently', async () => {
-    const callOrder = [];
+    const callOrder: string[] = [];
     readScannerState.mockImplementation(async () => {
       callOrder.push('scannerState');
       return SCANNER_STATE;
     });
-    readMapState.mockImplementation(async (imap, key) => {
+    readMapState.mockImplementation(async (_imap: unknown, key: string) => {
       callOrder.push(key);
       return [];
     });

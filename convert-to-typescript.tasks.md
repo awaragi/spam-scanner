@@ -270,18 +270,23 @@ Add real types to (files already renamed to `.ts` in Phase 0):
 
 ## Layer: `admin` (11 files)
 
-- [ ] `delete-state.ts` (+ test)
-- [ ] `export-list.ts` (+ test)
-- [ ] `export-mailbox-state.ts` (+ test)
-- [ ] `import-list.ts` (+ test)
-- [ ] `import-mailbox-state.ts` (+ test)
-- [ ] `list-all.ts` (+ test)
-- [ ] `read-email.ts` (+ test)
-- [ ] `read-state.ts` (+ test)
-- [ ] `reset-state.ts` (+ test)
-- [ ] `uid-on-date.ts` (+ test)
-- [ ] `write-state.ts` (+ test)
-- [ ] Layer gate (scoped): tests, `tsc`, `eslint` clean for the files above
+- [x] `delete-state.ts` (already typed cleanly as-is; no test file)
+- [x] `export-list.ts` (+ test) - installed `@types/yargs`; yargs' `.argv` types as
+  `T | Promise<T>`, so switched to `await yargs(...).argv` (the standard idiom) at
+  every CLI/admin call site using yargs
+- [x] `export-mailbox-state.ts` (+ test)
+- [x] `import-list.ts` (+ test)
+- [x] `import-mailbox-state.ts` (+ test)
+- [x] `list-all.ts` (no test file)
+- [x] `read-email.ts` (no test file)
+- [x] `read-state.ts` (no test file) - widened `state-manager.client.ts`'s
+  `readScannerState`'s `defaultState` param to optional (`defaultState?:
+  ScannerState`), matching its real 1-arg call sites
+- [x] `reset-state.ts` (already typed cleanly as-is; no test file)
+- [x] `uid-on-date.ts` (no test file)
+- [x] `write-state.ts` (already typed cleanly as-is; no test file)
+- [x] Layer gate (scoped): tests, `tsc`, `eslint` clean for the files above
+  (32 tests passing)
 
 ## Layer: `cli` (9 files)
 
