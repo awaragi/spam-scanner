@@ -17,7 +17,7 @@ const FIXTURES_ROOT = path.resolve(process.cwd(), '.temp/messages');
 const HAM_DIR = path.join(FIXTURES_ROOT, 'ham');
 const SPAM_DIR = path.join(FIXTURES_ROOT, 'spam');
 
-function listEmlFixtures(dir) {
+function listEmlFixtures(dir: string) {
   try {
     return fs
       .readdirSync(dir)
@@ -31,7 +31,7 @@ function listEmlFixtures(dir) {
 const hamFixtures = listEmlFixtures(HAM_DIR);
 const spamFixtures = listEmlFixtures(SPAM_DIR);
 
-async function classifyFixture(filePath) {
+async function classifyFixture(filePath: string) {
   const raw = fs.readFileSync(filePath, 'utf-8');
   const parsed = await simpleParser(raw);
   const message = {

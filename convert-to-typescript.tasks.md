@@ -290,18 +290,27 @@ Add real types to (files already renamed to `.ts` in Phase 0):
 
 ## Layer: `cli` (9 files)
 
-- [ ] `eval-prompt.ts`
-- [ ] `generate-env.ts`
-- [ ] `init-folders.ts`
-- [ ] `orchestrator.ts`
-- [ ] `scan-inbox.ts`
-- [ ] `train-blacklist.ts`
-- [ ] `train-ham.ts`
-- [ ] `train-spam.ts`
-- [ ] `train-whitelist.ts`
-- [ ] Layer gate: full `npm test`, `npx tsc --noEmit`, `npm run lint` all green
+- [x] `eval-prompt.ts` - dynamic `.option()` loop plus `await` on `.argv`, matching
+  the other yargs-based CLI/admin scripts
+- [x] `generate-env.ts`
+- [x] `init-folders.ts` (already typed cleanly as-is)
+- [x] `orchestrator.ts` - `runStep()` dispatches workflow functions with different
+  trailing-arg shapes (`(imap, ctx)` vs `(imap, options, ctx)`); typed generically
+  as `WorkflowFn<T> = (imap: ImapFlow, ...args: any[]) => Promise<T>` with an
+  eslint-disable for the one deliberate `any` (a CLI entry point, not consumed
+  elsewhere)
+- [x] `scan-inbox.ts` (already typed cleanly as-is)
+- [x] `train-blacklist.ts` (already typed cleanly as-is)
+- [x] `train-ham.ts` (already typed cleanly as-is)
+- [x] `train-spam.ts` (already typed cleanly as-is)
+- [x] `train-whitelist.ts` (already typed cleanly as-is)
+- [x] Layer gate: full `npm test`, `npx tsc --noEmit`, `npm run lint` all green
   repo-wide (this is the last layer, so the gate is no longer scoped - everything
-  should be clean now)
+  should be clean now). Also fixed two implicit-any params in
+  `test/integration/ai-live-classification.test.ts`, the one file outside every
+  named layer that `tsc`'s repo-wide `test/**/*.ts` glob still covered.
+  500/500 unit tests passing, `tsc --noEmit` and `npm run lint` both clean
+  with zero output.
 
 ## TypeScript gotchas already discovered (to move faster this time)
 

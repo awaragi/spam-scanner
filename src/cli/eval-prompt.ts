@@ -35,7 +35,7 @@ for (const [name, describe] of Object.entries(BUCKET_DESCRIPTIONS)) {
   parser = parser.option(name, { type: 'string', describe });
 }
 
-const argv = parser
+const argv = await parser
   .check(argv => {
     if (!BUCKET_NAMES.some(name => argv[name])) {
       throw new Error(
@@ -61,6 +61,9 @@ try {
   logger.info({ reportPath, bucketCounts }, 'Prompt eval complete');
   process.stdout.write(`${reportPath}\n`);
 } catch (err) {
-  logger.error({ error: err.message }, 'Prompt eval failed');
+  logger.error(
+    { error: err instanceof Error ? err.message : String(err) },
+    'Prompt eval failed'
+  );
   process.exitCode = 1;
 }

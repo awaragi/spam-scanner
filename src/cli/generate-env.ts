@@ -14,7 +14,7 @@ import { renderEnvFile, diffEnvValues } from '../lib/utils/env-file.util.ts';
 // (e.g. a local .env from before a config.js rename/restructure) onto the
 // current structure/headers/comments: any key the input file already sets
 // is kept as-is, everything else falls back to its schema default.
-const argv = yargs(hideBin(process.argv))
+const argv = await yargs(hideBin(process.argv))
   .usage('Usage: $0 --output <path> [--input <path>]')
   .option('input', {
     type: 'string',

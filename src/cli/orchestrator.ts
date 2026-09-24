@@ -1,3 +1,4 @@
+import type { ImapFlow } from 'imapflow';
 import { setTimeout as delay } from 'timers/promises';
 import { runInit } from '../lib/controllers/workflows/init.controller.ts';
 import {
@@ -23,7 +24,7 @@ const logger = rootLogger.forComponent('orchestrator');
 let stopping = false;
 const shutdownController = new AbortController();
 
-function requestShutdown(signal) {
+function requestShutdown(signal: NodeJS.Signals): void {
   if (stopping) return;
   stopping = true;
   logger.info(
@@ -43,26 +44,33 @@ process.on('SIGINT', () => requestShutdown('SIGINT'));
  * @param {number} ms
  * @returns {Promise<void>}
  */
-async function interruptibleSleep(ms) {
+async function interruptibleSleep(ms: number): Promise<void> {
   try {
     await delay(ms, undefined, { signal: shutdownController.signal });
   } catch (err) {
-    if (err.name !== 'AbortError') throw err;
+    if (!(err instanceof Error) || err.name !== 'AbortError') throw err;
   }
 }
 
 try {
   assertRequiredConfig();
 } catch (err) {
-  logger.error({ error: err.message }, 'Invalid configuration');
+  logger.error(
+    { error: err instanceof Error ? err.message : String(err) },
+    'Invalid configuration'
+  );
   process.exit(1);
 }
 
-async function runStep(workflowFn, ...args) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type WorkflowFn<T> = (imap: ImapFlow, ...args: any[]) => Promise<T>;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function runStep<T>(workflowFn: WorkflowFn<T>, ...args: any[]): Promise<T> {
   const start = Date.now();
   const imap = newClient();
-  let result;
-  let stepError;
+  let result: T | undefined;
+  let stepError: unknown;
   try {
     await imap.connect();
     result = await workflowFn(imap, ...args);
@@ -70,7 +78,11 @@ async function runStep(workflowFn, ...args) {
     stepError = err;
     const duration = Date.now() - start;
     logger.error(
-      { step: workflowFn.name, duration, error: err.message },
+      {
+        step: workflowFn.name,
+        duration,
+        error: err instanceof Error ? err.message : String(err),
+      },
       'Step failed'
     );
   } finally {
@@ -81,7 +93,7 @@ async function runStep(workflowFn, ...args) {
     }
   }
   if (stepError) throw stepError;
-  return result;
+  return result as T;
 }
 
 logger.info(
@@ -121,7 +133,7 @@ const ctx = createDefaultContext();
 await runStep(runInit, ctx);
 
 let failures = 0;
-let lastUid;
+let lastUid: number | undefined;
 while (!stopping) {
   try {
     // Run training steps
@@ -179,7 +191,11 @@ while (!stopping) {
     }
     const backoff = Math.min(Math.pow(2, failures) * 1000, 60000);
     logger.error(
-      { failures, backoffMs: backoff, error: err.message },
+      {
+        failures,
+        backoffMs: backoff,
+        error: err instanceof Error ? err.message : String(err),
+      },
       'Cycle failed, retrying with backoff'
     );
     await interruptibleSleep(backoff);
