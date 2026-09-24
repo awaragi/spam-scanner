@@ -350,7 +350,7 @@ describe('parseRspamdOutput', () => {
       parseRspamdOutput('invalid');
       expect.unreachable('parseRspamdOutput should have thrown');
     } catch (err) {
-      expect(err.permanent).toBe(true);
+      expect((err as { permanent?: boolean }).permanent).toBe(true);
     }
   });
 

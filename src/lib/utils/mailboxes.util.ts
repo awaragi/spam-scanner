@@ -5,7 +5,7 @@
  * @param {string} folder - Delimiter-neutral folder path, e.g. "INBOX.scanner.train.spam"
  * @returns {string[]} - Non-empty path segments, e.g. ["INBOX", "scanner", "train", "spam"]
  */
-export function splitFolderParts(folder) {
+export function splitFolderParts(folder: string): string[] {
   return folder.split(/[/\\.]|\\+/).filter(part => part !== ''); // allow to split by . or by / or by \
 }
 
@@ -15,8 +15,11 @@ export function splitFolderParts(folder) {
  * @param separator
  * @returns {Set<any>}
  */
-export function collectFoldersToCreate(folders, separator) {
-  const foldersToCreate = new Set();
+export function collectFoldersToCreate(
+  folders: string[],
+  separator: string
+): Set<string> {
+  const foldersToCreate = new Set<string>();
   for (const folder of folders) {
     const parts = splitFolderParts(folder);
     let currentPath = '';

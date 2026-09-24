@@ -169,14 +169,17 @@ Add real types to (files already renamed to `.ts` in Phase 0):
 
 ## Layer: `utils` (5 remaining files)
 
-- [ ] `ai-content.util.ts` (+ test)
-- [ ] `concurrency.util.ts` (+ test)
-- [ ] `email.util.ts` (+ test)
-- [ ] `email-parser.util.ts` (+ test)
-- [ ] `mailboxes.util.ts` (+ test)
+- [x] `ai-content.util.ts` (+ test)
+- [x] `concurrency.util.ts` (+ test)
+- [x] `email.util.ts` (+ test)
+- [x] `email-parser.util.ts` (+ test)
+- [x] `mailboxes.util.ts` (+ test)
 - [ ] Add a small local `.d.ts` for `mailparser`'s `simpleParser` shape (only what's
   actually used) if `email-parser.util.ts` or `eml-dataset.client.ts` needs it
-- [ ] Layer gate (scoped): tests, `tsc`, `eslint` clean for the files above
+  (deferred: `email-parser.util.ts` doesn't import `mailparser` at all - only
+  `eml-dataset.client.ts`, in the `clients` layer, does; revisit there)
+- [x] Layer gate (scoped): tests, `tsc`, `eslint` clean for the files above
+  (82 tests passing, tsc/eslint clean for src/lib/utils/*.ts and test/unit/utils/*.ts)
 
 ## Layer: `services` (9 remaining files)
 

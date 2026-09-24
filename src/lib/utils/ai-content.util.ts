@@ -5,14 +5,19 @@
 // Rough, dependency-free heuristic for English text; used only to bound cost, not for exact billing.
 const CHARS_PER_TOKEN = 4;
 
+interface Addressed {
+  name?: string;
+  address?: string;
+}
+
 /**
  * Formats an ImapFlow envelope address list as "Name <addr>, Name2 <addr2>".
  * @param {Array<{name?: string, address?: string}>} [addresses]
  * @returns {string}
  */
-export function formatAddressList(addresses = []) {
+export function formatAddressList(addresses: unknown = []): string {
   if (!Array.isArray(addresses)) return '';
-  return addresses
+  return (addresses as Addressed[])
     .map(({ name, address }) => (name ? `${name} <${address}>` : address))
     .filter(Boolean)
     .join(', ');
@@ -24,7 +29,10 @@ export function formatAddressList(addresses = []) {
  * @param {number} maxTokens
  * @returns {string}
  */
-export function truncateToTokenBudget(text, maxTokens) {
+export function truncateToTokenBudget(
+  text: string | undefined,
+  maxTokens: number
+): string {
   if (!text) return '';
   const maxChars = Math.max(0, maxTokens) * CHARS_PER_TOKEN;
   if (text.length <= maxChars) return text;

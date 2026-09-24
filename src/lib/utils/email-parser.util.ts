@@ -3,13 +3,24 @@
  */
 
 /**
+ * Ad-hoc "permanent vs transient failure" marker set on some thrown errors -
+ * see the TypeScript gotchas in convert-to-typescript.tasks.md.
+ */
+type ClassifiableError = { permanent?: boolean };
+
+interface ReceivedHop {
+  ip: string | null;
+  helo: string | null;
+}
+
+/**
  * Removes all X-Spam-* and X-Ham-Report header lines from email content.
  * @param {string} headerText - Header-only text (no body)
  * @returns {string} - Header text without spam/ham headers
  */
-function filterSpamHeaderLines(headerText) {
+function filterSpamHeaderLines(headerText: string): string {
   const lines = headerText.split('\n');
-  const filteredLines = [];
+  const filteredLines: string[] = [];
   let skipNextLines = false;
 
   for (let i = 0; i < lines.length; i++) {
@@ -50,7 +61,7 @@ function filterSpamHeaderLines(headerText) {
  * @param {string} emailContent - Raw email content
  * @returns {string} - Email content without spam/ham headers
  */
-export function stripSpamHeaders(emailContent) {
+export function stripSpamHeaders(emailContent: string): string {
   const separatorMatch = emailContent.match(/\r?\n\r?\n/);
   if (!separatorMatch) {
     return filterSpamHeaderLines(emailContent);
@@ -73,7 +84,7 @@ export function stripSpamHeaders(emailContent) {
  * @param {Buffer} messageBuffer - Full raw message (headers + body)
  * @returns {Buffer} - Same bytes, minus any X-Spam- or X-Ham-Report header lines
  */
-export function stripSpamHeadersBuffer(messageBuffer) {
+export function stripSpamHeadersBuffer(messageBuffer: Buffer): Buffer {
   const stripped = stripSpamHeaders(messageBuffer.toString('latin1'));
   return Buffer.from(stripped, 'latin1');
 }
@@ -90,8 +101,8 @@ const IP_IN_BRACKETS_RE = /\[([0-9a-fA-F:.]+)]/;
  * @returns {{ip: string|null, helo: string|null}|null} - null if the value
  *   doesn't start with a recognizable `from ...` clause
  */
-export function parseReceivedHeader(value) {
-  if (!value) return null;
+export function parseReceivedHeader(value: unknown): ReceivedHop | null {
+  if (!value || typeof value !== 'string') return null;
 
   const match = value.replace(/\s+/g, ' ').trim().match(RECEIVED_FROM_RE);
   if (!match) return null;
@@ -125,7 +136,10 @@ export function parseReceivedHeader(value) {
  * @returns {{ip: string|null, helo: string|null}|null} - null if there's no
  *   `Received:` header at that position, or it couldn't be parsed
  */
-export function resolveConnectingHop(receivedHeaders, trustedHops = 0) {
+export function resolveConnectingHop(
+  receivedHeaders: string[] | null | undefined,
+  trustedHops = 0
+): ReceivedHop | null {
   const boundary = receivedHeaders?.[trustedHops];
   if (!boundary) return null;
   return parseReceivedHeader(boundary);
@@ -136,15 +150,18 @@ export function resolveConnectingHop(receivedHeaders, trustedHops = 0) {
  * @param {string} rawEmail - Full raw email content (headers + body)
  * @returns {{headers: Record<string, string>, body: string}} - Object containing parsed headers and body
  */
-export function parseEmail(rawEmail) {
+export function parseEmail(rawEmail: string): {
+  headers: Record<string, string>;
+  body: string;
+} {
   const headerEndIndex = rawEmail.search(/\r?\n\r?\n/);
   if (headerEndIndex === -1) return { headers: {}, body: rawEmail };
 
   const headerText = rawEmail.slice(0, headerEndIndex);
   const body = rawEmail.slice(headerEndIndex + 2).trim();
   const lines = headerText.split(/\r?\n/);
-  const headers = {};
-  let currentKey = null;
+  const headers: Record<string, string> = {};
+  let currentKey: string | null = null;
 
   for (const line of lines) {
     if (/^\s/.test(line) && currentKey) {
@@ -182,16 +199,28 @@ const AUTHENTICATING_SYMBOLS = ['R_DKIM_ALLOW', 'DMARC_POLICY_ALLOW'];
  * @param {Object} response - JSON response object from Rspamd /checkv2 endpoint
  * @returns {{score: number, required: number, senderAuthenticated: boolean}} - Rspamd's content score, its add-header threshold, and whether it found a passing DKIM/DMARC symbol
  */
-export function parseRspamdOutput(response) {
+export function parseRspamdOutput(response: unknown): {
+  score: number;
+  required: number;
+  senderAuthenticated: boolean;
+} {
   if (!response || typeof response !== 'object') {
-    const err = new Error('Invalid Rspamd response format');
+    const err: Error & ClassifiableError = new Error(
+      'Invalid Rspamd response format'
+    );
     err.permanent = true;
     throw err;
   }
 
-  const score = response.score || 0;
-  const required = response.required_score || 0;
-  const symbols = response.symbols || {};
+  const {
+    score = 0,
+    required_score: required = 0,
+    symbols = {},
+  } = response as {
+    score?: number;
+    required_score?: number;
+    symbols?: Record<string, unknown>;
+  };
   const senderAuthenticated = AUTHENTICATING_SYMBOLS.some(
     symbol => symbol in symbols
   );
@@ -210,7 +239,10 @@ export function parseRspamdOutput(response) {
  * @returns {{score: number, reasoning: string}} - Object containing spam classification
  * @throws {Error} - If content is empty, not valid JSON, or missing a numeric score
  */
-export function parseAiClassificationOutput(content) {
+export function parseAiClassificationOutput(content: unknown): {
+  score: number;
+  reasoning: string;
+} {
   if (!content || typeof content !== 'string') {
     throw new Error('AI response content is empty');
   }
@@ -218,13 +250,14 @@ export function parseAiClassificationOutput(content) {
   const fenceMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const jsonText = (fenceMatch ? fenceMatch[1] : content).trim();
 
-  let parsed;
+  let parsed: { score?: unknown; reasoning?: unknown };
   try {
     parsed = JSON.parse(jsonText);
   } catch (err) {
-    throw new Error(`AI response is not valid JSON: ${err.message}`, {
-      cause: err,
-    });
+    throw new Error(
+      `AI response is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
+      { cause: err }
+    );
   }
 
   if (typeof parsed.score !== 'number' || Number.isNaN(parsed.score)) {

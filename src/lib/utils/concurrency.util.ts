@@ -6,11 +6,15 @@
  * @param {(item: any) => Promise<any>} fn
  * @returns {Promise<Array>} - results in the same order as items
  */
-export async function mapWithConcurrency(items, limit, fn) {
-  const results = new Array(items.length);
+export async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
   let next = 0;
 
-  async function worker() {
+  async function worker(): Promise<void> {
     while (next < items.length) {
       const i = next++;
       results[i] = await fn(items[i]);

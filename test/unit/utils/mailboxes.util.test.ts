@@ -73,7 +73,7 @@ describe('mailboxes-utils', () => {
     });
 
     it('should handle empty folders array', () => {
-      const folders = [];
+      const folders: string[] = [];
       const separator = '.';
 
       const result = collectFoldersToCreate(folders, separator);
