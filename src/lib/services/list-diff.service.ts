@@ -14,20 +14,35 @@ import {
  * @param {'append'|'override'} [mode]
  * @returns {{list: Array<string>, added: Array<string>, skipped: Array<string>, removed: Array<string>, total: number}}
  */
-export function diffListUpdate(existing, incoming, mode = 'append') {
+const isString = (value: string | null): value is string => value !== null;
+
+export function diffListUpdate(
+  existing: string[],
+  incoming: string[],
+  mode: 'append' | 'override' = 'append'
+): {
+  list: string[];
+  added: string[];
+  skipped: string[];
+  removed: string[];
+  total: number;
+} {
   const list =
     mode === 'override'
       ? overrideAddresses(incoming)
       : mergeAddresses(existing, incoming);
 
-  const existingSet = new Set(existing.map(normalizeEmail).filter(Boolean));
+  const existingSet = new Set(existing.map(normalizeEmail).filter(isString));
   const listSet = new Set(list);
   const added = list.filter(address => !existingSet.has(address));
   const skipped = incoming
     .map(normalizeEmail)
-    .filter(address => address && existingSet.has(address));
+    .filter(
+      (address): address is string =>
+        address !== null && existingSet.has(address)
+    );
   const removed = existing.filter(
-    address => !listSet.has(normalizeEmail(address))
+    address => !listSet.has(normalizeEmail(address) ?? '')
   );
 
   return { list, added, skipped, removed, total: list.length };

@@ -1,39 +1,41 @@
 import { describe, test, expect } from 'vitest';
 import { isPermanentError } from '../../../src/lib/services/error-classifier.service.ts';
 
+type ClassifiableError = Error & { permanent?: boolean; status?: number };
+
 describe('isPermanentError', () => {
   test('true when err.permanent === true', () => {
-    const err = new Error('bad shape');
+    const err: ClassifiableError = new Error('bad shape');
     err.permanent = true;
     expect(isPermanentError(err)).toBe(true);
   });
 
   test('true when err.status is a 4xx', () => {
-    const err = new Error('bad request');
+    const err: ClassifiableError = new Error('bad request');
     err.status = 400;
     expect(isPermanentError(err)).toBe(true);
 
-    const err2 = new Error('not found');
+    const err2: ClassifiableError = new Error('not found');
     err2.status = 404;
     expect(isPermanentError(err2)).toBe(true);
 
-    const err3 = new Error('too many requests');
+    const err3: ClassifiableError = new Error('too many requests');
     err3.status = 499;
     expect(isPermanentError(err3)).toBe(true);
   });
 
   test('false when err.status is a 5xx', () => {
-    const err = new Error('server error');
+    const err: ClassifiableError = new Error('server error');
     err.status = 500;
     expect(isPermanentError(err)).toBe(false);
   });
 
   test('false when err.status is 400-adjacent but out of the 4xx range (e.g. 399, 500)', () => {
-    const below = new Error('redirect');
+    const below: ClassifiableError = new Error('redirect');
     below.status = 399;
     expect(isPermanentError(below)).toBe(false);
 
-    const above = new Error('server error');
+    const above: ClassifiableError = new Error('server error');
     above.status = 500;
     expect(isPermanentError(above)).toBe(false);
   });

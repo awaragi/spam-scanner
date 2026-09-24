@@ -1,7 +1,19 @@
 import { describe, test, expect } from 'vitest';
 import { extractAiContent } from '../../../src/lib/services/ai-content.service.ts';
 
-function buildMessage({ raw, from, to, subject, date }) {
+function buildMessage({
+  raw,
+  from,
+  to,
+  subject,
+  date,
+}: {
+  raw?: string;
+  from?: Array<{ name?: string; address?: string }>;
+  to?: Array<{ name?: string; address?: string }>;
+  subject?: string;
+  date?: Date;
+}) {
   return {
     uid: 1,
     envelope: {

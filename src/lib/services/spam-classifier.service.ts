@@ -3,6 +3,39 @@
  */
 import { senderAddressOf, isSenderListed } from './sender-lists.service.ts';
 
+interface ScoredMessage {
+  spamInfo: { score: number | null; required: number | null };
+}
+
+interface CategorizedBuckets<M> {
+  nonSpamMessages: M[];
+  lowSpamMessages: M[];
+  highSpamMessages: M[];
+  spamMessages: M[];
+}
+
+interface AiScoredMessage {
+  uid?: number;
+  aiInfo?: { score?: number | null };
+}
+
+interface EnvelopeAddressed {
+  envelope?: { from?: Array<{ address?: string }> };
+}
+
+interface WhitelistableMessage extends EnvelopeAddressed {
+  spamInfo: {
+    score: number;
+    senderAuthenticated?: boolean;
+    isWhitelisted?: boolean;
+  };
+}
+
+interface WhitelistFlaggedMessage {
+  uid?: number;
+  spamInfo?: { isWhitelisted?: boolean; senderAuthenticated?: boolean };
+}
+
 /**
  * Categorizes messages into four score-percentage-driven tiers - clean, low,
  * high, confirmed - per the `scan-inbox` capability. `scorePercentage` is
@@ -30,16 +63,16 @@ import { senderAddressOf, isSenderListed } from './sender-lists.service.ts';
  * @param {number} confirmedThreshold - high/confirmed boundary
  * @returns {Object} - Object with categorized messages
  */
-export function categorizeMessages(
-  messages,
-  cleanThreshold,
-  lowThreshold,
-  confirmedThreshold
-) {
-  const lowSpamMessages = [];
-  const highSpamMessages = [];
-  const nonSpamMessages = [];
-  const spamMessages = [];
+export function categorizeMessages<M extends ScoredMessage>(
+  messages: M[],
+  cleanThreshold: number,
+  lowThreshold: number,
+  confirmedThreshold: number
+): CategorizedBuckets<M> {
+  const lowSpamMessages: M[] = [];
+  const highSpamMessages: M[] = [];
+  const nonSpamMessages: M[] = [];
+  const spamMessages: M[] = [];
 
   messages.forEach(message => {
     const { score, required } = message.spamInfo;
@@ -78,7 +111,11 @@ const BUCKET_RANK = { nonSpam: 0, lowSpam: 1, highSpam: 2, spam: 3 };
  * @param {number} escalateToHighThreshold
  * @returns {number|null} - null means "no opinion" (score missing, or too low to escalate)
  */
-function aiTargetRank(score, escalateToLowThreshold, escalateToHighThreshold) {
+function aiTargetRank(
+  score: number | null | undefined,
+  escalateToLowThreshold: number,
+  escalateToHighThreshold: number
+): number | null {
   if (score === null || score === undefined) return null;
   if (score >= escalateToHighThreshold) return BUCKET_RANK.highSpam;
   if (score >= escalateToLowThreshold) return BUCKET_RANK.lowSpam;
@@ -95,16 +132,23 @@ function aiTargetRank(score, escalateToLowThreshold, escalateToHighThreshold) {
  * @param {{escalateToLowThreshold?: number, escalateToHighThreshold?: number}} [thresholds]
  * @returns {Object} - new 4-bucket object, same shape as categorizeMessages' return value
  */
-export function applyAiEscalation(categorized, aiResults, thresholds = {}) {
+export function applyAiEscalation<M extends AiScoredMessage>(
+  categorized: CategorizedBuckets<M>,
+  aiResults: { nonSpamMessages: M[]; lowSpamMessages: M[] },
+  thresholds: {
+    escalateToLowThreshold?: number;
+    escalateToHighThreshold?: number;
+  } = {}
+): CategorizedBuckets<M> {
   const escalateToLowThreshold = thresholds.escalateToLowThreshold ?? 50;
   const escalateToHighThreshold = thresholds.escalateToHighThreshold ?? 80;
 
-  const nonSpamMessages = [];
-  const lowSpamMessages = [];
-  const highSpamMessages = [...categorized.highSpamMessages];
-  const spamMessages = [...categorized.spamMessages];
+  const nonSpamMessages: M[] = [];
+  const lowSpamMessages: M[] = [];
+  const highSpamMessages: M[] = [...categorized.highSpamMessages];
+  const spamMessages: M[] = [...categorized.spamMessages];
 
-  function place(message, originRank) {
+  function place(message: M, originRank: number): void {
     const targetRank = aiTargetRank(
       message.aiInfo?.score,
       escalateToLowThreshold,
@@ -150,10 +194,10 @@ export function applyAiEscalation(categorized, aiResults, thresholds = {}) {
  * @returns {number}
  */
 export function applyWhitelistAdjustment(
-  rawScore,
-  isWhitelisted,
+  rawScore: number,
+  isWhitelisted: boolean,
   senderAuthenticated = false
-) {
+): number {
   if (!isWhitelisted) return rawScore;
   return senderAuthenticated ? rawScore - 20 : rawScore - 5;
 }
@@ -171,7 +215,10 @@ export function applyWhitelistAdjustment(
  * @param {Set<string>} whitelistSet - normalized whitelist entries (addresses and/or "@domain" entries)
  * @returns {{messages: Array, whitelistedTotal: number}}
  */
-export function applyWhitelistAdjustments(messages, whitelistSet) {
+export function applyWhitelistAdjustments<M extends WhitelistableMessage>(
+  messages: M[],
+  whitelistSet: Set<string>
+): { messages: M[]; whitelistedTotal: number } {
   let whitelistedTotal = 0;
   const adjusted = messages.map(message => {
     const isWhitelisted = isSenderListed(
@@ -209,9 +256,11 @@ export function applyWhitelistAdjustments(messages, whitelistSet) {
  * @param {Array} messages
  * @returns {{whitelisted: Array, rest: Array}}
  */
-export function partitionByWhitelistFlag(messages) {
-  const whitelisted = [];
-  const rest = [];
+export function partitionByWhitelistFlag<M extends WhitelistFlaggedMessage>(
+  messages: M[]
+): { whitelisted: M[]; rest: M[] } {
+  const whitelisted: M[] = [];
+  const rest: M[] = [];
   for (const message of messages) {
     const isTrustedMatch =
       message.spamInfo?.isWhitelisted && message.spamInfo?.senderAuthenticated;
@@ -230,11 +279,11 @@ export function partitionByWhitelistFlag(messages) {
  * @param {Array} lowSpamWhitelisted - held-back whitelisted lowSpam messages
  * @returns {Object} - new object, same shape as categorized
  */
-export function mergeWhitelistedBack(
-  categorized,
-  nonSpamWhitelisted,
-  lowSpamWhitelisted
-) {
+export function mergeWhitelistedBack<M>(
+  categorized: CategorizedBuckets<M>,
+  nonSpamWhitelisted: M[],
+  lowSpamWhitelisted: M[]
+): CategorizedBuckets<M> {
   return {
     ...categorized,
     nonSpamMessages: [...categorized.nonSpamMessages, ...nonSpamWhitelisted],

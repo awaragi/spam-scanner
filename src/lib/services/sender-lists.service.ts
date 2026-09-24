@@ -10,13 +10,17 @@ import { rootLogger } from '../core/logger.ts';
 const { parseOneAddress } = emailAddresses;
 const logger = rootLogger.forComponent('sender-lists');
 
+interface EnvelopeAddressed {
+  envelope?: { from?: Array<{ address?: string }> };
+}
+
 /**
  * Normalize an email address: trim, lowercase. Returns null for anything
  * that isn't a plausible address (no `@`), so callers can filter it out.
  * @param {string} email
  * @returns {string|null}
  */
-export function normalizeEmail(email) {
+export function normalizeEmail(email: unknown): string | null {
   if (!email || typeof email !== 'string') {
     return null;
   }
@@ -32,7 +36,7 @@ export function normalizeEmail(email) {
  * @param {Object} message - Message object with an `envelope` property
  * @returns {string|null} - Normalized sender address, or null if absent
  */
-export function senderAddressOf(message) {
+export function senderAddressOf(message: EnvelopeAddressed): string | null {
   const address = message?.envelope?.from?.[0]?.address;
   return normalizeEmail(address);
 }
@@ -43,9 +47,11 @@ export function senderAddressOf(message) {
  * @param {Array<string>} incoming
  * @returns {Array<string>} - Deduplicated union, existing entries first
  */
-export function mergeAddresses(existing, incoming) {
-  const normalizedExisting = existing.map(normalizeEmail).filter(Boolean);
-  const normalizedIncoming = incoming.map(normalizeEmail).filter(Boolean);
+const isString = (value: string | null): value is string => value !== null;
+
+export function mergeAddresses(existing: string[], incoming: string[]) {
+  const normalizedExisting = existing.map(normalizeEmail).filter(isString);
+  const normalizedIncoming = incoming.map(normalizeEmail).filter(isString);
 
   const seen = new Set(normalizedExisting);
   const merged = [...normalizedExisting];
@@ -66,9 +72,9 @@ export function mergeAddresses(existing, incoming) {
  * @param {Array<string>} incoming
  * @returns {Array<string>}
  */
-export function overrideAddresses(incoming) {
-  const seen = new Set();
-  const result = [];
+export function overrideAddresses(incoming: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
 
   for (const raw of incoming) {
     const address = normalizeEmail(raw);
@@ -90,9 +96,13 @@ export function overrideAddresses(incoming) {
  * @param {'txt'|'json'} [format]
  * @returns {Array<string>}
  */
-export function parseAddressList(raw, format = 'txt') {
-  const rawAddresses = format === 'json' ? JSON.parse(raw) : raw.split('\n');
-  return rawAddresses.map(normalizeEmail).filter(Boolean);
+export function parseAddressList(
+  raw: string,
+  format: 'txt' | 'json' = 'txt'
+): string[] {
+  const rawAddresses: unknown[] =
+    format === 'json' ? JSON.parse(raw) : raw.split('\n');
+  return rawAddresses.map(normalizeEmail).filter(isString);
 }
 
 /**
@@ -103,7 +113,10 @@ export function parseAddressList(raw, format = 'txt') {
  * @param {'txt'|'json'} [format]
  * @returns {string}
  */
-export function serializeAddressList(addresses, format = 'txt') {
+export function serializeAddressList(
+  addresses: string[],
+  format: 'txt' | 'json' = 'txt'
+): string {
   if (format === 'json') {
     return JSON.stringify(addresses, null, 2);
   }
@@ -120,8 +133,8 @@ export function serializeAddressList(addresses, format = 'txt') {
  * entry there is skipped by `isSenderListed`, not filtered here).
  * @param {string} email
  */
-export function isHumanReadable(email) {
-  if (!email) return false;
+export function isHumanReadable(email: unknown): boolean {
+  if (!email || typeof email !== 'string') return false;
   const [local, domain] = email.split('@');
   if (!local || !domain) return false;
 
@@ -173,8 +186,11 @@ export function isHumanReadable(email) {
  *   target list (see `isSenderListed`)
  * @returns {string[]} - Up to 2 clean sender addresses
  */
-export function extractSenders(headers, listedEntries = new Set()) {
-  const candidates = [];
+export function extractSenders(
+  headers: Record<string, string>,
+  listedEntries: Set<string> = new Set()
+): string[] {
+  const candidates: string[] = [];
   const priorityFields = ['from', 'reply-to', 'return-path', 'sender'];
 
   for (const field of priorityFields) {
@@ -182,7 +198,7 @@ export function extractSenders(headers, listedEntries = new Set()) {
     if (!raw) continue;
 
     const parsed = parseOneAddress(raw);
-    if (parsed) {
+    if (parsed && parsed.type === 'mailbox') {
       const address = parsed.address.toLowerCase();
       if (!isHumanReadable(address)) {
         logger.debug(
@@ -210,8 +226,16 @@ export function extractSenders(headers, listedEntries = new Set()) {
  * @param {Set<string>} [listedEntries] - Passed through to `extractSenders`
  * @returns {Array<string>} - Array of unique sender email addresses
  */
-export function extractSenderAddresses(messages, listedEntries = new Set()) {
-  const senders = [];
+interface HeaderedMessage {
+  uid: number;
+  headers: Record<string, string>;
+}
+
+export function extractSenderAddresses(
+  messages: HeaderedMessage[],
+  listedEntries: Set<string> = new Set()
+): string[] {
+  const senders: string[] = [];
 
   for (const message of messages) {
     const { uid, headers } = message;
@@ -241,7 +265,10 @@ export function extractSenderAddresses(messages, listedEntries = new Set()) {
  * @param {Set<string>} entrySet - whitelist/blacklist entries (addresses and/or domains)
  * @returns {boolean}
  */
-export function isSenderListed(address, entrySet) {
+export function isSenderListed(
+  address: string | null,
+  entrySet: Set<string>
+): boolean {
   if (!address) return false;
   if (entrySet.has(address)) return true;
   const domain = address.slice(address.lastIndexOf('@'));
@@ -257,9 +284,12 @@ export function isSenderListed(address, entrySet) {
  * @param {Set<string>} addressSet
  * @returns {{matched: Array, rest: Array}}
  */
-export function partitionBySender(messages, addressSet) {
-  const matched = [];
-  const rest = [];
+export function partitionBySender<M extends EnvelopeAddressed>(
+  messages: M[],
+  addressSet: Set<string>
+): { matched: M[]; rest: M[] } {
+  const matched: M[] = [];
+  const rest: M[] = [];
   for (const message of messages) {
     const sender = senderAddressOf(message);
     (isSenderListed(sender, addressSet) ? matched : rest).push(message);

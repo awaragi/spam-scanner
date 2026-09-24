@@ -6,21 +6,34 @@
  * a pass/fail verdict).
  */
 
-function formatScoreLine({ filename, score, reasoning, error }) {
+interface ResultEntry {
+  bucket: string;
+  filename: string;
+  score: number | null;
+  reasoning: string | null;
+  error: string | null;
+}
+
+function formatScoreLine({
+  filename,
+  score,
+  reasoning,
+  error,
+}: ResultEntry): string {
   if (error) {
     return `${filename}\tERROR\t"${error}"`;
   }
   return `${filename}\tscore=${score}\t"${reasoning}"`;
 }
 
-function summarizeBucket(entries) {
+function summarizeBucket(entries: ResultEntry[]): string {
   const scored = entries.filter(e => !e.error);
   if (scored.length === 0) {
     return entries.length === 0
       ? 'summary: (no messages)'
       : 'summary: (no successful classifications)';
   }
-  const scores = scored.map(e => e.score);
+  const scores = scored.map(e => e.score as number);
   const avg = scores.reduce((sum, s) => sum + s, 0) / scores.length;
   const min = Math.min(...scores);
   const max = Math.max(...scores);
@@ -33,13 +46,27 @@ function summarizeBucket(entries) {
  * @param {{bucketNames: string[], results: Array<{bucket: string, filename: string, score: number|null, reasoning: string|null, error: string|null}>, config: {model: string, maxInputTokens: number, maxOutputTokens: number, concurrency: number, escalateToLowThreshold: number, escalateToHighThreshold: number}, generatedAt: Date}} input
  * @returns {string} plain-text report
  */
+interface PromptEvalConfig {
+  model: string;
+  maxInputTokens: number;
+  maxOutputTokens: number;
+  concurrency: number;
+  escalateToLowThreshold: number;
+  escalateToHighThreshold: number;
+}
+
 export function formatPromptEvalReport({
   bucketNames,
   results,
   config,
   generatedAt,
-}) {
-  const lines = [];
+}: {
+  bucketNames: string[];
+  results: ResultEntry[];
+  config: PromptEvalConfig;
+  generatedAt: Date;
+}): string {
+  const lines: string[] = [];
   lines.push('AI Prompt Eval Report');
   lines.push(`generated: ${generatedAt.toISOString()}`);
   lines.push(`model: ${config.model}`);

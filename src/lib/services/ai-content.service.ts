@@ -8,6 +8,17 @@ import { rootLogger } from '../core/logger.ts';
 
 const logger = rootLogger.forComponent('ai-content');
 
+interface EnvelopedMessage {
+  uid: number;
+  raw: unknown;
+  envelope?: {
+    from?: Array<{ name?: string; address?: string }>;
+    to?: Array<{ name?: string; address?: string }>;
+    subject?: string;
+    date?: unknown;
+  };
+}
+
 /**
  * Extracts a clean {from, to, subject, date, text} payload for AI classification.
  * from/to/subject/date come from the already MIME-decoded IMAP envelope; text is
@@ -18,11 +29,20 @@ const logger = rootLogger.forComponent('ai-content');
  * @param {{maxInputTokens: number}} opts
  * @returns {Promise<{from: string, to: string, subject: string, date: string, text: string}>}
  */
-export async function extractAiContent(message, { maxInputTokens }) {
+export async function extractAiContent(
+  message: EnvelopedMessage,
+  { maxInputTokens }: { maxInputTokens: number }
+): Promise<{
+  from: string;
+  to: string;
+  subject: string;
+  date: string;
+  text: string;
+}> {
   const { envelope, raw, uid } = message;
   const messageLogger = logger.forMessage(uid);
 
-  const parsed = await simpleParser(raw);
+  const parsed = await simpleParser(raw as string | Buffer);
   const text = truncateToTokenBudget(
     (parsed.text || '').trim(),
     maxInputTokens

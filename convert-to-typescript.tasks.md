@@ -183,16 +183,20 @@ Add real types to (files already renamed to `.ts` in Phase 0):
 
 ## Layer: `services` (9 remaining files)
 
-- [ ] `alert-email.service.ts` (+ test)
-- [ ] `error-classifier.service.ts` (+ test)
-- [ ] `sender-lists.service.ts` (+ test)
-- [ ] `list-diff.service.ts` (+ test)
-- [ ] `spam-classifier.service.ts` (+ test)
-- [ ] `state-format.service.ts` (+ test)
-- [ ] `scan-progress.service.ts` (+ test)
-- [ ] `ai-content.service.ts` (+ test)
-- [ ] `prompt-eval-report.service.ts` (+ test)
-- [ ] Layer gate (scoped): tests, `tsc`, `eslint` clean for the files above
+- [x] `alert-email.service.ts` (+ test)
+- [x] `error-classifier.service.ts` (+ test)
+- [x] `sender-lists.service.ts` (+ test)
+- [x] `list-diff.service.ts` (+ test)
+- [x] `spam-classifier.service.ts` (+ test)
+- [x] `state-format.service.ts` (+ test)
+- [x] `scan-progress.service.ts` (+ test)
+- [x] `ai-content.service.ts` (+ test) - added `src/lib/types/mailparser.d.ts` (local
+  module declaration for `mailparser`'s `simpleParser`/`ParsedMail`, which ships no
+  types of its own) since this file needed it, not just the originally-flagged
+  `eml-dataset.client.ts`
+- [x] `prompt-eval-report.service.ts` (+ test)
+- [x] Layer gate (scoped): tests, `tsc`, `eslint` clean for the files above
+  (164 tests passing)
 
 ## Layer: `clients` (7 files)
 

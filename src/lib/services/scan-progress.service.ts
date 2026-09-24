@@ -15,11 +15,20 @@ import { dateToString } from '../utils/email.util.ts';
  * @param {() => string} [now]
  * @returns {{last_uid: number, last_seen_date: string, last_checked: string}}
  */
+interface UidState {
+  last_uid: number;
+}
+
+interface DatedMessage {
+  uid: number;
+  envelope: { date: unknown };
+}
+
 export function computeScanProgress(
-  state,
-  messages,
-  now = () => new Date().toISOString()
-) {
+  state: UidState,
+  messages: DatedMessage[],
+  now: () => string = () => new Date().toISOString()
+): { last_uid: number; last_seen_date: string; last_checked: string } {
   const last_uid = Math.max(state.last_uid, ...messages.map(msg => msg.uid));
 
   const last_seen_date = messages.reduce((maxDate, message) => {
@@ -42,7 +51,25 @@ export function computeScanProgress(
  * @param {{uidValidity: bigint, uidNext: number}} mailbox
  * @returns {{state: Object, changed: boolean, previousUidValidity: string|undefined, currentUidValidity: string|undefined}}
  */
-export function computeUidValidityReset(state, mailbox) {
+interface ValidityState {
+  last_uid: number;
+  uid_validity?: string;
+}
+
+interface MailboxValidity {
+  uidValidity: bigint;
+  uidNext: number;
+}
+
+export function computeUidValidityReset(
+  state: ValidityState,
+  mailbox: MailboxValidity
+): {
+  state: ValidityState;
+  changed: boolean;
+  previousUidValidity: string | undefined;
+  currentUidValidity: string | undefined;
+} {
   const currentUidValidity = mailbox.uidValidity?.toString();
   const changed =
     state.uid_validity !== undefined &&
@@ -75,8 +102,13 @@ export function computeUidValidityReset(state, mailbox) {
  * @param {boolean} scanRead - SCAN_READ: when false, restricts to unseen messages
  * @returns {Object} - ImapFlow search query
  */
-export function buildScanQuery(state, scanRead) {
-  const query = { uid: `${state.last_uid + 1}:*` };
+export function buildScanQuery(
+  state: UidState,
+  scanRead: boolean
+): { uid: string; seen?: false } {
+  const query: { uid: string; seen?: false } = {
+    uid: `${state.last_uid + 1}:*`,
+  };
   if (!scanRead) {
     query.seen = false;
   }
@@ -89,7 +121,18 @@ export function buildScanQuery(state, scanRead) {
  * @param {{lowSpamTotal: number, highSpamTotal: number, nonSpamTotal: number, spamTotal: number, whitelistedTotal: number}} counts
  * @returns {Object} - new totals object
  */
-export function sumBatchTotals(totals, counts) {
+interface BatchTotals {
+  lowSpamTotal: number;
+  highSpamTotal: number;
+  nonSpamTotal: number;
+  spamTotal: number;
+  whitelistedTotal: number;
+}
+
+export function sumBatchTotals(
+  totals: BatchTotals,
+  counts: BatchTotals
+): BatchTotals {
   return {
     lowSpamTotal: totals.lowSpamTotal + counts.lowSpamTotal,
     highSpamTotal: totals.highSpamTotal + counts.highSpamTotal,

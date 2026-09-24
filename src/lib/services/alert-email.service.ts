@@ -16,11 +16,21 @@ const ALERT_MESSAGE_ID_DOMAIN = 'spam-scanner.internal';
  * @param {{now?: () => Date, messageId?: () => string}} [opts]
  * @returns {string}
  */
+interface AiFailureAlert {
+  reason: string;
+  count: number;
+  lastError: string;
+  lastAt: string;
+}
+
 export function buildAiFailureAlertEmail(
-  alert,
-  imapUser,
-  { now = () => new Date(), messageId = () => randomUUID() } = {}
-) {
+  alert: AiFailureAlert,
+  imapUser: string,
+  {
+    now = () => new Date(),
+    messageId = () => randomUUID(),
+  }: { now?: () => Date; messageId?: () => string } = {}
+): string {
   const { reason, count, lastError, lastAt } = alert;
   return `From: Spam Scanner <scanner@localhost>
 To: ${imapUser}

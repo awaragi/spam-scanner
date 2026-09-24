@@ -12,16 +12,18 @@
  * @param {Error} err - The error thrown while processing a single message
  * @returns {boolean} - true if the error is permanent for this message
  */
-export function isPermanentError(err) {
+type ClassifiableError = { permanent?: boolean; status?: number };
+
+export function isPermanentError(err: unknown): boolean {
   if (!err) {
     return false;
   }
 
-  if (err.permanent === true) {
+  const { permanent, status } = err as ClassifiableError;
+
+  if (permanent === true) {
     return true;
   }
 
-  return (
-    typeof err.status === 'number' && err.status >= 400 && err.status < 500
-  );
+  return typeof status === 'number' && status >= 400 && status < 500;
 }

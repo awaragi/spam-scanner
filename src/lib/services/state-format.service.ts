@@ -19,7 +19,14 @@ const REQUIRED_STATE_PROPERTIES = [
 // can't serialize BigInt directly.
 const OPTIONAL_STATE_PROPERTIES = ['uid_validity'];
 
-export function validateState(state) {
+export interface ScannerState {
+  last_uid: number;
+  last_seen_date: string;
+  last_checked: string;
+  uid_validity?: string;
+}
+
+export function validateState(state: unknown): state is ScannerState {
   if (!state || typeof state !== 'object') {
     throw new Error('Invalid state: must be a non-null object');
   }
@@ -46,21 +53,23 @@ export function validateState(state) {
     throw new Error('Invalid state: invalid property names');
   }
 
+  const candidate = state as Record<string, unknown>;
+
   // Check property types
-  if (typeof state.last_uid !== 'number') {
+  if (typeof candidate.last_uid !== 'number') {
     throw new Error('Invalid state: invalid property types');
   }
 
   if (
-    typeof state.last_seen_date !== 'string' ||
-    typeof state.last_checked !== 'string'
+    typeof candidate.last_seen_date !== 'string' ||
+    typeof candidate.last_checked !== 'string'
   ) {
     throw new Error('Invalid state: invalid property types');
   }
 
   if (
-    state.uid_validity !== undefined &&
-    typeof state.uid_validity !== 'string'
+    candidate.uid_validity !== undefined &&
+    typeof candidate.uid_validity !== 'string'
   ) {
     throw new Error('Invalid state: invalid property types');
   }
@@ -77,7 +86,11 @@ export function validateState(state) {
  * @param {string} [displayName] - From/To display name
  * @returns {string} - Formatted email message
  */
-export function formatAppStateEmail(stateKey, body, displayName = 'App State') {
+export function formatAppStateEmail(
+  stateKey: string,
+  body: string,
+  displayName = 'App State'
+): string {
   return `From: ${displayName} <scanner@localhost>
 To: ${displayName} <scanner@localhost>
 Subject: AppState: ${stateKey}
@@ -94,7 +107,7 @@ ${body}`;
  * @param {string} stateKey - Key to identify the state
  * @returns {string} - Formatted email message
  */
-export function formatStateAsEmail(state, stateKey) {
+export function formatStateAsEmail(state: unknown, stateKey: string): string {
   validateState(state);
 
   const stateJson = JSON.stringify(state, null, 2);
@@ -107,7 +120,7 @@ export function formatStateAsEmail(state, stateKey) {
  * @param {string} emailContent - Email content containing state
  * @returns {Object|null} - Parsed state object or null if parsing failed
  */
-export function parseStateFromEmail(emailContent) {
+export function parseStateFromEmail(emailContent: string): unknown {
   try {
     return JSON.parse(emailContent);
   } catch {

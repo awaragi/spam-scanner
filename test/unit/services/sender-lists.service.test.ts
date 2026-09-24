@@ -12,6 +12,11 @@ import {
   partitionBySender,
 } from '../../../src/lib/services/sender-lists.service.ts';
 
+interface HeaderedMessage {
+  uid: number;
+  headers: Record<string, string>;
+}
+
 describe('normalizeEmail', () => {
   test('trims and lowercases', () => {
     expect(normalizeEmail('  Sender@Example.COM  ')).toBe('sender@example.com');
@@ -329,7 +334,7 @@ describe('extractSenders', () => {
 
 describe('extractSenderAddresses', () => {
   test('should extract senders from message headers', () => {
-    const messages = [
+    const messages: HeaderedMessage[] = [
       {
         uid: 1,
         headers: {

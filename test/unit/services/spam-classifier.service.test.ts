@@ -224,7 +224,11 @@ describe('categorizeMessages', () => {
 });
 
 describe('applyAiEscalation', () => {
-  function withAiScore(uid, score, error = null) {
+  function withAiScore(
+    uid: number,
+    score: number | null,
+    error: string | null = null
+  ) {
     return {
       uid,
       aiInfo: {
@@ -236,10 +240,15 @@ describe('applyAiEscalation', () => {
   }
 
   function categorizedOf({
-    nonSpam = [],
-    lowSpam = [],
-    highSpam = [],
-    spam = [],
+    nonSpam = [] as { uid: number }[],
+    lowSpam = [] as { uid: number }[],
+    highSpam = [] as { uid: number }[],
+    spam = [] as { uid: number }[],
+  }: {
+    nonSpam?: { uid: number }[];
+    lowSpam?: { uid: number }[];
+    highSpam?: { uid: number }[];
+    spam?: { uid: number }[];
   }) {
     return {
       nonSpamMessages: nonSpam,
@@ -429,8 +438,8 @@ describe('applyWhitelistAdjustment', () => {
 
 describe('applyWhitelistAdjustments', () => {
   function messageFrom(
-    uid,
-    address,
+    uid: number,
+    address: string,
     score = 30,
     required = 15,
     senderAuthenticated = false
