@@ -8,19 +8,19 @@ export function createFakeImapClient() {
     count: vi.fn().mockReturnValue(0),
     fetchMessagesByUIDs: vi.fn().mockResolvedValue([]),
     fetchMessageHeadersByUIDs: vi.fn().mockResolvedValue([]),
-    moveMessages: vi.fn().mockResolvedValue(),
-    appendMessage: vi.fn().mockResolvedValue(),
-    updateLabels: vi.fn().mockResolvedValue(),
-    createAppFolders: vi.fn().mockResolvedValue(),
-    waitForNewMail: vi.fn().mockResolvedValue(),
+    moveMessages: vi.fn().mockResolvedValue(undefined),
+    appendMessage: vi.fn().mockResolvedValue(undefined),
+    updateLabels: vi.fn().mockResolvedValue(undefined),
+    createAppFolders: vi.fn().mockResolvedValue(undefined),
+    waitForNewMail: vi.fn().mockResolvedValue(undefined),
   };
 }
 
 export function createFakeRspamdClient() {
   return {
     checkEmail: vi.fn().mockResolvedValue(fixtureRspamdCheck()),
-    learnSpam: vi.fn().mockResolvedValue(),
-    learnHam: vi.fn().mockResolvedValue(),
+    learnSpam: vi.fn().mockResolvedValue(undefined),
+    learnHam: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -41,5 +41,5 @@ export function createFakeStateManagerClient() {
 }
 
 export function createFakeFolderResolverClient() {
-  return { resolveFolders: vi.fn().mockResolvedValue() };
+  return { resolveFolders: vi.fn().mockResolvedValue(undefined) };
 }

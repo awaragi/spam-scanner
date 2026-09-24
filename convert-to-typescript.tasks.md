@@ -223,8 +223,11 @@ Add real types to (files already renamed to `.ts` in Phase 0):
 
 ## Pulled-forward: `test/support` (before controllers layer)
 
-- [ ] `test/support/fixtures.ts`
-- [ ] `test/support/fake-clients.ts`
+- [x] `test/support/fixtures.ts` - `fixtureContext()` returns only the `Config`
+  fields controllers actually read (project convention, per its own doc comment),
+  not every field the real `Config` interface declares, so its return is cast to
+  `Context` rather than satisfying it structurally.
+- [x] `test/support/fake-clients.ts`
 
 ## Layer: `controllers/steps` (11 files)
 

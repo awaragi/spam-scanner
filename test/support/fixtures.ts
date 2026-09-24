@@ -1,6 +1,18 @@
 import { AiFailureTracker } from '../../src/lib/services/ai-failure-tracker.service.ts';
+import type { Context } from '../../src/lib/core/context.ts';
+import type { Config } from '../../src/lib/core/config.ts';
 
-export function fixtureMessage({ from, envelope, ...overrides } = {}) {
+interface FixtureMessageOverrides {
+  from?: string;
+  envelope?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export function fixtureMessage({
+  from,
+  envelope,
+  ...overrides
+}: FixtureMessageOverrides = {}) {
   const sender = from ?? 'sender@example.com';
   return {
     uid: 1,
@@ -28,7 +40,7 @@ export function fixtureRspamdCheck({
   score = 5,
   required = 15,
   authenticated = false,
-} = {}) {
+}: { score?: number; required?: number; authenticated?: boolean } = {}) {
   return {
     score,
     required_score: required,
@@ -36,8 +48,16 @@ export function fixtureRspamdCheck({
   };
 }
 
-export function fixtureAiResult({ score = 10, reasoning = 'looks fine' } = {}) {
+export function fixtureAiResult({
+  score = 10,
+  reasoning = 'looks fine',
+}: { score?: number; reasoning?: string } = {}) {
   return { score, reasoning };
+}
+
+interface FixtureContextOverrides {
+  config?: Partial<Config>;
+  [key: string]: unknown;
 }
 
 /**
@@ -46,8 +66,12 @@ export function fixtureAiResult({ score = 10, reasoning = 'looks fine' } = {}) {
  * vi.mock(). Defaults are chosen for test-example clarity, NOT to mirror
  * config.ts's real env-var defaults (see note below) - override anything
  * a specific test depends on rather than assuming these match production.
+ * Returns only the Config fields controllers actually read, not every field
+ * the real `Config` interface declares - cast to `Context`, matching this
+ * project's deliberately-partial fixture convention (see the module doc
+ * comment above).
  */
-export function fixtureContext(overrides = {}) {
+export function fixtureContext(overrides: FixtureContextOverrides = {}): Context {
   const { config: configOverrides, ...rest } = overrides;
   return {
     config: {
@@ -84,5 +108,5 @@ export function fixtureContext(overrides = {}) {
     },
     aiFailureTracker: new AiFailureTracker(),
     ...rest,
-  };
+  } as unknown as Context;
 }
