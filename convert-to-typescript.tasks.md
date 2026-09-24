@@ -357,12 +357,16 @@ Add real types to (files already renamed to `.ts` in Phase 0):
 
 - [x] Update CLAUDE.md's project-structure section to reflect `.ts` extensions in its
   file-naming examples.
-- [ ] Manual end-to-end smoke test: `bin/local/start.sh .env src/cli/scan-inbox.ts`
+- [x] Manual end-to-end smoke test: `bin/local/start.sh .env src/cli/scan-inbox.ts`
   against the real test mailbox configured in `.env` (single-run mode,
   `SCAN_INTERVAL=-1`) - confirm it connects, scans, and exits cleanly. **Do not read/cat
   `.env`** - it holds live API tokens; reference it only by path when invoking the
   script.
-- [ ] **Commit everything above.** This is the restart point for the JSDoc cleanup pass
+  (`scan-inbox.ts` doesn't loop regardless of `SCAN_INTERVAL`, so no override was
+  needed. First run surfaced a real pre-existing bug - see the separate fix commit
+  above. Second run: exit code 0, no output/errors, ~1.1s total - clean pass,
+  consistent with "no new messages to process" at the configured `LOG_LEVEL`.)
+- [x] **Commit everything above.** This is the restart point for the JSDoc cleanup pass
   below - if that pass goes wrong or needs a different approach, reset to this commit
   and try again, rather than redoing any conversion work.
 
