@@ -355,7 +355,7 @@ Add real types to (files already renamed to `.ts` in Phase 0):
 
 ## Final steps once every layer is converted
 
-- [ ] Update CLAUDE.md's project-structure section to reflect `.ts` extensions in its
+- [x] Update CLAUDE.md's project-structure section to reflect `.ts` extensions in its
   file-naming examples.
 - [ ] Manual end-to-end smoke test: `bin/local/start.sh .env src/cli/scan-inbox.ts`
   against the real test mailbox configured in `.env` (single-run mode,

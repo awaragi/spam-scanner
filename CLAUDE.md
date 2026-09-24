@@ -8,23 +8,23 @@ that mailbox's own IMAP state folder, not a local file or database.
 
 ## Project structure
 
-- `src/cli/` — top-level entry scripts (`orchestrator.js`, `scan-inbox.js`, `train-*.js`,
-  `init-folders.js`)
+- `src/cli/` — top-level entry scripts (`orchestrator.ts`, `scan-inbox.ts`, `train-*.ts`,
+  `init-folders.ts`)
 - `src/admin/` — maintenance scripts (export/import list and mailbox state)
 - `src/lib/core/` — platform/bootstrap concern, not one of the four layers below:
-  `config.js` (reads `process.env`), `context.js` (`createDefaultContext()`, builds the
-  `ctx` object threaded through controllers), `logger.js` (imported ambiently everywhere)
-- `src/lib/utils/` — pure, generic, no domain knowledge: `*.util.js`, 100% unit tested,
+  `config.ts` (reads `process.env`), `context.ts` (`createDefaultContext()`, builds the
+  `ctx` object threaded through controllers), `logger.ts` (imported ambiently everywhere)
+- `src/lib/utils/` — pure, generic, no domain knowledge: `*.util.ts`, 100% unit tested,
   zero mocks, never sees `ctx`
-- `src/lib/services/` — pure, spam-scanner domain rules: `*.service.js`, 100% unit
+- `src/lib/services/` — pure, spam-scanner domain rules: `*.service.ts`, 100% unit
   tested, zero mocks, never takes `ctx` as a parameter
-- `src/lib/clients/` — the impure I/O boundary: `*.client.js` (IMAP/rspamd/AI/state),
-  reads `config.js` directly rather than `ctx`, mocked freely in controller tests
+- `src/lib/clients/` — the impure I/O boundary: `*.client.ts` (IMAP/rspamd/AI/state),
+  reads `config.ts` directly rather than `ctx`, mocked freely in controller tests
 - `src/lib/controllers/workflows/` — top-level orchestrator-invoked entry points (scan,
-  train, init, idle, etc.): `*.controller.js`, take `ctx` as a trailing parameter
+  train, init, idle, etc.): `*.controller.ts`, take `ctx` as a trailing parameter
   defaulted to `createDefaultContext()`
 - `src/lib/controllers/steps/` — smaller reusable units a workflow controller calls to
-  do one thing against one external system: `*.step.js`
+  do one thing against one external system: `*.step.ts`
 - `test/unit/` — mirrors `src/lib/`'s structure (`controllers/workflows/`,
   `controllers/steps/`, `services/`, `utils/`, `clients/`, `admin/`)
 - `test/support/` — shared fixtures/fake-client factories used by both `test/unit/` and
@@ -44,18 +44,18 @@ that mailbox's own IMAP state folder, not a local file or database.
   service/util needs and passes it explicitly.
 - `clients/` read `config` directly rather than `ctx`, since they're the I/O boundary and
   own their own connection/config concerns.
-- `controllers/workflows/*.controller.js` take `ctx` as a trailing parameter defaulted to
-  `createDefaultContext()`, so standalone `src/cli/*.js` scripts and the orchestrator can
+- `controllers/workflows/*.controller.ts` take `ctx` as a trailing parameter defaulted to
+  `createDefaultContext()`, so standalone `src/cli/*.ts` scripts and the orchestrator can
   call them identically.
-- Standalone `src/cli/*.js` scripts follow the same pattern: `newClient()` → `connect()`
+- Standalone `src/cli/*.ts` scripts follow the same pattern: `newClient()` → `connect()`
   → run the workflow → `safeLogout()` in a `finally` block.
 
 ## Testing
 
 - `npm test` runs unit tests (`test/unit/**`); `npm run test:integration` runs
   `test/integration/**` against a real AI provider (loads `.env` via `env-cmd`).
-- A controller test mocks only the `*.client.js` modules it needs (transitively) and
-  builds `ctx` as a plain object literal via `test/support/fixtures.js`'s
+- A controller test mocks only the `*.client.ts` modules it needs (transitively) and
+  builds `ctx` as a plain object literal via `test/support/fixtures.ts`'s
   `fixtureContext()` — never mocked.
 - `services/` and `utils/` tests are 100% unit tested with zero mocks.
 
@@ -69,16 +69,16 @@ that mailbox's own IMAP state folder, not a local file or database.
 - `npm run lint` — ESLint (`eslint.config.js`, flat config); reports only, not
   wired into a `--fix` script or CI yet
 - `npm run generate:env-example` — regenerate `.env.example` from
-  `config.js`'s `configGroups` (single source of truth for shape, defaults,
+  `config.ts`'s `configGroups` (single source of truth for shape, defaults,
   and docs - see that file's module doc comment); a unit test in
-  `config.test.js` fails if `.env.example` drifts from what this produces,
+  `config.test.ts` fails if `.env.example` drifts from what this produces,
   so run it after changing `configGroups` rather than hand-editing the file.
-  The underlying `src/cli/generate-env.js --output <path> [--input <path>]`
+  The underlying `src/cli/generate-env.ts --output <path> [--input <path>]`
   also migrates an existing env file onto the current structure via
   `--input`, keeping its values in place of defaults for any key it already
   sets.
 - `bin/local/start.sh <env-file> [script]` — run a script locally with `.env` loaded
-  (defaults to `src/cli/orchestrator.js`)
+  (defaults to `src/cli/orchestrator.ts`)
 
 ## Conventions
 
@@ -86,7 +86,7 @@ that mailbox's own IMAP state folder, not a local file or database.
   credentials or email content.
 - IMAP operations use UIDs, not sequence numbers; always safely close/logout connections in a
   `finally` block.
-- Config comes from environment variables read once in `src/lib/core/config.js` — never
+- Config comes from environment variables read once in `src/lib/core/config.ts` — never
   read `process.env` elsewhere.
 - Prefer Mermaid for diagrams in Markdown docs (renders inline, version-controlled).
 - Document new environment variables in `.env.example` alongside `README.md`.
