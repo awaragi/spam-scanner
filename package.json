@@ -13,11 +13,12 @@
     "node": ">=24"
   },
   "scripts": {
-    "start": "node src/cli/orchestrator.js",
+    "start": "node src/cli/orchestrator.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
-    "generate:env-example": "node src/cli/generate-env.js --output .env.example",
+    "type-check": "tsc --noEmit",
+    "generate:env-example": "node src/cli/generate-env.ts --output .env.example",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:integration": "env-cmd -f .env vitest run --config vitest.integration.config.js"
@@ -34,6 +35,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.2",
     "@vitest/coverage-v8": "^3.2.7",
     "env-cmd": "^10.1.0",
     "eslint": "^10.11.0",
@@ -41,6 +43,8 @@
     "globals": "^17.12.0",
     "pino-pretty": "^10.0.0",
     "prettier": "^3.6.2",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.1",
     "vitest": "^3.2.4"
   }
 }

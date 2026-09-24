@@ -1,8 +1,9 @@
 import js from '@eslint/js';
 import globals from 'globals';
+import tseslint from 'typescript-eslint';
 import eslintConfigPrettier from 'eslint-config-prettier';
 
-export default [
+export default tseslint.config(
   js.configs.recommended,
   {
     languageOptions: {
@@ -20,11 +21,15 @@ export default [
     },
   },
   {
+    files: ['**/*.ts'],
+    extends: [...tseslint.configs.recommended],
+  },
+  {
     // vitest runs with `globals: true` (see vitest.config.js) - these aren't
     // imported in test files, so ESLint needs to be told about them directly
     // (the `globals` package has no vitest set: it's jest-compatible but not
     // identical, and vitest itself ships no eslint globals module).
-    files: ['test/**/*.js'],
+    files: ['test/**/*.ts'],
     languageOptions: {
       globals: {
         ...globals.node,
@@ -44,4 +49,4 @@ export default [
     ignores: ['node_modules/', 'coverage/', 'data/'],
   },
   eslintConfigPrettier,
-];
+);

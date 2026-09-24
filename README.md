@@ -116,36 +116,36 @@ Training messages by moving them to the `INBOX.scanner.train.whitelist` or `INBO
 
 ### Domain entries
 
-Alongside exact addresses (`bob@example.com`), both lists also accept domain entries - `@example.com` - matching any sender at exactly that domain (not subdomains). These aren't produced by training (which always extracts one specific sender address); add them by hand via `import-list.js` (see below), e.g. a text file containing a line like `@example.com`.
+Alongside exact addresses (`bob@example.com`), both lists also accept domain entries - `@example.com` - matching any sender at exactly that domain (not subdomains). These aren't produced by training (which always extracts one specific sender address); add them by hand via `import-list.ts` (see below), e.g. a text file containing a line like `@example.com`.
 
 ### Importing, exporting, and backing up lists
 
-If you're upgrading from a version that used local `whitelist.map`/`blacklist.map` files read by Rspamd's multimap module, import them once with `src/admin/import-list.js`:
+If you're upgrading from a version that used local `whitelist.map`/`blacklist.map` files read by Rspamd's multimap module, import them once with `src/admin/import-list.ts`:
 
 ```
-node src/admin/import-list.js --list whitelist --file /path/to/whitelist.map
-node src/admin/import-list.js --list blacklist --file /path/to/blacklist.map
+node src/admin/import-list.ts --list whitelist --file /path/to/whitelist.map
+node src/admin/import-list.ts --list blacklist --file /path/to/blacklist.map
 ```
 
-`--file` is a plain path to any local file you can read - it has no relation to any env var or Docker mount. `--mode` defaults to `append` (merge with whatever's already in the mailbox's list); pass `--mode override` to replace the mailbox's list with exactly the file's contents instead. `--format` defaults to `txt` (one address per line, the legacy map format); pass `--format json` to import a JSON array instead - the same shape `export-list.js` produces and list state is stored in. Both `--mode` and `--format` are safe to run more than once.
+`--file` is a plain path to any local file you can read - it has no relation to any env var or Docker mount. `--mode` defaults to `append` (merge with whatever's already in the mailbox's list); pass `--mode override` to replace the mailbox's list with exactly the file's contents instead. `--format` defaults to `txt` (one address per line, the legacy map format); pass `--format json` to import a JSON array instead - the same shape `export-list.ts` produces and list state is stored in. Both `--mode` and `--format` are safe to run more than once.
 
-`src/admin/export-list.js` is the reverse - dump a mailbox's list out, either for a human-readable backup (`--format txt`, the default) or for moving a list to another mailbox/account (`--format json`, which round-trips exactly through `import-list.js --format json --mode override`):
-
-```
-node src/admin/export-list.js --list whitelist --file whitelist-backup.txt
-node src/admin/export-list.js --list whitelist --format json --file whitelist-backup.json
-```
-
-Omit `--file` on either script to print to standard output instead (useful for piping, e.g. `node src/admin/export-list.js --list whitelist | less`).
-
-To back up or move a mailbox's _entire_ state - scanner progress plus both lists - in one file, use `export-mailbox-state.js`/`import-mailbox-state.js` instead of the per-list scripts above:
+`src/admin/export-list.ts` is the reverse - dump a mailbox's list out, either for a human-readable backup (`--format txt`, the default) or for moving a list to another mailbox/account (`--format json`, which round-trips exactly through `import-list.ts --format json --mode override`):
 
 ```
-node src/admin/export-mailbox-state.js --file mailbox-backup.json
-node src/admin/import-mailbox-state.js --file mailbox-backup.json --mode override
+node src/admin/export-list.ts --list whitelist --file whitelist-backup.txt
+node src/admin/export-list.ts --list whitelist --format json --file whitelist-backup.json
 ```
 
-The bundle is a single JSON object (`{ scannerState, whitelist, blacklist }`), always all three on export. On import, only the keys present in the file are restored - a hand-edited or partial bundle (e.g. lists only) is fine. `--mode` applies to the lists only, the same `append`/`override` semantics as `import-list.js`; `scannerState`, when present, always fully replaces the destination's scanner state (it has no merge concept, matching how it's always behaved). Point `import-mailbox-state.js` at a different mailbox's IMAP credentials than the one you exported from to move an entire configuration between accounts. Use this pair for a full snapshot; use `import-list.js`/`export-list.js` for a single list, or `read-state.js`/`write-state.js` for scanner progress alone.
+Omit `--file` on either script to print to standard output instead (useful for piping, e.g. `node src/admin/export-list.ts --list whitelist | less`).
+
+To back up or move a mailbox's _entire_ state - scanner progress plus both lists - in one file, use `export-mailbox-state.ts`/`import-mailbox-state.ts` instead of the per-list scripts above:
+
+```
+node src/admin/export-mailbox-state.ts --file mailbox-backup.json
+node src/admin/import-mailbox-state.ts --file mailbox-backup.json --mode override
+```
+
+The bundle is a single JSON object (`{ scannerState, whitelist, blacklist }`), always all three on export. On import, only the keys present in the file are restored - a hand-edited or partial bundle (e.g. lists only) is fine. `--mode` applies to the lists only, the same `append`/`override` semantics as `import-list.ts`; `scannerState`, when present, always fully replaces the destination's scanner state (it has no merge concept, matching how it's always behaved). Point `import-mailbox-state.ts` at a different mailbox's IMAP credentials than the one you exported from to move an entire configuration between accounts. Use this pair for a full snapshot; use `import-list.ts`/`export-list.ts` for a single list, or `read-state.ts`/`write-state.ts` for scanner progress alone.
 
 ---
 
@@ -168,7 +168,7 @@ Folder names are configured as dot-separated paths and are automatically transla
 Use the initialization step to auto-create the application folders:
 
 ```bash
-node src/cli/init-folders.js
+node src/cli/init-folders.ts
 ```
 
 Training folders, the state folder, `FOLDER_SPAM` (the destination for rspamd's own confident "reject" verdict), and (when `SPAM_PROCESSING_MODE=folder`) the low/high spam folders are all created automatically - no folder needs to be created by hand.
@@ -317,17 +317,17 @@ See `.env.example` for the full, commented list of every setting, including exac
 
 ### Tuning the AI prompt offline
 
-`src/cli/eval-prompt.js` scores a labeled `.eml` dataset with the current AI classifier prompt/config and writes a report, so prompt changes can be measured before they reach production instead of discovered later as false positives:
+`src/cli/eval-prompt.ts` scores a labeled `.eml` dataset with the current AI classifier prompt/config and writes a report, so prompt changes can be measured before they reach production instead of discovered later as false positives:
 
 ```bash
-npx env-cmd -f .env node src/cli/eval-prompt.js \
+npx env-cmd -f .env node src/cli/eval-prompt.ts \
   --reports .temp/reports \
   --ham .temp/messages/ham \
   --marketing .temp/messages/marketing \
   --spam .temp/messages/spam
 ```
 
-`--reports` is mandatory - it's where the timestamped report file is written. `--ham`/`--marketing`/`--spam` each point at a folder of `.eml` files for that bucket; give whichever ones you have data for (at least one is required). There's no fixed folder convention - by habit this project keeps its dataset at `.temp/messages/{ham,marketing,spam}/` (gitignored, not checked in), but any folder path works. Each run writes a new timestamped report under `--reports` rather than overwriting the previous one, so a "before" and "after" report can be compared once the prompt in `buildSystemPrompt()` (`src/lib/clients/ai.client.js`) is edited. No new environment variables are involved - it reads the same `AI_*` settings as production. The `prompt-engineer` Claude Code skill (`.claude/skills/prompt-engineer/`) reads these reports and proposes prompt edits.
+`--reports` is mandatory - it's where the timestamped report file is written. `--ham`/`--marketing`/`--spam` each point at a folder of `.eml` files for that bucket; give whichever ones you have data for (at least one is required). There's no fixed folder convention - by habit this project keeps its dataset at `.temp/messages/{ham,marketing,spam}/` (gitignored, not checked in), but any folder path works. Each run writes a new timestamped report under `--reports` rather than overwriting the previous one, so a "before" and "after" report can be compared once the prompt in `buildSystemPrompt()` (`src/lib/clients/ai.client.ts`) is edited. No new environment variables are involved - it reads the same `AI_*` settings as production. The `prompt-engineer` Claude Code skill (`.claude/skills/prompt-engineer/`) reads these reports and proposes prompt edits.
 
 ---
 
@@ -378,7 +378,7 @@ bin/local/rspamd.sh down
 #### 5. Initialize Folders (one-time)
 
 ```bash
-node src/cli/init-folders.js
+node src/cli/init-folders.ts
 ```
 
 ### Running Tests
@@ -580,26 +580,26 @@ Each project name gets its own containers (`<project>-<service>-1`) and its own 
 ### One-shot Mode (Manual Run, Individual Scripts)
 
 ```bash
-node src/cli/train-spam.js
-node src/cli/train-ham.js
-node src/cli/train-whitelist.js
-node src/cli/train-blacklist.js
-node src/cli/scan-inbox.js
+node src/cli/train-spam.ts
+node src/cli/train-ham.ts
+node src/cli/train-whitelist.ts
+node src/cli/train-blacklist.ts
+node src/cli/scan-inbox.ts
 ```
 
 ### Orchestrator (Recommended)
 
-`src/cli/orchestrator.js` runs the full cycle - init (once), then training (spam/ham/whitelist/blacklist), then scan - according to `SCAN_INTERVAL`:
+`src/cli/orchestrator.ts` runs the full cycle - init (once), then training (spam/ham/whitelist/blacklist), then scan - according to `SCAN_INTERVAL`:
 
 ```bash
 # IDLE mode (default, SCAN_INTERVAL=0): event-driven, waits for IMAP EXISTS notifications
-node src/cli/orchestrator.js
+node src/cli/orchestrator.ts
 
 # Single-run mode: one full cycle then exit
-SCAN_INTERVAL=-1 node src/cli/orchestrator.js
+SCAN_INTERVAL=-1 node src/cli/orchestrator.ts
 
 # Poll mode: repeat every N seconds
-SCAN_INTERVAL=300 node src/cli/orchestrator.js
+SCAN_INTERVAL=300 node src/cli/orchestrator.ts
 ```
 
 Single-run mode is useful for scheduled execution via cron or an external scheduler. Poll and IDLE mode keep the process running.
@@ -647,15 +647,15 @@ There is no dedicated backup/restore tooling yet. The state that matters:
 - **Scanner state, and the whitelist/blacklist** (all stored as messages inside your mailbox's state folder, `FOLDER_STATE`) - covered by whatever backs up the mailbox itself (e.g. your IMAP provider's own backups); each can also be dumped/restored directly:
 
   ```bash
-  node src/admin/read-state.js > scanner-state.json
-  cat scanner-state.json | node src/admin/write-state.js
+  node src/admin/read-state.ts > scanner-state.json
+  cat scanner-state.json | node src/admin/write-state.ts
 
-  node src/admin/export-list.js --list whitelist --format json --file whitelist-backup.json
-  node src/admin/import-list.js --list whitelist --format json --mode override --file whitelist-backup.json
+  node src/admin/export-list.ts --list whitelist --format json --file whitelist-backup.json
+  node src/admin/import-list.ts --list whitelist --format json --mode override --file whitelist-backup.json
 
   # Or all three (scanner state + both lists) in one file:
-  node src/admin/export-mailbox-state.js --file mailbox-backup.json
-  node src/admin/import-mailbox-state.js --file mailbox-backup.json --mode override
+  node src/admin/export-mailbox-state.ts --file mailbox-backup.json
+  node src/admin/import-mailbox-state.ts --file mailbox-backup.json --mode override
   ```
 
 - **`.env`** and any local edits to `rspamd/config/` - back these up yourself (they're not covered by `${SPAM_SCANNER_DATA}`).
@@ -703,20 +703,20 @@ If anything looks wrong after upgrading, restore the backup taken beforehand and
 
 Admin/maintenance scripts live under `src/admin/`:
 
-- `src/admin/read-state.js` - reads IMAP scanner state and prints JSON
-- `src/admin/write-state.js` - accepts JSON from stdin and updates the IMAP state
-- `src/admin/delete-state.js` - deletes scanner state from IMAP
-- `src/admin/reset-state.js` - resets the IMAP state to `last_uid=0`
-- `src/admin/uid-on-date.js FOLDER [--since date]` - finds the first UID on/after a date
-- `src/admin/list-all.js` - lists all messages in a folder
-- `src/admin/read-email.js` - reads and saves a specific email (edit the `UID`/`MESSAGE_ID` constants at the top of the script)
+- `src/admin/read-state.ts` - reads IMAP scanner state and prints JSON
+- `src/admin/write-state.ts` - accepts JSON from stdin and updates the IMAP state
+- `src/admin/delete-state.ts` - deletes scanner state from IMAP
+- `src/admin/reset-state.ts` - resets the IMAP state to `last_uid=0`
+- `src/admin/uid-on-date.ts FOLDER [--since date]` - finds the first UID on/after a date
+- `src/admin/list-all.ts` - lists all messages in a folder
+- `src/admin/read-email.ts` - reads and saves a specific email (edit the `UID`/`MESSAGE_ID` constants at the top of the script)
 
 Top-level operational scripts live in `src/`:
 
-- `src/cli/init-folders.js` - creates the application's IMAP folders
-- `src/cli/train-spam.js`, `src/cli/train-ham.js`, `src/cli/train-whitelist.js`, `src/cli/train-blacklist.js` - run one training step
-- `src/cli/scan-inbox.js` - run one scan step
-- `src/cli/orchestrator.js` - run the full cycle (see [Usage](#usage))
+- `src/cli/init-folders.ts` - creates the application's IMAP folders
+- `src/cli/train-spam.ts`, `src/cli/train-ham.ts`, `src/cli/train-whitelist.ts`, `src/cli/train-blacklist.ts` - run one training step
+- `src/cli/scan-inbox.ts` - run one scan step
+- `src/cli/orchestrator.ts` - run the full cycle (see [Usage](#usage))
 
 ---
 
@@ -741,10 +741,10 @@ The application uses centralized structured logging via Pino with configurable o
 
 ```bash
 # Development (human-readable logs)
-LOG_LEVEL=debug LOG_FORMAT=pretty node src/cli/orchestrator.js
+LOG_LEVEL=debug LOG_FORMAT=pretty node src/cli/orchestrator.ts
 
 # Production (structured JSON logs)
-LOG_LEVEL=info LOG_FORMAT=jsonl node src/cli/orchestrator.js
+LOG_LEVEL=info LOG_FORMAT=jsonl node src/cli/orchestrator.ts
 ```
 
 ### Log Structure

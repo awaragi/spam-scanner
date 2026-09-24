@@ -128,12 +128,12 @@ document provider-specific steps.
 ### 5.2 Maps have no per-entry removal path or comments
 
 - **Area:** MAP, UX, OPS · **Complexity:** M
-- **Where:** `src/lib/services/sender-lists.service.js`; `src/admin/import-list.js`
+- **Where:** `src/lib/services/sender-lists.service.ts`; `src/admin/import-list.ts`
 
 **Problem.** Whitelist/blacklist are IMAP-backed and app-owned (mailbox is the real
 source of truth) and support both exact addresses and `@example.com` domain entries, but:
 
-- The only way to remove a mistaken entry is `src/admin/import-list.js --mode override`,
+- The only way to remove a mistaken entry is `src/admin/import-list.ts --mode override`,
   which wholesale-replaces a list from a corrected file — there's no "remove just this one
   address" command.
 - Entries can't carry comments (e.g. when/why an entry was added).
@@ -143,8 +143,8 @@ source of truth) and support both exact addresses and `@example.com` domain entr
 ### 5.3 Ham-trained messages can be re-escalated by AI (training loop)
 
 - **Area:** UX, REL · **Complexity:** S
-- **Where:** `src/lib/controllers/workflows/train.controller.js`;
-  `src/lib/controllers/steps/ai-classification.step.js`
+- **Where:** `src/lib/controllers/workflows/train.controller.ts`;
+  `src/lib/controllers/steps/ai-classification.step.ts`
 
 **Problem.** Messages in `train.ham` are learned as ham, then **moved back to INBOX**,
 where they receive a new UID greater than `last_uid` and are scanned again. Bayes will
@@ -195,19 +195,19 @@ host-side UID.
 ### 5.14 Entry-point boilerplate — no single CLI binary
 
 - **Area:** REF, CLN, UX · **Complexity:** M
-- **Where:** `src/cli/*.js`, `src/admin/*.js`
+- **Where:** `src/cli/*.ts`, `src/admin/*.ts`
 
 **Problem.** Scripts now consistently follow `newClient()` → `connect()` → run →
 `safeLogout()` in a `finally` block (per `CLAUDE.md`'s documented convention), but there
 is still no unified `spam-scanner` binary with subcommands — each script is invoked
-individually via `node src/cli/....js`. In Docker, running an admin task requires knowing
+individually via `node src/cli/....ts`. In Docker, running an admin task requires knowing
 `docker compose exec spam-scanner node src/admin/…`.
 
-**Recommendation.** One CLI (`src/cli.js`, `yargs` is already a dependency) with
+**Recommendation.** One CLI (`src/cli.ts`, `yargs` is already a dependency) with
 subcommands: `run` (orchestrator), `scan`, `train spam|ham|whitelist|blacklist`, `init`,
 `doctor`, `state show|set|reset|delete|from-date`, `maps list|add|remove|restore`,
 `export-email --uid|--message-id`, `folders list`. Shared `withImap(fn)` helper for
-connect/logout/error handling. Add `"bin": {"spam-scanner": "src/cli.js"}` and a Docker
+connect/logout/error handling. Add `"bin": {"spam-scanner": "src/cli.ts"}` and a Docker
 usage line `docker compose exec spam-scanner spam-scanner doctor`.
 
 ### 5.16 Test coverage gaps on IMAP-facing code; no e2e test
@@ -223,10 +223,10 @@ Still open:
 - No end-to-end smoke test against a real IMAP server — `test/integration/` contains only
   a live-AI-provider test. A GreenMail/Dovecot + rspamd-in-Compose smoke test (create
   mailbox, drop fixtures, run one cycle, assert folders/labels/state) was never built.
-- `src/cli/orchestrator.js` itself — the mode loop (single-run/poll/IDLE selection),
+- `src/cli/orchestrator.ts` itself — the mode loop (single-run/poll/IDLE selection),
   `MAX_RETRIES` backoff, and `SIGTERM`/`SIGINT` handling — has no dedicated unit test; the
   pieces it calls are each tested in isolation, but the loop wiring them together isn't.
-- `imap.client.js`'s coverage (55–71% depending on how it's sliced) is the largest
+- `imap.client.ts`'s coverage (55–71% depending on how it's sliced) is the largest
   untested surface left in `src/lib/`, pulled down by IDLE/reconnect branches.
 
 **Recommendation.**
@@ -234,9 +234,9 @@ Still open:
 - Add a `test:coverage` step to the existing CI workflow and gate on a threshold.
 - Add the GreenMail/Dovecot + rspamd Compose smoke test, run on demand or nightly (not on
   every push — it's slow).
-- Add a focused unit test for `src/cli/orchestrator.js`'s loop/retry/shutdown logic,
+- Add a focused unit test for `src/cli/orchestrator.ts`'s loop/retry/shutdown logic,
   injecting fake workflow controllers via `ctx`.
-- Fill in `imap.client.js`'s IDLE/reconnect branch coverage.
+- Fill in `imap.client.ts`'s IDLE/reconnect branch coverage.
 
 ### 5.20 Rspamd Bayes cold start (`min_learns`) not explained to users
 
@@ -317,8 +317,8 @@ This is a much smaller, independently shippable slice of the full `install.sh` w
 ### 5.28 No support for multiple mailboxes / accounts from one deployment
 
 - **Area:** CFG, UX, REF · **Complexity:** L
-- **Where:** `src/lib/core/config.js` (single `IMAP_*`/`FOLDER_*`/`STATE_KEY_SCANNER`
-  block, read once at import); `src/cli/orchestrator.js`; `docker-compose.yml` (single
+- **Where:** `src/lib/core/config.ts` (single `IMAP_*`/`FOLDER_*`/`STATE_KEY_SCANNER`
+  block, read once at import); `src/cli/orchestrator.ts`; `docker-compose.yml` (single
   `spam-scanner` service)
 
 **Problem.** The whole app models exactly one mailbox: one `IMAP_HOST`/`USER`/`PASSWORD`,
@@ -490,8 +490,8 @@ open.
 | `docs/DEVELOPMENT.md`     | developers | Local setup, tests (unit/integration/e2e), formatting/lint, openspec workflow, release process            | S          |
 | `rspamd/config/README.md` | both       | See 7.2.2                                                                                                 | S          |
 
-Doc hygiene: once `CONFIGURATION.md` exists, generate it from `config.js`'s `configGroups`
-and drift-check it the same way `.env.example` already is (`config.test.js`).
+Doc hygiene: once `CONFIGURATION.md` exists, generate it from `config.ts`'s `configGroups`
+and drift-check it the same way `.env.example` already is (`config.test.ts`).
 
 ---
 
