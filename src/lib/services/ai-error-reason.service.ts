@@ -7,7 +7,7 @@ import { APIError } from 'openai';
  * detail) that would otherwise make two failures of the same underlying cause
  * look like different reasons.
  */
-const APP_ERROR_PREFIXES = [
+const APP_ERROR_PREFIXES: Array<[string, string]> = [
   ['Empty response from AI provider', 'empty_response'],
   ['AI response is not valid JSON', 'invalid_json'],
   ['AI response missing numeric "score" field', 'missing_score'],
@@ -21,12 +21,12 @@ const APP_ERROR_PREFIXES = [
  * @returns {string} - an `openai` SDK error class name (e.g. 'RateLimitError'),
  *   a fixed app-level code (e.g. 'invalid_json'), or 'unknown'
  */
-export function categorizeAiError(err) {
+export function categorizeAiError(err: unknown): string {
   if (err instanceof APIError) {
     return err.constructor.name;
   }
 
-  const message = err?.message || '';
+  const message = err instanceof Error ? err.message : '';
   for (const [prefix, code] of APP_ERROR_PREFIXES) {
     if (message.startsWith(prefix)) {
       return code;

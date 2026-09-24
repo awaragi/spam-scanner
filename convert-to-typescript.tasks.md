@@ -156,13 +156,16 @@ is about typing order, not renaming order):
 
 Add real types to (files already renamed to `.ts` in Phase 0):
 
-- [ ] `services/ai-error-reason.service.ts` (+ test)
-- [ ] `services/ai-failure-tracker.service.ts` (+ test)
-- [ ] `utils/env-file.util.ts` (+ test)
-- [ ] `core/config.ts` (+ test)
-- [ ] `core/logger.ts` (+ test)
-- [ ] `core/context.ts` (+ test)
-- [ ] Layer gate (scoped): tests, `tsc`, `eslint` clean for the files above
+- [x] `services/ai-error-reason.service.ts` (+ test)
+- [x] `services/ai-failure-tracker.service.ts` (+ test)
+- [x] `utils/env-file.util.ts` (+ test)
+- [x] `core/config.ts` (+ test)
+- [x] `core/logger.ts` (+ test)
+- [x] `core/context.ts` (+ test)
+- [x] Layer gate (scoped): tests, `tsc`, `eslint` clean for the files above
+  (also fixed eslint.config.js: `@typescript-eslint/no-unused-vars` needed its own
+  `argsIgnorePattern`/`varsIgnorePattern` config since it doesn't inherit the base
+  `no-unused-vars` options - base rule now `off` for `.ts` files.)
 
 ## Layer: `utils` (5 remaining files)
 

@@ -6,7 +6,20 @@ import { categorizeAiError } from './ai-error-reason.service.ts';
  * `AiFailureTracker` class, one instance of which lives on `ctx`.
  */
 
-function emptyStreak() {
+export interface FailureStreak {
+  reason: string | null;
+  count: number;
+  notified: boolean;
+  lastError: string | null;
+  lastAt: string | null;
+}
+
+export interface FailureStreakResult {
+  streak: FailureStreak;
+  shouldAlert: boolean;
+}
+
+function emptyStreak(): FailureStreak {
   return {
     reason: null,
     count: 0,
@@ -28,16 +41,16 @@ function emptyStreak() {
  * @returns {{streak: Object, shouldAlert: boolean}}
  */
 export function nextFailureStreak(
-  streak,
-  err,
-  threshold,
-  now = () => new Date().toISOString()
-) {
+  streak: FailureStreak,
+  err: unknown,
+  threshold: number,
+  now: () => string = () => new Date().toISOString()
+): FailureStreakResult {
   const reason = categorizeAiError(err);
   const lastAt = now();
-  const lastError = err?.message || String(err);
+  const lastError = err instanceof Error ? err.message : String(err);
 
-  const next =
+  const next: FailureStreak =
     streak.reason === reason
       ? { ...streak, count: streak.count + 1 }
       : { reason, count: 1, notified: false, lastError: null, lastAt: null };
@@ -58,14 +71,14 @@ export function nextFailureStreak(
  * starts a new one. A success resets it entirely.
  */
 export class AiFailureTracker {
-  #streak = emptyStreak();
+  #streak: FailureStreak = emptyStreak();
 
   /**
    * @param {Error} err
    * @param {number} threshold
    * @returns {{shouldAlert: boolean, reason: string, count: number, lastError: string, lastAt: string}}
    */
-  recordFailure(err, threshold) {
+  recordFailure(err: unknown, threshold: number) {
     const { streak: next, shouldAlert } = nextFailureStreak(
       this.#streak,
       err,
@@ -81,14 +94,14 @@ export class AiFailureTracker {
     };
   }
 
-  recordSuccess() {
+  recordSuccess(): void {
     this.#streak = emptyStreak();
   }
 
   /**
    * @param {string} reason - the `reason` returned alongside `shouldAlert: true`
    */
-  markNotified(reason) {
+  markNotified(reason: string | null): void {
     if (this.#streak.reason === reason) {
       this.#streak = { ...this.#streak, notified: true };
     }

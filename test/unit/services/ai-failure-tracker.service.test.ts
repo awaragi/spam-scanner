@@ -2,14 +2,15 @@ import { describe, test, expect, beforeEach } from 'vitest';
 import {
   nextFailureStreak,
   AiFailureTracker,
+  type FailureStreak,
 } from '../../../src/lib/services/ai-failure-tracker.service.ts';
 
-function err(message) {
+function err(message: string) {
   return new Error(message);
 }
 
 describe('nextFailureStreak', () => {
-  const emptyStreak = {
+  const emptyStreak: FailureStreak = {
     reason: null,
     count: 0,
     notified: false,
@@ -85,7 +86,7 @@ describe('nextFailureStreak', () => {
 });
 
 describe('AiFailureTracker', () => {
-  let tracker;
+  let tracker: AiFailureTracker;
 
   beforeEach(() => {
     tracker = new AiFailureTracker();

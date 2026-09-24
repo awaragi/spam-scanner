@@ -1,5 +1,30 @@
 import pino from 'pino';
 
+/**
+ * Minimal logger shape actually used across the app - `trace`/`debug`/
+ * `info`/`warn`/`error`/`fatal` plus the two component/message scoping
+ * methods this module attaches. Deliberately not the full `pino.Logger`
+ * interface: `createNoOpLogger()` below returns a plain object satisfying
+ * only this shape, not a real Pino instance.
+ */
+export interface Logger {
+  trace: pino.LogFn;
+  debug: pino.LogFn;
+  info: pino.LogFn;
+  warn: pino.LogFn;
+  error: pino.LogFn;
+  fatal: pino.LogFn;
+  child: (bindings: pino.Bindings) => Logger;
+}
+
+export interface ComponentLogger extends Logger {
+  forMessage: (uid?: number | null) => Logger;
+}
+
+export interface RootLogger extends Logger {
+  forComponent: (component: string) => ComponentLogger;
+}
+
 // Read environment variables
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 const LOG_FORMAT = process.env.LOG_FORMAT || 'json';
@@ -43,7 +68,7 @@ const filterExcludesComponents = LOG_FILTER_EXCLUDES
  * @param {string} component - Component name to check
  * @returns {boolean} - True if component should be logged
  */
-function shouldLogComponent(component) {
+function shouldLogComponent(component: string): boolean {
   // If includes filter is set, component must be in the list
   if (filterIncludesComponents.length > 0) {
     if (!filterIncludesComponents.includes(component)) {
@@ -62,11 +87,11 @@ function shouldLogComponent(component) {
 }
 
 // Configure Pino options
-const options = {
+const options: pino.LoggerOptions = {
   level: logLevel,
   base: null, // Remove default pid and hostname fields
   formatters: {
-    level: label => ({ level: label }),
+    level: (label: string) => ({ level: label }),
   },
   timestamp: pino.stdTimeFunctions.isoTime,
   // Secrets must never reach logs, even at LOG_LEVEL=debug (which is exactly
@@ -98,8 +123,9 @@ const options = {
  * @returns {boolean}
  */
 export function canLoadPinoPretty(
-  resolveFn = specifier => import.meta.resolve(specifier)
-) {
+  resolveFn: (specifier: string) => string = specifier =>
+    import.meta.resolve(specifier)
+): boolean {
   try {
     resolveFn('pino-pretty');
     return true;
@@ -132,13 +158,15 @@ if (logFormat === 'pretty') {
 // Create root logger instance
 const pinoLogger = pino(options);
 
+interface NoOpLogger extends Logger, ComponentLogger, RootLogger {}
+
 /**
  * Creates a no-op logger that doesn't log anything
  * @returns {Object} - Logger with all methods as no-ops
  */
-function createNoOpLogger() {
-  const noOp = () => {};
-  const noOpLogger = {
+function createNoOpLogger(): NoOpLogger {
+  const noOp = ((..._args: unknown[]) => {}) as pino.LogFn;
+  const noOpLogger: NoOpLogger = {
     trace: noOp,
     debug: noOp,
     info: noOp,
@@ -157,37 +185,47 @@ function createNoOpLogger() {
  * @param {Object} logger - Pino logger instance
  * @returns {Object} - Logger with forComponent method
  */
-function attachForComponent(logger) {
+function attachForComponent(logger: pino.Logger): RootLogger {
+  const rootWithComponent = logger as unknown as RootLogger;
+
   /**
    * Creates a component-scoped child logger
    * @param {string} component - Component name (e.g., 'rspamd', 'imap', 'config')
    * @returns {Object} - Child logger with component context and forMessage method
    */
-  logger.forComponent = function (component) {
+  rootWithComponent.forComponent = function (
+    this: pino.Logger,
+    component: string
+  ): ComponentLogger {
     // Check if this component should be logged
     if (!shouldLogComponent(component)) {
       return createNoOpLogger();
     }
 
-    const componentLogger = this.child({ component });
+    const componentLogger = this.child({
+      component,
+    }) as unknown as ComponentLogger;
 
     /**
      * Creates a message-scoped child logger with UID correlation
      * @param {number} uid - Email UID for correlation
      * @returns {Object} - Child logger with both component and uid context
      */
-    componentLogger.forMessage = function (uid) {
+    componentLogger.forMessage = function (
+      this: pino.Logger,
+      uid?: number | null
+    ): Logger {
       return this.child({ uid });
     };
 
     return componentLogger;
   };
 
-  return logger;
+  return rootWithComponent;
 }
 
 // Attach forComponent method to root logger
-const rootLogger = attachForComponent(pinoLogger);
+const rootLogger: RootLogger = attachForComponent(pinoLogger);
 
 // Exported so tests can build a logger against a captured stream, since pino
 // writes to its destination fd directly (bypassing process.stdout.write) and

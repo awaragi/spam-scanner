@@ -1,9 +1,14 @@
-import { config } from './config.ts';
+import { config, type Config } from './config.ts';
 import { AiFailureTracker } from '../services/ai-failure-tracker.service.ts';
+
+export interface Context {
+  config: Config;
+  aiFailureTracker: AiFailureTracker;
+}
 
 // Built once, lazily, on first use - every call to createDefaultContext()
 // after that returns this exact same object, never a fresh one.
-let defaultContext = null;
+let defaultContext: Context | null = null;
 
 /**
  * Returns the shared, production-shaped context: the real config singleton
@@ -16,7 +21,7 @@ let defaultContext = null;
  * on this - they always build their own ctx (see fixtureContext), so this
  * shared instance never leaks into test isolation.
  */
-export function createDefaultContext() {
+export function createDefaultContext(): Context {
   if (!defaultContext) {
     defaultContext = { config, aiFailureTracker: new AiFailureTracker() };
   }

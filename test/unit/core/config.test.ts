@@ -246,7 +246,7 @@ describe('config', () => {
     process.env.SPAM_PROCESSING_MODE = 'delete';
     process.env.AI_ENABLED = 'false';
 
-    let thrown;
+    let thrown: unknown;
     try {
       await import('../../../src/lib/core/config.ts');
     } catch (err) {
@@ -254,8 +254,8 @@ describe('config', () => {
     }
 
     expect(thrown).toBeDefined();
-    expect(thrown.message).toMatch(/SCAN_INTERVAL/);
-    expect(thrown.message).toMatch(/SPAM_PROCESSING_MODE/);
+    expect((thrown as Error).message).toMatch(/SCAN_INTERVAL/);
+    expect((thrown as Error).message).toMatch(/SPAM_PROCESSING_MODE/);
   });
 
   test('importing config never throws merely because IMAP credentials are unset', async () => {
@@ -290,7 +290,7 @@ describe('assertRequiredConfig', () => {
       '../../../src/lib/core/config.ts'
     );
 
-    let thrown;
+    let thrown: unknown;
     try {
       assertRequiredConfig();
     } catch (err) {
@@ -298,9 +298,9 @@ describe('assertRequiredConfig', () => {
     }
 
     expect(thrown).toBeDefined();
-    expect(thrown.message).toMatch(/IMAP_HOST/);
-    expect(thrown.message).toMatch(/IMAP_USER/);
-    expect(thrown.message).toMatch(/IMAP_PASSWORD/);
+    expect((thrown as Error).message).toMatch(/IMAP_HOST/);
+    expect((thrown as Error).message).toMatch(/IMAP_USER/);
+    expect((thrown as Error).message).toMatch(/IMAP_PASSWORD/);
   });
 
   test('does not throw when all required fields are set', async () => {

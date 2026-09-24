@@ -7,6 +7,71 @@ const logger = rootLogger.forComponent('config');
 const DEFAULT_AI_BASE_URL = 'https://api.openai.com/v1';
 
 /**
+ * Explicit, hand-written authoritative type for the merged runtime config -
+ * not derived via `z.infer`, since `configGroups.reduce((acc, g) =>
+ * acc.merge(g.schema), z.object({}))` collapses precise field inference
+ * (see `convert-to-typescript.tasks.md`'s TypeScript gotchas). `ConfigFields`
+ * is every non-`docsOnly` group's fields as validated by `ConfigSchema`;
+ * `Config` adds `HOME`/`USER`, which `buildAndValidate` appends afterward.
+ */
+interface ConfigFields {
+  IMAP_HOST?: string;
+  IMAP_PORT: number;
+  IMAP_USER?: string;
+  IMAP_PASSWORD?: string;
+  IMAP_TLS: boolean;
+  IMAP_ALLOW_INSECURE: boolean;
+  IMAP_NOTIFY_ADDRESS: string;
+  FOLDER_INBOX: string;
+  FOLDER_SPAM: string;
+  FOLDER_SPAM_LOW: string;
+  FOLDER_SPAM_HIGH: string;
+  FOLDER_TRAIN_SPAM: string;
+  FOLDER_TRAIN_HAM: string;
+  FOLDER_TRAIN_WHITELIST: string;
+  FOLDER_TRAIN_BLACKLIST: string;
+  FOLDER_STATE: string;
+  SCAN_INTERVAL: number;
+  BATCH_SCAN_SIZE: number;
+  SCAN_READ: boolean;
+  SCAN_INITIAL_STATE: 'new' | 'all';
+  BATCH_PROCESS_SIZE: number;
+  MAX_RETRIES: number;
+  IDLE_WATCHDOG_MS: number;
+  STATE_KEY_SCANNER: string;
+  STATE_KEY_WHITELIST_MAP: string;
+  STATE_KEY_BLACKLIST_MAP: string;
+  SPAM_PROCESSING_MODE: 'label' | 'folder';
+  LABEL_SPAM_LOW: string;
+  LABEL_SPAM_HIGH: string;
+  SPAM_CLEAN_THRESHOLD: number;
+  SPAM_LOW_THRESHOLD: number;
+  SPAM_CONFIRMED_THRESHOLD: number;
+  RSPAMD_URL: string;
+  RSPAMD_PASSWORD: string;
+  RSPAMD_TIMEOUT_MS: number;
+  RSPAMD_ENVELOPE_TRUSTED_HOPS: number;
+  AI_ENABLED: boolean;
+  AI_BASE_URL: string;
+  AI_API_KEY: string;
+  AI_MODEL: string;
+  AI_TIMEOUT_MS: number;
+  AI_MAX_RETRIES: number;
+  AI_CONCURRENCY: number;
+  AI_MAX_INPUT_TOKENS: number;
+  AI_MAX_OUTPUT_TOKENS: number;
+  AI_ESCALATE_TO_LOW_THRESHOLD: number;
+  AI_ESCALATE_TO_HIGH_THRESHOLD: number;
+  AI_USER_PROFILE: string;
+  AI_FAILURE_ALERT_THRESHOLD: number;
+}
+
+export interface Config extends ConfigFields {
+  HOME: string;
+  USER: string;
+}
+
+/**
  * An integer field parsed from a whole (trimmed) integer string, falling
  * back to `defaultValue` when unset (zod's `.default()` short-circuits
  * before this preprocessor runs whenever the raw value is `undefined`).
@@ -15,10 +80,11 @@ const DEFAULT_AI_BASE_URL = 'https://api.openai.com/v1';
  * string is passed through unchanged and rejected by zod's own number type
  * check rather than becoming `NaN`.
  */
-function intField(defaultValue) {
+function intField(defaultValue: number) {
   return z
     .preprocess(
-      raw => (/^-?\d+$/.test(String(raw).trim()) ? parseInt(raw, 10) : raw),
+      (raw: unknown) =>
+        /^-?\d+$/.test(String(raw).trim()) ? parseInt(String(raw), 10) : raw,
       z.number().int()
     )
     .default(defaultValue);
@@ -29,7 +95,7 @@ function intField(defaultValue) {
  * default is `true`, only an explicit "false" opts out (e.g. `IMAP_TLS`);
  * when `false`, only an explicit "true" opts in (e.g. `AI_ENABLED`).
  */
-function boolField(defaultValue) {
+function boolField(defaultValue: boolean) {
   return z
     .preprocess(
       raw => (defaultValue ? raw !== 'false' : raw === 'true'),
@@ -412,11 +478,24 @@ the threshold is reached during a sustained outage; it is most useful in the def
 };
 
 /**
+ * Structural type for a config group. `schema` is typed as `z.ZodObject<any>`
+ * (rather than fighting zod's inference through the `.reduce`/`.merge` chain
+ * below, which collapses precise field types anyway) - `Config`/`ConfigFields`
+ * above are the authoritative types for the merged runtime result.
+ */
+interface ConfigGroupDef {
+  title: string;
+  docsOnly?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  schema: z.ZodObject<any>;
+}
+
+/**
  * Every config group, in `.env.example` file order. Exported so
  * `src/cli/generate-env.js` can render `.env.example` directly from
  * it - see the module doc comment above for what `docsOnly` means.
  */
-export const configGroups = [
+export const configGroups: ConfigGroupDef[] = [
   dataDirGroup,
   imapGroup,
   foldersGroup,
@@ -434,7 +513,12 @@ export const configGroups = [
 const ConfigSchema = configGroups
   .filter(group => !group.docsOnly)
   .reduce((acc, group) => acc.merge(group.schema), z.object({}))
-  .superRefine((data, ctx) => {
+  .superRefine((rawData, ctx) => {
+    // The `.reduce`/`.merge` chain above collapses zod's own field
+    // inference (see the TypeScript gotchas in
+    // convert-to-typescript.tasks.md) - `ConfigFields` is the authoritative
+    // hand-written type for the merged shape.
+    const data = rawData as unknown as ConfigFields;
     // No default that makes sense on its own - fail fast at load time
     // rather than let every AI classification call fail individually once
     // AI is enabled.
@@ -509,7 +593,7 @@ const RequiredConfigSchema = z.object({
   IMAP_PASSWORD: z.string().min(1),
 });
 
-function buildAndValidate() {
+function buildAndValidate(): Config {
   // z.object() only reads the keys it declares, ignoring the rest of
   // process.env, so this can be passed directly rather than copied field
   // by field first.
@@ -522,7 +606,11 @@ function buildAndValidate() {
       `Invalid configuration:\n${problems.map(p => `  - ${p}`).join('\n')}`
     );
   }
-  return { HOME: homedir(), USER: userInfo().username, ...result.data };
+  return {
+    HOME: homedir(),
+    USER: userInfo().username,
+    ...(result.data as unknown as ConfigFields),
+  };
 }
 
 export const config = (() => {
@@ -547,14 +635,14 @@ export const config = (() => {
  * @param {Object} [cfg]
  * @throws {Error} listing every missing required field, if any are missing
  */
-export function assertRequiredConfig(cfg = config) {
+export function assertRequiredConfig(cfg: Config = config): void {
   const result = RequiredConfigSchema.safeParse(cfg);
   if (!result.success) {
     const missing = [
       ...new Set(result.error.issues.map(issue => issue.path[0])),
     ];
     throw new Error(
-      `Missing required configuration:\n${missing.map(k => `  - ${k}`).join('\n')}`
+      `Missing required configuration:\n${missing.map(k => `  - ${String(k)}`).join('\n')}`
     );
   }
 }

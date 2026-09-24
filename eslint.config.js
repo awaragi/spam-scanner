@@ -23,6 +23,13 @@ export default tseslint.config(
   {
     files: ['**/*.ts'],
     extends: [...tseslint.configs.recommended],
+    rules: {
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
+    },
   },
   {
     // vitest runs with `globals: true` (see vitest.config.js) - these aren't

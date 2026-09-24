@@ -1,4 +1,24 @@
 /**
+ * Local structural shape for a described/defaulted Zod field - not imported
+ * from `core/config.ts` (utils must never import types from core) and not
+ * zod's own internal types (this only needs the two properties it actually
+ * reads).
+ */
+interface DescribedField {
+  description?: string;
+  _def: { type: string; defaultValue?: unknown };
+}
+
+interface TitledSchemaGroup {
+  title: string;
+  schema: { shape: Record<string, DescribedField> };
+}
+
+interface SchemaGroup {
+  schema: { shape: Record<string, DescribedField> };
+}
+
+/**
  * Renders a dotenv-style file (e.g. `.env.example`) from an ordered array of
  * `{ title, schema }` groups, where `schema` is a Zod object whose fields
  * carry `.describe()` text and (optionally) a `.default()`. Pure function of
@@ -16,8 +36,11 @@
  * @param {Record<string, string>} [values]
  * @returns {string} the full file content, ending in a single trailing newline
  */
-export function renderEnvFile(groups, values = {}) {
-  const lines = [];
+export function renderEnvFile(
+  groups: TitledSchemaGroup[],
+  values: Record<string, string> = {}
+): string {
+  const lines: string[] = [];
   groups.forEach((group, index) => {
     if (index > 0) {
       lines.push('');
@@ -49,7 +72,10 @@ export function renderEnvFile(groups, values = {}) {
  * @param {Record<string, string>} values
  * @returns {{defaultedKeys: string[], unknownKeys: string[]}}
  */
-export function diffEnvValues(groups, values) {
+export function diffEnvValues(
+  groups: SchemaGroup[],
+  values: Record<string, string>
+): { defaultedKeys: string[]; unknownKeys: string[] } {
   const knownKeys = groups.flatMap(group => Object.keys(group.schema.shape));
   const knownKeySet = new Set(knownKeys);
   const defaultedKeys = knownKeys.filter(
@@ -65,7 +91,7 @@ export function diffEnvValues(groups, values) {
  * @param {import('zod').ZodTypeAny} field
  * @returns {string}
  */
-function fieldDefault(field) {
+function fieldDefault(field: DescribedField): string {
   const raw = field._def.defaultValue;
   return raw === undefined ? '' : String(raw);
 }
