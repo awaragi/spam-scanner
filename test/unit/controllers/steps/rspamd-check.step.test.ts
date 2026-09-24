@@ -11,7 +11,7 @@ const { processWithRspamd } = await import(
   '../../../../src/lib/controllers/steps/rspamd-check.step.ts'
 );
 
-function makeMessage(uid, from) {
+function makeMessage(uid: number, from?: string) {
   return {
     uid,
     envelope: {
@@ -141,7 +141,7 @@ describe('processWithRspamd', () => {
     const messages = [makeMessage(1), makeMessage(2)];
     fakeRspamdClient.checkEmail.mockImplementation(async raw => {
       if (raw === 'raw-1') {
-        const err = new Error('bad request');
+        const err: Error & { status?: number } = new Error('bad request');
         err.status = 400;
         throw err;
       }
@@ -165,7 +165,7 @@ describe('processWithRspamd', () => {
     const messages = [makeMessage(1), makeMessage(2)];
     fakeRspamdClient.checkEmail.mockImplementation(async raw => {
       if (raw === 'raw-1') {
-        const err = new Error('bad request');
+        const err: Error & { status?: number } = new Error('bad request');
         err.status = 400;
         throw err;
       }

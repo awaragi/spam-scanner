@@ -1,14 +1,16 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { fixtureContext } from '../../../support/fixtures.ts';
+import { asImapFlow } from '../../../support/imap-fakes.ts';
 
 vi.mock('../../../../src/lib/clients/imap.client.ts', () => ({
-  moveMessages: vi.fn().mockResolvedValue(),
+  moveMessages: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { moveConfirmedSpam } from '../../../../src/lib/controllers/steps/spam-move.step.ts';
 import { moveMessages } from '../../../../src/lib/clients/imap.client.ts';
 
-const mockImap = {};
+const mockedMoveMessages = vi.mocked(moveMessages);
+const mockImap = asImapFlow({});
 
 describe('moveConfirmedSpam', () => {
   beforeEach(() => {
@@ -21,7 +23,7 @@ describe('moveConfirmedSpam', () => {
 
     await moveConfirmedSpam(mockImap, spamMessages, ctx);
 
-    expect(moveMessages).toHaveBeenCalledWith(
+    expect(mockedMoveMessages).toHaveBeenCalledWith(
       mockImap,
       spamMessages,
       'INBOX.spam'
@@ -33,7 +35,7 @@ describe('moveConfirmedSpam', () => {
 
     await moveConfirmedSpam(mockImap, [], ctx);
 
-    expect(moveMessages).toHaveBeenCalledWith(
+    expect(mockedMoveMessages).toHaveBeenCalledWith(
       mockImap,
       [],
       ctx.config.FOLDER_SPAM

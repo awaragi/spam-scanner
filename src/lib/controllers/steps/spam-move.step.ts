@@ -1,6 +1,7 @@
+import type { ImapFlow } from 'imapflow';
 import { moveMessages } from '../../clients/imap.client.ts';
 import { rootLogger } from '../../core/logger.ts';
-import { createDefaultContext } from '../../core/context.ts';
+import { createDefaultContext, type Context } from '../../core/context.ts';
 
 const logger = rootLogger.forComponent('spam-move');
 
@@ -14,10 +15,10 @@ const logger = rootLogger.forComponent('spam-move');
  * @returns {Promise<void>}
  */
 export async function moveConfirmedSpam(
-  imap,
-  spamMessages,
-  ctx = createDefaultContext()
-) {
+  imap: ImapFlow,
+  spamMessages: Array<{ uid: number }>,
+  ctx: Context = createDefaultContext()
+): Promise<void> {
   const { config: cfg } = ctx;
   logger.debug(
     { count: spamMessages.length },

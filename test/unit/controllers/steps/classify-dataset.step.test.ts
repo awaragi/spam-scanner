@@ -8,7 +8,13 @@ vi.mock('../../../../src/lib/clients/ai.client.ts', () => ({
 import { classifyDataset } from '../../../../src/lib/controllers/steps/classify-dataset.step.ts';
 import { classifyEmail } from '../../../../src/lib/clients/ai.client.ts';
 
-function makeMessage(bucket, filename, overrides = {}) {
+const mockedClassifyEmail = vi.mocked(classifyEmail);
+
+function makeMessage(
+  bucket: string,
+  filename: string,
+  overrides: Record<string, unknown> = {}
+) {
   return {
     bucket,
     filename,
@@ -33,11 +39,11 @@ describe('classifyDataset', () => {
     const result = await classifyDataset([], ctx);
 
     expect(result).toEqual([]);
-    expect(classifyEmail).not.toHaveBeenCalled();
+    expect(mockedClassifyEmail).not.toHaveBeenCalled();
   });
 
   test('attaches score/reasoning on success, preserving bucket/filename', async () => {
-    classifyEmail.mockResolvedValue({
+    mockedClassifyEmail.mockResolvedValue({
       score: 12,
       reasoning: 'looks legitimate',
     });
@@ -68,7 +74,7 @@ describe('classifyDataset', () => {
 
   test('fails open on a per-message error without affecting sibling messages or rethrowing', async () => {
     let call = 0;
-    classifyEmail.mockImplementation(async () => {
+    mockedClassifyEmail.mockImplementation(async () => {
       call++;
       if (call === 2) throw new Error('provider timeout');
       return { score: 5, reasoning: 'ok' };
@@ -98,7 +104,7 @@ describe('classifyDataset', () => {
     let inFlight = 0;
     let maxInFlight = 0;
 
-    classifyEmail.mockImplementation(async () => {
+    mockedClassifyEmail.mockImplementation(async () => {
       inFlight++;
       maxInFlight = Math.max(maxInFlight, inFlight);
       await new Promise(resolve => setTimeout(resolve, 5));

@@ -14,14 +14,17 @@ import {
   learnHam,
 } from '../../../../src/lib/clients/rspamd.client.ts';
 
-function makeMessage(uid) {
+const mockedLearnSpam = vi.mocked(learnSpam);
+const mockedLearnHam = vi.mocked(learnHam);
+
+function makeMessage(uid: number) {
   return { uid, envelope: { subject: `subject-${uid}` }, raw: `raw-${uid}` };
 }
 
 describe.each([
-  ['trainSpam', () => trainSpam, learnSpam],
-  ['trainHam', () => trainHam, learnHam],
-])('%s', (name, getFn, learnMock) => {
+  ['trainSpam', () => trainSpam, mockedLearnSpam],
+  ['trainHam', () => trainHam, mockedLearnHam],
+] as const)('%s', (name, getFn, learnMock) => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -46,7 +49,7 @@ describe.each([
     const messages = [makeMessage(1), makeMessage(2)];
     learnMock.mockImplementation(async raw => {
       if (raw === 'raw-1') {
-        const err = new Error('bad request');
+        const err: Error & { status?: number } = new Error('bad request');
         err.status = 400;
         throw err;
       }

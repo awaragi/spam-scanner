@@ -1,5 +1,6 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { fixtureContext } from '../../../support/fixtures.ts';
+import { asImapFlow } from '../../../support/imap-fakes.ts';
 
 vi.mock('../../../../src/lib/clients/state-manager.client.ts', () => ({
   readMapState: vi.fn(),
@@ -8,7 +9,8 @@ vi.mock('../../../../src/lib/clients/state-manager.client.ts', () => ({
 import { loadSenderLists } from '../../../../src/lib/controllers/steps/sender-list-lookup.step.ts';
 import { readMapState } from '../../../../src/lib/clients/state-manager.client.ts';
 
-const mockImap = {};
+const mockedReadMapState = vi.mocked(readMapState);
+const mockImap = asImapFlow({});
 
 describe('loadSenderLists', () => {
   beforeEach(() => {
@@ -22,7 +24,7 @@ describe('loadSenderLists', () => {
         STATE_KEY_BLACKLIST_MAP: 'blacklist-key',
       },
     });
-    readMapState.mockImplementation((imap, key) =>
+    mockedReadMapState.mockImplementation((imap, key) =>
       Promise.resolve(
         key === 'whitelist-key' ? ['trusted@example.com'] : ['bad@evil.com']
       )
@@ -36,8 +38,8 @@ describe('loadSenderLists', () => {
 
   test('reads sequentially: whitelist before blacklist', async () => {
     const ctx = fixtureContext();
-    const callOrder = [];
-    readMapState.mockImplementation((imap, key) => {
+    const callOrder: string[] = [];
+    mockedReadMapState.mockImplementation((imap, key) => {
       callOrder.push(key);
       return Promise.resolve([]);
     });
@@ -52,7 +54,7 @@ describe('loadSenderLists', () => {
 
   test('empty state produces empty Sets', async () => {
     const ctx = fixtureContext();
-    readMapState.mockResolvedValue([]);
+    mockedReadMapState.mockResolvedValue([]);
 
     const result = await loadSenderLists(mockImap, ctx);
 

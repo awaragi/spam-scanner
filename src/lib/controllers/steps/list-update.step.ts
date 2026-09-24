@@ -1,10 +1,11 @@
+import type { ImapFlow } from 'imapflow';
 import { rootLogger } from '../../core/logger.ts';
 import {
   readMapState,
   writeMapState,
 } from '../../clients/state-manager.client.ts';
 import { diffListUpdate } from '../../services/list-diff.service.ts';
-import { createDefaultContext } from '../../core/context.ts';
+import { createDefaultContext, type Context } from '../../core/context.ts';
 
 const logger = rootLogger.forComponent('list-update');
 
@@ -20,12 +21,18 @@ const logger = rootLogger.forComponent('list-update');
  * @returns {Promise<Object>} - {added, skipped, removed, total}
  */
 export async function updateListState(
-  imap,
-  mapStateKey,
-  senders,
-  mode = 'append',
-  ctx = createDefaultContext() // eslint-disable-line no-unused-vars
-) {
+  imap: ImapFlow,
+  mapStateKey: string,
+  senders: string[],
+  mode: 'append' | 'override' = 'append',
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  ctx: Context = createDefaultContext()
+): Promise<{
+  added: string[];
+  skipped: string[];
+  removed: string[];
+  total: number;
+}> {
   logger.debug(
     { mapStateKey, mode, count: senders.length },
     'Updating list state'

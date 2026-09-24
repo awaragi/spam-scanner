@@ -9,7 +9,7 @@ import { rootLogger } from '../core/logger.ts';
 const logger = rootLogger.forComponent('ai-content');
 
 interface EnvelopedMessage {
-  uid: number;
+  uid: number | string;
   raw: unknown;
   envelope?: {
     from?: Array<{ name?: string; address?: string }>;

@@ -1,5 +1,5 @@
 import { simpleParser } from 'mailparser';
-import { rootLogger } from '../../core/logger.ts';
+import { rootLogger, type Logger } from '../../core/logger.ts';
 import { checkEmail } from '../../clients/rspamd.client.ts';
 import {
   parseRspamdOutput,
@@ -7,9 +7,33 @@ import {
 } from '../../utils/email-parser.util.ts';
 import { dateToString } from '../../utils/email.util.ts';
 import { isPermanentError } from '../../services/error-classifier.service.ts';
-import { createDefaultContext } from '../../core/context.ts';
+import { createDefaultContext, type Context } from '../../core/context.ts';
+import type { Config } from '../../core/config.ts';
 
 const logger = rootLogger.forComponent('rspamd-check');
+
+interface RspamdEnvelope {
+  ip: string | null;
+  helo: string | null;
+  from: string | null;
+  rcpt: string | null;
+}
+
+interface RspamdMessage {
+  uid: number;
+  envelope: { subject?: string; date?: unknown; [key: string]: unknown };
+  raw: unknown;
+}
+
+interface SpamInfo {
+  score: number;
+  required: number;
+  senderAuthenticated: boolean;
+  subject: string | undefined;
+  date: string;
+}
+
+type ScoredMessage<M> = M & { spamInfo: SpamInfo };
 
 /**
  * Builds the envelope data (connecting IP/HELO, envelope-from, recipient)
@@ -26,23 +50,31 @@ const logger = rootLogger.forComponent('rspamd-check');
  * @param {Object} messageLogger
  * @returns {Promise<{ip: string|null, helo: string|null, from: string|null, rcpt: string|null}>}
  */
-async function buildEnvelope(raw, cfg, messageLogger) {
+async function buildEnvelope(
+  raw: unknown,
+  cfg: Pick<Config, 'IMAP_USER' | 'RSPAMD_ENVELOPE_TRUSTED_HOPS'>,
+  messageLogger: Logger
+): Promise<RspamdEnvelope> {
   const rcpt = cfg.IMAP_USER?.includes('@') ? cfg.IMAP_USER : null;
 
   try {
-    const parsed = await simpleParser(raw, {
+    const parsed = await simpleParser(raw as string | Buffer, {
       skipHtmlToText: true,
       skipTextToHtml: true,
       skipImageLinks: true,
     });
     // mailparser returns a bare string instead of a 1-element array when a
     // header occurs exactly once - normalize before indexing.
-    const receivedHeaders = [].concat(parsed.headers.get('received') || []);
+    const receivedHeaders = ([] as string[]).concat(
+      (parsed.headers.get('received') as string | string[] | undefined) || []
+    );
     const hop = resolveConnectingHop(
       receivedHeaders,
       cfg.RSPAMD_ENVELOPE_TRUSTED_HOPS
     );
-    const returnPath = parsed.headers.get('return-path');
+    const returnPath = parsed.headers.get('return-path') as
+      | { value?: Array<{ address?: string }> }
+      | undefined;
 
     return {
       ip: hop?.ip ?? null,
@@ -52,7 +84,7 @@ async function buildEnvelope(raw, cfg, messageLogger) {
     };
   } catch (err) {
     messageLogger.debug(
-      { error: err.message },
+      { error: err instanceof Error ? err.message : String(err) },
       'Could not resolve Rspamd envelope data from message headers - continuing without it'
     );
     return { ip: null, helo: null, from: null, rcpt };
@@ -67,7 +99,10 @@ async function buildEnvelope(raw, cfg, messageLogger) {
  * - A transient error (network, 5xx, timeout) rejects, so the caller can fail
  *   the whole batch for retry.
  */
-async function processOneMessage(message, cfg) {
+async function processOneMessage<M extends RspamdMessage>(
+  message: M,
+  cfg: Config
+): Promise<ScoredMessage<M> | null> {
   const { uid, envelope, raw } = message;
   const messageLogger = logger.forMessage(uid);
   const subject = envelope.subject;
@@ -81,10 +116,14 @@ async function processOneMessage(message, cfg) {
       { ip: rspamdEnvelope.ip, helo: rspamdEnvelope.helo },
       'Checking email with Rspamd'
     );
-    const result = await checkEmail(raw, rspamdEnvelope);
+    const result = await checkEmail(raw as string | Buffer, rspamdEnvelope);
 
     messageLogger.debug(
-      { subject, action: result.action, score: result.score },
+      {
+        subject,
+        action: (result as { action?: unknown })?.action,
+        score: (result as { score?: unknown })?.score,
+      },
       'Rspamd check completed'
     );
 
@@ -109,13 +148,16 @@ async function processOneMessage(message, cfg) {
   } catch (err) {
     if (isPermanentError(err)) {
       messageLogger.warn(
-        { subject, error: err.message },
+        { subject, error: err instanceof Error ? err.message : String(err) },
         'Rspamd check failed permanently for this message - skipping it, batch continues'
       );
       return null;
     }
 
-    messageLogger.error({ error: err.message }, 'Rspamd check process error');
+    messageLogger.error(
+      { error: err instanceof Error ? err.message : String(err) },
+      'Rspamd check process error'
+    );
     throw err;
   }
 }
@@ -132,10 +174,10 @@ async function processOneMessage(message, cfg) {
  * @param {Object} [ctx]
  * @returns {Promise<Array>} - Array of messages with spamInfo attached
  */
-export async function processWithRspamd(
-  messages,
-  ctx = createDefaultContext()
-) {
+export async function processWithRspamd<M extends RspamdMessage>(
+  messages: M[],
+  ctx: Context = createDefaultContext()
+): Promise<ScoredMessage<M>[]> {
   if (messages.length === 0) {
     return [];
   }
@@ -144,8 +186,8 @@ export async function processWithRspamd(
     messages.map(message => processOneMessage(message, ctx.config))
   );
 
-  const processedMessages = [];
-  const failedUids = [];
+  const processedMessages: ScoredMessage<M>[] = [];
+  const failedUids: number[] = [];
 
   settled.forEach((result, index) => {
     if (result.status === 'fulfilled') {

@@ -1,14 +1,16 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { fixtureContext } from '../../../support/fixtures.ts';
+import { asImapFlow } from '../../../support/imap-fakes.ts';
 
 vi.mock('../../../../src/lib/clients/imap.client.ts', () => ({
-  moveMessages: vi.fn().mockResolvedValue(),
+  moveMessages: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { moveToFolders } from '../../../../src/lib/controllers/steps/folder-move.step.ts';
 import { moveMessages } from '../../../../src/lib/clients/imap.client.ts';
 
-const mockImap = {};
+const mockedMoveMessages = vi.mocked(moveMessages);
+const mockImap = asImapFlow({});
 
 describe('moveToFolders', () => {
   beforeEach(() => {
@@ -28,12 +30,12 @@ describe('moveToFolders', () => {
       ctx
     );
 
-    expect(moveMessages).toHaveBeenCalledWith(
+    expect(mockedMoveMessages).toHaveBeenCalledWith(
       mockImap,
       lowSpamMessages,
       'spam.low'
     );
-    expect(moveMessages).toHaveBeenCalledWith(
+    expect(mockedMoveMessages).toHaveBeenCalledWith(
       mockImap,
       highSpamMessages,
       'spam.high'

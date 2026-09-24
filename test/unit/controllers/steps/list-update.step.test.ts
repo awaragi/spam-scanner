@@ -1,4 +1,5 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { asImapFlow } from '../../../support/imap-fakes.ts';
 
 const { readMapState, writeMapState } = vi.hoisted(() => ({
   readMapState: vi.fn(),
@@ -22,7 +23,7 @@ describe('updateListState', () => {
     readMapState.mockResolvedValue(['a@b.com']);
 
     const result = await updateListState(
-      {},
+      asImapFlow({}),
       'rspamd-whitelist-map',
       ['C@D.com', 'a@b.com'],
       'append'
@@ -42,7 +43,7 @@ describe('updateListState', () => {
     readMapState.mockResolvedValue(['old@example.com']);
 
     const result = await updateListState(
-      {},
+      asImapFlow({}),
       'rspamd-blacklist-map',
       ['new@example.com'],
       'override'
@@ -59,11 +60,11 @@ describe('updateListState', () => {
 
   test('append mode is idempotent when run twice with the same input', async () => {
     readMapState.mockResolvedValueOnce([]);
-    await updateListState({}, 'rspamd-whitelist-map', ['a@b.com'], 'append');
+    await updateListState(asImapFlow({}), 'rspamd-whitelist-map', ['a@b.com'], 'append');
     const firstWrite = JSON.parse(writeMapState.mock.calls[0][2]);
 
     readMapState.mockResolvedValueOnce(firstWrite);
-    await updateListState({}, 'rspamd-whitelist-map', ['a@b.com'], 'append');
+    await updateListState(asImapFlow({}), 'rspamd-whitelist-map', ['a@b.com'], 'append');
     const secondWrite = JSON.parse(writeMapState.mock.calls[1][2]);
 
     expect(secondWrite).toEqual(firstWrite);
@@ -72,7 +73,7 @@ describe('updateListState', () => {
   test('defaults to append mode when mode is omitted', async () => {
     readMapState.mockResolvedValue(['a@b.com']);
 
-    await updateListState({}, 'rspamd-whitelist-map', ['b@c.com']);
+    await updateListState(asImapFlow({}), 'rspamd-whitelist-map', ['b@c.com']);
 
     expect(writeMapState).toHaveBeenCalledWith(
       {},

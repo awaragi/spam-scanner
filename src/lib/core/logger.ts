@@ -18,7 +18,7 @@ export interface Logger {
 }
 
 export interface ComponentLogger extends Logger {
-  forMessage: (uid?: number | null) => Logger;
+  forMessage: (uid?: number | string | null) => Logger;
 }
 
 export interface RootLogger extends Logger {
@@ -213,7 +213,7 @@ function attachForComponent(logger: pino.Logger): RootLogger {
      */
     componentLogger.forMessage = function (
       this: pino.Logger,
-      uid?: number | null
+      uid?: number | string | null
     ): Logger {
       return this.child({ uid });
     };

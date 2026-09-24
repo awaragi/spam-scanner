@@ -1,9 +1,17 @@
 import { rootLogger } from '../../core/logger.ts';
 import { learnSpam, learnHam } from '../../clients/rspamd.client.ts';
 import { isPermanentError } from '../../services/error-classifier.service.ts';
-import { createDefaultContext } from '../../core/context.ts';
+import { createDefaultContext, type Context } from '../../core/context.ts';
 
 const logger = rootLogger.forComponent('rspamd-training');
+
+interface TrainableMessage {
+  uid: number;
+  raw: unknown;
+  envelope: { subject?: string; [key: string]: unknown };
+}
+
+type LearnFn = typeof learnSpam;
 
 /**
  * Process a single message with Rspamd learning.
@@ -20,30 +28,35 @@ const logger = rootLogger.forComponent('rspamd-training');
  * @param {string} type - Training type ('spam' or 'ham') for logging
  * @returns {Promise<Object|null>} - The message if learned, null if permanently skipped
  */
-async function processWithRspamdLearn(message, learnFn, type) {
+async function processWithRspamdLearn<M extends TrainableMessage>(
+  message: M,
+  learnFn: LearnFn,
+  type: string
+): Promise<M | null> {
   const { uid, raw } = message;
   const messageLogger = logger.forMessage(uid);
   messageLogger.debug({ type }, 'Learning message with rspamd');
 
   const subject = message.envelope.subject;
   try {
-    const result = await learnFn(raw);
+    const result = await learnFn(raw as string | Buffer);
     messageLogger.debug(
       { type, subject, result },
       'Message processed with rspamd learn'
     );
     return message;
   } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
     if (isPermanentError(err)) {
       messageLogger.warn(
-        { type, subject, error: err.message },
+        { type, subject, error: errorMessage },
         'rspamd learn failed permanently for this message - leaving it in the training folder, batch continues'
       );
       return null;
     }
 
     messageLogger.error(
-      { type, subject, error: err.message },
+      { type, subject, error: errorMessage },
       'rspamd learn process error'
     );
     throw err;
@@ -63,7 +76,11 @@ async function processWithRspamdLearn(message, learnFn, type) {
  * @returns {Promise<{learned: Array, skipped: Array}>} - Messages actually learned, and
  *   messages that permanently failed to learn but should still move on
  */
-async function trainBatch(messages, learnFn, type) {
+async function trainBatch<M extends TrainableMessage>(
+  messages: M[],
+  learnFn: LearnFn,
+  type: string
+): Promise<{ learned: M[]; skipped: M[] }> {
   if (messages.length === 0) {
     return { learned: [], skipped: [] };
   }
@@ -72,9 +89,9 @@ async function trainBatch(messages, learnFn, type) {
     messages.map(message => processWithRspamdLearn(message, learnFn, type))
   );
 
-  const learned = [];
-  const skipped = [];
-  const failedUids = [];
+  const learned: M[] = [];
+  const skipped: M[] = [];
+  const failedUids: number[] = [];
 
   settled.forEach((result, index) => {
     if (result.status === 'fulfilled') {
@@ -107,10 +124,11 @@ async function trainBatch(messages, learnFn, type) {
  * @param {Object} [ctx] - unused today; present for interface consistency across steps
  * @returns {Promise<{learned: Array, skipped: Array}>}
  */
-export async function trainSpam(
-  messages,
-  ctx = createDefaultContext() // eslint-disable-line no-unused-vars
-) {
+export async function trainSpam<M extends TrainableMessage>(
+  messages: M[],
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  ctx: Context = createDefaultContext()
+): Promise<{ learned: M[]; skipped: M[] }> {
   return trainBatch(messages, learnSpam, 'spam');
 }
 
@@ -120,9 +138,10 @@ export async function trainSpam(
  * @param {Object} [ctx] - unused today; present for interface consistency across steps
  * @returns {Promise<{learned: Array, skipped: Array}>}
  */
-export async function trainHam(
-  messages,
-  ctx = createDefaultContext() // eslint-disable-line no-unused-vars
-) {
+export async function trainHam<M extends TrainableMessage>(
+  messages: M[],
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  ctx: Context = createDefaultContext()
+): Promise<{ learned: M[]; skipped: M[] }> {
   return trainBatch(messages, learnHam, 'ham');
 }

@@ -1,5 +1,6 @@
+import type { ImapFlow } from 'imapflow';
 import { readMapState } from '../../clients/state-manager.client.ts';
-import { createDefaultContext } from '../../core/context.ts';
+import { createDefaultContext, type Context } from '../../core/context.ts';
 
 /**
  * Loads the whitelist/blacklist sender sets once per `runScan` call, not
@@ -12,7 +13,10 @@ import { createDefaultContext } from '../../core/context.ts';
  * @param {Object} [ctx]
  * @returns {Promise<{whitelistSet: Set<string>, blacklistSet: Set<string>}>}
  */
-export async function loadSenderLists(imap, ctx = createDefaultContext()) {
+export async function loadSenderLists(
+  imap: ImapFlow,
+  ctx: Context = createDefaultContext()
+): Promise<{ whitelistSet: Set<string>; blacklistSet: Set<string> }> {
   const { config: cfg } = ctx;
   const whitelistEntries = await readMapState(
     imap,

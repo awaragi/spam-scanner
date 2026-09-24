@@ -1,6 +1,7 @@
+import type { ImapFlow } from 'imapflow';
 import { moveMessages } from '../../clients/imap.client.ts';
 import { rootLogger } from '../../core/logger.ts';
-import { createDefaultContext } from '../../core/context.ts';
+import { createDefaultContext, type Context } from '../../core/context.ts';
 
 const logger = rootLogger.forComponent('folder-move');
 
@@ -12,10 +13,18 @@ const logger = rootLogger.forComponent('folder-move');
  * @returns {Promise<void>}
  */
 export async function moveToFolders(
-  imap,
-  { nonSpamMessages, lowSpamMessages, highSpamMessages },
-  ctx = createDefaultContext()
-) {
+  imap: ImapFlow,
+  {
+    nonSpamMessages,
+    lowSpamMessages,
+    highSpamMessages,
+  }: {
+    nonSpamMessages: Array<{ uid: number }>;
+    lowSpamMessages: Array<{ uid: number }>;
+    highSpamMessages: Array<{ uid: number }>;
+  },
+  ctx: Context = createDefaultContext()
+): Promise<void> {
   const { FOLDER_INBOX, FOLDER_SPAM_LOW, FOLDER_SPAM_HIGH } = ctx.config;
   logger.debug({ mode: 'folder' }, 'Processing messages with folder strategy');
 

@@ -1,6 +1,7 @@
+import type { ImapFlow } from 'imapflow';
 import { updateLabels } from '../../clients/imap.client.ts';
 import { rootLogger } from '../../core/logger.ts';
-import { createDefaultContext } from '../../core/context.ts';
+import { createDefaultContext, type Context } from '../../core/context.ts';
 
 const logger = rootLogger.forComponent('label-apply');
 
@@ -13,10 +14,18 @@ const logger = rootLogger.forComponent('label-apply');
  * @returns {Promise<void>}
  */
 export async function applyLabels(
-  imap,
-  { nonSpamMessages, lowSpamMessages, highSpamMessages },
-  ctx = createDefaultContext()
-) {
+  imap: ImapFlow,
+  {
+    nonSpamMessages,
+    lowSpamMessages,
+    highSpamMessages,
+  }: {
+    nonSpamMessages: Array<{ uid: number }>;
+    lowSpamMessages: Array<{ uid: number }>;
+    highSpamMessages: Array<{ uid: number }>;
+  },
+  ctx: Context = createDefaultContext()
+): Promise<void> {
   const { LABEL_SPAM_LOW, LABEL_SPAM_HIGH } = ctx.config;
   logger.debug({ mode: 'label' }, 'Processing messages with label strategy');
 

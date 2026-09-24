@@ -231,18 +231,25 @@ Add real types to (files already renamed to `.ts` in Phase 0):
 
 ## Layer: `controllers/steps` (11 files)
 
-- [ ] `ai-classification.step.ts` (+ test)
-- [ ] `ai-failure-alert.step.ts` (+ test)
-- [ ] `classify-dataset.step.ts` (+ test)
-- [ ] `folder-move.step.ts` (+ test)
-- [ ] `label-apply.step.ts` (+ test)
-- [ ] `list-update.step.ts` (+ test)
-- [ ] `pending-messages.step.ts` (+ test)
-- [ ] `rspamd-check.step.ts` (+ test)
-- [ ] `rspamd-training.step.ts` (+ test)
-- [ ] `sender-list-lookup.step.ts` (+ test)
-- [ ] `spam-move.step.ts` (+ test)
-- [ ] Layer gate (scoped): tests, `tsc`, `eslint` clean for the files above
+- [x] `ai-classification.step.ts` (+ test)
+- [x] `ai-failure-alert.step.ts` (+ test)
+- [x] `classify-dataset.step.ts` (+ test) - widened `ai-content.service.ts`'s
+  `EnvelopedMessage.uid` and `core/logger.ts`'s `forMessage(uid)` to
+  `number | string`, since dataset messages use string uids (`bucket/filename`)
+  while IMAP messages use numeric ones
+- [x] `folder-move.step.ts` (+ test)
+- [x] `label-apply.step.ts` (+ test)
+- [x] `list-update.step.ts` (+ test)
+- [x] `pending-messages.step.ts` (+ test)
+- [x] `rspamd-check.step.ts` (+ test) - extended `src/lib/types/mailparser.d.ts`
+  with `ParsedMail.headers: Map<string, unknown>` and `simpleParser`'s options
+  param, needed for this file's `mailparser` usage
+- [x] `rspamd-training.step.ts` (+ test)
+- [x] `sender-list-lookup.step.ts` (+ test)
+- [x] `spam-move.step.ts` (+ test)
+- [x] Layer gate (scoped): tests, `tsc`, `eslint` clean for the files above
+  (58 tests passing). Used the shared `asImapFlow`/`createNoOpRootLogger` test
+  helpers (from `test/support/`) throughout instead of re-deriving per-file casts.
 
 ## Layer: `controllers/workflows` (6 files)
 

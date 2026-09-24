@@ -1,14 +1,16 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { fixtureContext } from '../../../support/fixtures.ts';
+import { asImapFlow } from '../../../support/imap-fakes.ts';
 
 vi.mock('../../../../src/lib/clients/imap.client.ts', () => ({
-  updateLabels: vi.fn().mockResolvedValue(),
+  updateLabels: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { applyLabels } from '../../../../src/lib/controllers/steps/label-apply.step.ts';
 import { updateLabels } from '../../../../src/lib/clients/imap.client.ts';
 
-const mockImap = {};
+const mockedUpdateLabels = vi.mocked(updateLabels);
+const mockImap = asImapFlow({});
 
 describe('applyLabels', () => {
   beforeEach(() => {
@@ -27,7 +29,7 @@ describe('applyLabels', () => {
       ctx
     );
 
-    expect(updateLabels).toHaveBeenCalledWith(
+    expect(mockedUpdateLabels).toHaveBeenCalledWith(
       mockImap,
       nonSpamMessages,
       [],
@@ -47,7 +49,7 @@ describe('applyLabels', () => {
       ctx
     );
 
-    expect(updateLabels).toHaveBeenCalledWith(
+    expect(mockedUpdateLabels).toHaveBeenCalledWith(
       mockImap,
       lowSpamMessages,
       ['Spam:Low'],
@@ -67,7 +69,7 @@ describe('applyLabels', () => {
       ctx
     );
 
-    expect(updateLabels).toHaveBeenCalledWith(
+    expect(mockedUpdateLabels).toHaveBeenCalledWith(
       mockImap,
       highSpamMessages,
       ['Spam:High'],
@@ -88,7 +90,7 @@ describe('applyLabels', () => {
       },
       first
     );
-    expect(updateLabels).toHaveBeenCalledWith(
+    expect(mockedUpdateLabels).toHaveBeenCalledWith(
       mockImap,
       [{ uid: 1 }],
       ['First:Low'],
@@ -109,7 +111,7 @@ describe('applyLabels', () => {
       },
       second
     );
-    expect(updateLabels).toHaveBeenCalledWith(
+    expect(mockedUpdateLabels).toHaveBeenCalledWith(
       mockImap,
       [{ uid: 1 }],
       ['Second:Low'],

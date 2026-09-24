@@ -1,3 +1,4 @@
+import type { ImapFlow } from 'imapflow';
 import { rootLogger } from '../../core/logger.ts';
 import {
   readScannerState,
@@ -8,7 +9,8 @@ import {
   computeUidValidityReset,
   buildScanQuery,
 } from '../../services/scan-progress.service.ts';
-import { createDefaultContext } from '../../core/context.ts';
+import { createDefaultContext, type Context } from '../../core/context.ts';
+import type { ScannerState } from '../../services/state-format.service.ts';
 
 const logger = rootLogger.forComponent('pending-messages');
 
@@ -23,9 +25,9 @@ const logger = rootLogger.forComponent('pending-messages');
  * @returns {Promise<{state: Object, uids: Array<number>}>} - `uids` is empty when there's nothing new
  */
 export async function locatePendingMessages(
-  imap,
-  ctx = createDefaultContext()
-) {
+  imap: ImapFlow,
+  ctx: Context = createDefaultContext()
+): Promise<{ state: ScannerState; uids: number[] }> {
   const { config: cfg } = ctx;
   const now = new Date().toISOString();
   const defaultState = {

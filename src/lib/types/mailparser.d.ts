@@ -17,9 +17,20 @@ declare module 'mailparser' {
     to?: AddressObject;
     subject?: string;
     date?: Date;
+    // Value type varies by header name (string, string[], Date,
+    // AddressObject, ...) - callers narrow per header, same as mailparser's
+    // own (loosely-typed) runtime behavior.
+    headers: Map<string, unknown>;
+  }
+
+  export interface SimpleParserOptions {
+    skipHtmlToText?: boolean;
+    skipTextToHtml?: boolean;
+    skipImageLinks?: boolean;
   }
 
   export function simpleParser(
-    source: string | Buffer
+    source: string | Buffer,
+    options?: SimpleParserOptions
   ): Promise<ParsedMail>;
 }
