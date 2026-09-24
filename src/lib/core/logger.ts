@@ -23,6 +23,7 @@ export interface ComponentLogger extends Logger {
 
 export interface RootLogger extends Logger {
   forComponent: (component: string) => ComponentLogger;
+  level: string;
 }
 
 // Read environment variables
@@ -173,6 +174,7 @@ function createNoOpLogger(): NoOpLogger {
     warn: noOp,
     error: noOp,
     fatal: noOp,
+    level: 'silent',
     child: () => noOpLogger,
     forComponent: () => noOpLogger,
     forMessage: () => noOpLogger,

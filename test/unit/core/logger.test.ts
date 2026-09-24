@@ -8,7 +8,7 @@ import {
 } from '../../../src/lib/core/logger.ts';
 
 describe('Logger Factory', () => {
-  let originalEnv;
+  let originalEnv: NodeJS.ProcessEnv;
 
   beforeEach(() => {
     // Save original environment
@@ -157,7 +157,7 @@ describe('Logger Factory', () => {
 
 describe('Logger secret redaction', () => {
   it('redacts known secret fields so they never reach logs, even at debug', () => {
-    const chunks = [];
+    const chunks: string[] = [];
     const captureStream = new Writable({
       write(chunk, _encoding, callback) {
         chunks.push(chunk.toString());
