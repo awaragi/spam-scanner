@@ -104,4 +104,21 @@ export class AiFailureTracker {
       this.#streak = { ...this.#streak, notified: true };
     }
   }
+
+  /**
+   * Returns a read-only snapshot of the current streak state.
+   */
+  status(): {
+    reason: string | null;
+    count: number;
+    lastError: string | null;
+    lastAt: string | null;
+  } {
+    return {
+      reason: this.#streak.reason,
+      count: this.#streak.count,
+      lastError: this.#streak.lastError,
+      lastAt: this.#streak.lastAt,
+    };
+  }
 }

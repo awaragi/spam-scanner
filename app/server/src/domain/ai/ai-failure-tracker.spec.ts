@@ -159,4 +159,35 @@ describe('AiFailureTracker', () => {
     expect(tracker.recordFailure(err('boom'), 3).shouldAlert).toBe(true);
     expect(other.recordFailure(err('boom'), 3).shouldAlert).toBe(false);
   });
+
+  test('status() returns empty state on fresh tracker', () => {
+    expect(tracker.status()).toEqual({
+      reason: null,
+      count: 0,
+      lastError: null,
+      lastAt: null,
+    });
+  });
+
+  test('status() reflects the current failure after recordFailure', () => {
+    tracker.recordFailure(err('boom'), 3);
+    const status = tracker.status();
+    expect(status).toMatchObject({
+      reason: 'unknown',
+      count: 1,
+      lastError: 'boom',
+    });
+    expect(status.lastAt).toBeTruthy();
+  });
+
+  test('status() returns to empty state after recordSuccess', () => {
+    tracker.recordFailure(err('boom'), 3);
+    tracker.recordSuccess();
+    expect(tracker.status()).toEqual({
+      reason: null,
+      count: 0,
+      lastError: null,
+      lastAt: null,
+    });
+  });
 });

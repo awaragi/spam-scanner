@@ -16,6 +16,18 @@ export interface ImapConnectionConfig {
 }
 
 /**
+ * Extra `ImapFlow` constructor options a caller may need beyond the
+ * connection fields every client shares - currently just `disableAutoIdle`,
+ * needed by `MailboxRunner`'s dedicated IDLE connection (design.md D6's
+ * Context section) so `imapflow` never enters IDLE - or falls back to
+ * `missingIdleCommand`'s polling - on its own initiative behind the caller's
+ * back.
+ */
+export interface NewClientOptions {
+  disableAutoIdle?: boolean;
+}
+
+/**
  * Creates and returns a configured ImapFlow instance.
  *
  * Preserves the TLS/STARTTLS logic from terminal's `imap-transport-security`
@@ -26,11 +38,13 @@ export interface ImapConnectionConfig {
  *
  * @param connection - The mailbox's IMAP connection info.
  * @param logger - Optional pino logger. If not provided, no logging occurs.
+ * @param options - Extra `ImapFlow` options (see `NewClientOptions`).
  * @returns A configured ImapFlow instance, not yet connected.
  */
 export function newClient(
   connection: ImapConnectionConfig,
-  logger?: PinoLogger
+  logger?: PinoLogger,
+  options?: NewClientOptions
 ): ImapFlow {
   // Create a pino logger for ImapFlow that redirects to the optional logger.
   // If no logger is provided, create no-op functions to avoid null checks.
@@ -63,6 +77,7 @@ export function newClient(
     } as ImapFlowLogger,
     emitLogs: false,
     maxIdleTime: 29 * 60 * 1000,
+    disableAutoIdle: options?.disableAutoIdle,
   });
 }
 

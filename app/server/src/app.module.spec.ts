@@ -21,7 +21,7 @@ async function loadAppModule() {
  * The one test task 7.2 adds beyond wiring itself (see its tasks.md entry):
  * confirms the whole DI graph - every module created/wired in this task -
  * actually resolves, without booting a real IMAP/rspamd/AI connection.
- * `MailboxLoopService.onApplicationBootstrap` never runs here, since
+ * `RunnerRegistry.onApplicationBootstrap` never runs here, since
  * `Test.createTestingModule(...).compile()` builds the container but does
  * not trigger Nest's application lifecycle hooks (only `NestFactory`/
  * `app.init()` do that) - so this is a pure "does everything wire up"
@@ -36,7 +36,7 @@ describe('AppModule', () => {
     process.env = { ...ORIGINAL_ENV };
   });
 
-  test('compiles and resolves MailboxLoopService from a fixture env', async () => {
+  test('compiles and resolves RunnerRegistry from a fixture env', async () => {
     Object.assign(process.env, {
       MAILBOX_ID: 'owner@example.com',
       MAILBOX_IMAP_HOST: 'imap.example.com',
@@ -46,18 +46,14 @@ describe('AppModule', () => {
     });
 
     const AppModule = await loadAppModule();
-    const { MailboxLoopService } = await import(
-      './runtime/mailbox-loop.service.js'
-    );
+    const { RunnerRegistry } = await import('./runtime/runner-registry.js');
 
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
 
     try {
-      expect(moduleRef.get(MailboxLoopService)).toBeInstanceOf(
-        MailboxLoopService
-      );
+      expect(moduleRef.get(RunnerRegistry)).toBeInstanceOf(RunnerRegistry);
     } finally {
       await moduleRef.close();
     }

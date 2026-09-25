@@ -12,10 +12,10 @@ import { ServerConfig } from './config/app-config.js';
  * then switches Nest's own internal logging over to that same pino instance
  * (nestjs-pino's documented pattern for `bufferLogs`).
  *
- * `enableShutdownHooks()` is what makes `MailboxLoopService`'s
- * `OnApplicationShutdown` actually fire on `SIGTERM`/`SIGINT` - the minimal
- * run loop's only way to stop cleanly (design.md D9); without it, Nest never
- * calls shutdown lifecycle hooks on process signals. `useProcessExit: true`
+ * `enableShutdownHooks()` is what makes `RunnerRegistry`'s
+ * `OnApplicationShutdown` actually fire on `SIGTERM`/`SIGINT` - every
+ * mailbox runner's only way to stop cleanly (design.md D9); without it, Nest
+ * never calls shutdown lifecycle hooks on process signals. `useProcessExit: true`
  * is required to actually exit with code 0 afterwards: Nest's default
  * (re-sending the original signal to itself once hooks finish) exits with
  * 128+signal instead, and skips the `'exit'` event pino's async transports
