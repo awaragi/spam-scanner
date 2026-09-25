@@ -8,6 +8,10 @@
   "scripts": {
     "test": "npm test --workspace=terminal",
     "lint": "npm run lint --workspace=terminal",
-    "format:check": "npm run format:check --workspace=terminal"
+    "format:check": "npm run format:check --workspace=terminal",
+    "mock-rspamd": "node bin/local/mock-rspamd.mjs"
+  },
+  "devDependencies": {
+    "express": "^5.1.0"
   }
 }
