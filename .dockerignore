@@ -1,0 +1,47 @@
+# Root build context for app/server/Dockerfile (see that file's header
+# comment for why the build context is the repo root, not app/server alone).
+# Keeps the context small: node_modules is (re)installed inside the image,
+# never copied in from the host.
+
+node_modules
+**/node_modules
+npm-debug.log
+
+# Environment files (passed via docker-compose / --env-file)
+.env
+.env.*
+!.env.example
+
+# Rspamd data and logs (mounted as volumes)
+rspamd/data
+rspamd/logs
+data
+
+# Test, coverage and build artifacts
+coverage
+**/dist
+**/coverage
+
+# Documentation
+docs
+*.md
+!README.md
+
+# Git files
+.git
+.gitignore
+.github
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Log files
+*.log
+logs
+
+# macOS files
+.DS_Store

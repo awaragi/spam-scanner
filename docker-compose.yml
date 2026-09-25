@@ -16,3 +16,21 @@ services:
       # RSPAMD_PASSWORD comes from env_file above, not restated here (see .env)
     networks:
       - spam-network
+
+  server:
+    profiles: ["server"]
+    image: spam-scanner-server:latest
+    build:
+      context: .
+      dockerfile: app/server/Dockerfile
+    env_file: app/server/.env
+    depends_on:
+      rspamd:
+        condition: service_healthy
+    restart: unless-stopped
+    environment:
+      # Hardcode internal Rspamd URL for service-to-service communication
+      - RSPAMD_URL=http://rspamd:11334
+      # RSPAMD_PASSWORD comes from env_file above, not restated here (see app/server/.env)
+    networks:
+      - spam-network
