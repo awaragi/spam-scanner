@@ -117,33 +117,38 @@ export class RspamdTrainingService {
     }
   }
 
-  private trainSpam: LearnFn = raw => this.rspamd.learnSpam(raw);
-  private trainHam: LearnFn = raw => this.rspamd.learnHam(raw);
-
   /**
-   * Run spam training workflow. Never rejects - see class doc.
+   * Run spam training workflow. Never rejects - see class doc. The
+   * `LearnFn` passed to `trainMessages` is built per-run so it can capture
+   * `session.mailbox.id` in its closure (`6-per-user-bayes` design D3) -
+   * `trainMessages`/`LearnFn` stay user-less, the user is bound here.
    * @param session - The mailbox session to train
    */
   async runSpam(session: MailboxSession): Promise<void> {
+    const trainSpam: LearnFn = raw =>
+      this.rspamd.learnSpam(raw, session.mailbox.id);
     await this.runTraining(
       session,
       session.folders.trainSpam,
       session.folders.spam,
-      (messages, logger) => trainMessages(messages, this.trainSpam, 'spam', logger),
+      (messages, logger) => trainMessages(messages, trainSpam, 'spam', logger),
       'spam'
     );
   }
 
   /**
-   * Run ham training workflow. Never rejects - see class doc.
+   * Run ham training workflow. Never rejects - see class doc. See
+   * `runSpam` for why the `LearnFn` is built per-run.
    * @param session - The mailbox session to train
    */
   async runHam(session: MailboxSession): Promise<void> {
+    const trainHam: LearnFn = raw =>
+      this.rspamd.learnHam(raw, session.mailbox.id);
     await this.runTraining(
       session,
       session.folders.trainHam,
       session.folders.inbox,
-      (messages, logger) => trainMessages(messages, this.trainHam, 'ham', logger),
+      (messages, logger) => trainMessages(messages, trainHam, 'ham', logger),
       'ham'
     );
   }

@@ -241,6 +241,41 @@ describe('RspamdGateway', () => {
         })
       );
     });
+
+    test('should send Deliver-To when a user is passed', async () => {
+      const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
+      vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ action: 'no action', score: 0 }),
+      } as Response);
+
+      await gateway.checkEmail(emailContent, {}, 'owner@example.com');
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/checkv2'),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'Deliver-To': 'owner@example.com',
+          }),
+        })
+      );
+    });
+
+    test('should send no Deliver-To header when called without a user', async () => {
+      const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
+      vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ action: 'no action', score: 0 }),
+      } as Response);
+
+      await gateway.checkEmail(emailContent);
+
+      const headers = vi.mocked(global.fetch).mock.calls[0][1]?.headers as Record<
+        string,
+        string
+      >;
+      expect(headers).not.toHaveProperty('Deliver-To');
+    });
   });
 
   describe('learnHam', () => {
@@ -337,6 +372,41 @@ describe('RspamdGateway', () => {
         message: '',
       });
     });
+
+    test('should send Deliver-To when a user is passed', async () => {
+      const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
+      vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ success: true }),
+      } as Response);
+
+      await gateway.learnHam(emailContent, 'owner@example.com');
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/learnham'),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'Deliver-To': 'owner@example.com',
+          }),
+        })
+      );
+    });
+
+    test('should send no Deliver-To header when called without a user', async () => {
+      const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
+      vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ success: true }),
+      } as Response);
+
+      await gateway.learnHam(emailContent);
+
+      const headers = vi.mocked(global.fetch).mock.calls[0][1]?.headers as Record<
+        string,
+        string
+      >;
+      expect(headers).not.toHaveProperty('Deliver-To');
+    });
   });
 
   describe('learnSpam', () => {
@@ -428,6 +498,41 @@ describe('RspamdGateway', () => {
         success: true,
         message: '',
       });
+    });
+
+    test('should send Deliver-To when a user is passed', async () => {
+      const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
+      vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ success: true }),
+      } as Response);
+
+      await gateway.learnSpam(emailContent, 'owner@example.com');
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/learnspam'),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'Deliver-To': 'owner@example.com',
+          }),
+        })
+      );
+    });
+
+    test('should send no Deliver-To header when called without a user', async () => {
+      const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
+      vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ success: true }),
+      } as Response);
+
+      await gateway.learnSpam(emailContent);
+
+      const headers = vi.mocked(global.fetch).mock.calls[0][1]?.headers as Record<
+        string,
+        string
+      >;
+      expect(headers).not.toHaveProperty('Deliver-To');
     });
   });
 });

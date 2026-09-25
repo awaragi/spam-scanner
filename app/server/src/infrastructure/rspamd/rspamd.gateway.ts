@@ -27,11 +27,19 @@ export class RspamdGateway {
    * Builds headers for Rspamd HTTP requests. `envelope` fields are only
    * meaningful for `/checkv2` (they let Rspamd evaluate SPF and IP-based
    * DNSBL checks against the real sending relay); learn endpoints don't score,
-   * so callers never pass one.
+   * so callers never pass one. `user` selects the per-mailbox Bayes model via
+   * the `Deliver-To` header (rspamd protocol's per-user selector, `6-per-user-bayes`
+   * design D2) - it is only set when non-empty, so a caller that passes none
+   * (e.g. terminal) keeps hitting rspamd's default corpus rather than sending
+   * an empty header.
    * @param [envelope]
-   * @returns - Headers object with optional password and envelope data
+   * @param [user] - Mailbox id to select a per-user Bayes model, if any
+   * @returns - Headers object with optional password, envelope data, and user
    */
-  private buildHeaders(envelope: RspamdEnvelope = {}): Record<string, string> {
+  private buildHeaders(
+    envelope: RspamdEnvelope = {},
+    user?: string
+  ): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'text/plain',
     };
@@ -44,6 +52,8 @@ export class RspamdGateway {
     if (envelope.helo) headers['Helo'] = envelope.helo;
     if (envelope.from) headers['From'] = envelope.from;
     if (envelope.rcpt) headers['Rcpt'] = envelope.rcpt;
+
+    if (user) headers['Deliver-To'] = user;
 
     return headers;
   }
@@ -117,12 +127,17 @@ export class RspamdGateway {
    *   can evaluate SPF and IP-based DNSBL checks against the real sending
    *   relay - see the `rspamd-envelope-data` capability. Any field may be
    *   omitted; only the ones present are sent.
+   * @param [user] -
+   *   Mailbox id to score against that mailbox's own per-user Bayes model
+   *   (`6-per-user-bayes`). Omitted entirely (no `Deliver-To` header) when
+   *   not given, so the request falls back to rspamd's default model.
    * @returns - Parsed JSON response from Rspamd
    * @throws {Error} - If the request fails or Rspamd returns an error
    */
   async checkEmail(
     emailContent: string | Buffer | null | undefined,
-    envelope: RspamdEnvelope = {}
+    envelope: RspamdEnvelope = {},
+    user?: string
   ): Promise<unknown> {
     if (!emailContent) {
       throw new Error('Email content is required');
@@ -131,7 +146,7 @@ export class RspamdGateway {
     try {
       const response = await fetch(`${this.config.url}/checkv2`, {
         method: 'POST',
-        headers: this.buildHeaders(envelope),
+        headers: this.buildHeaders(envelope, user),
         body: emailContent as any,
         signal: AbortSignal.timeout(this.config.timeoutMs),
       });
@@ -163,10 +178,17 @@ export class RspamdGateway {
   /**
    * Trains Rspamd classifier with ham (non-spam) email
    * @param emailContent - Raw email content including headers
+   * @param [user] -
+   *   Mailbox id to train that mailbox's own per-user Bayes model
+   *   (`6-per-user-bayes`). Omitted entirely (no `Deliver-To` header) when
+   *   not given, so the request falls back to rspamd's default model.
    * @returns - Parsed JSON response from Rspamd
    * @throws {Error} - If the request fails or Rspamd returns an error
    */
-  async learnHam(emailContent: string | Buffer): Promise<LearnResult> {
+  async learnHam(
+    emailContent: string | Buffer,
+    user?: string
+  ): Promise<LearnResult> {
     if (!emailContent) {
       throw new Error('Email content is required');
     }
@@ -174,7 +196,7 @@ export class RspamdGateway {
     try {
       const response = await fetch(`${this.config.url}/learnham`, {
         method: 'POST',
-        headers: this.buildHeaders(),
+        headers: this.buildHeaders({}, user),
         body: emailContent as any,
         signal: AbortSignal.timeout(this.config.timeoutMs),
       });
@@ -235,10 +257,17 @@ export class RspamdGateway {
   /**
    * Trains Rspamd classifier with spam email
    * @param emailContent - Raw email content including headers
+   * @param [user] -
+   *   Mailbox id to train that mailbox's own per-user Bayes model
+   *   (`6-per-user-bayes`). Omitted entirely (no `Deliver-To` header) when
+   *   not given, so the request falls back to rspamd's default model.
    * @returns - Parsed JSON response from Rspamd
    * @throws {Error} - If the request fails or Rspamd returns an error
    */
-  async learnSpam(emailContent: string | Buffer): Promise<LearnResult> {
+  async learnSpam(
+    emailContent: string | Buffer,
+    user?: string
+  ): Promise<LearnResult> {
     if (!emailContent) {
       throw new Error('Email content is required');
     }
@@ -246,7 +275,7 @@ export class RspamdGateway {
     try {
       const response = await fetch(`${this.config.url}/learnspam`, {
         method: 'POST',
-        headers: this.buildHeaders(),
+        headers: this.buildHeaders({}, user),
         body: emailContent as any,
         signal: AbortSignal.timeout(this.config.timeoutMs),
       });

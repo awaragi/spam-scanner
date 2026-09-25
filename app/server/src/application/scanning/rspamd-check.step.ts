@@ -129,7 +129,8 @@ export class RspamdCheckStep {
       );
       const result = await this.rspamd.checkEmail(
         raw as string | Buffer,
-        rspamdEnvelope
+        rspamdEnvelope,
+        session.mailbox.id
       );
 
       session.logger.debug(

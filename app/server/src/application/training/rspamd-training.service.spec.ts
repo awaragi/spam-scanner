@@ -218,6 +218,32 @@ describe('RspamdTrainingService: per-message failure isolation', () => {
     expect(session.logger.error).toHaveBeenCalled();
   });
 
+  test('a spam-training run calls learnSpam with the session mailbox id', async () => {
+    mockCount.mockReturnValue(1);
+    stubUidsAndFetch([1]);
+    const learnSpam = vi.fn().mockResolvedValue({ success: true });
+    const service = await buildService({ learnSpam });
+
+    await service.runSpam(
+      fixtureSession({ mailbox: fixtureMailbox({ id: 'owner@example.com' }) })
+    );
+
+    expect(learnSpam).toHaveBeenCalledWith('raw-1', 'owner@example.com');
+  });
+
+  test('a ham-training run calls learnHam with the session mailbox id', async () => {
+    mockCount.mockReturnValue(1);
+    stubUidsAndFetch([1]);
+    const learnHam = vi.fn().mockResolvedValue({ success: true });
+    const service = await buildService({ learnHam });
+
+    await service.runHam(
+      fixtureSession({ mailbox: fixtureMailbox({ id: 'owner@example.com' }) })
+    );
+
+    expect(learnHam).toHaveBeenCalledWith('raw-1', 'owner@example.com');
+  });
+
   test('a failure opening/reading the training folder itself does not throw either', async () => {
     mockCount.mockReturnValue(5);
     mockSearch.mockRejectedValue(new Error('connection dropped'));

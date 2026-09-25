@@ -162,12 +162,35 @@ describe('RspamdCheckStep', () => {
       fixtureSession({ mailbox: fixtureMailbox({ imapUser: 'owner@example.com' }) })
     );
 
-    expect(fakeRspamdGateway.checkEmail).toHaveBeenCalledWith(raw, {
-      ip: '203.0.113.5',
-      helo: 'mail.example.com',
-      from: 'sender@example.com',
-      rcpt: 'owner@example.com',
+    expect(fakeRspamdGateway.checkEmail).toHaveBeenCalledWith(
+      raw,
+      {
+        ip: '203.0.113.5',
+        helo: 'mail.example.com',
+        from: 'sender@example.com',
+        rcpt: 'owner@example.com',
+      },
+      expect.anything()
+    );
+  });
+
+  test('forwards the mailbox id to checkEmail as the user', async () => {
+    const message = makeMessage(1);
+    fakeRspamdGateway.checkEmail.mockResolvedValue({
+      score: 1,
+      required_score: 15,
     });
+
+    await step.check(
+      [message],
+      fixtureSession({ mailbox: fixtureMailbox({ id: 'owner@example.com' }) })
+    );
+
+    expect(fakeRspamdGateway.checkEmail).toHaveBeenCalledWith(
+      message.raw,
+      expect.anything(),
+      'owner@example.com'
+    );
   });
 
   test('omits Rcpt when the mailbox IMAP login is not an email address', async () => {
@@ -184,7 +207,8 @@ describe('RspamdCheckStep', () => {
 
     expect(fakeRspamdGateway.checkEmail).toHaveBeenCalledWith(
       message.raw,
-      expect.objectContaining({ rcpt: null })
+      expect.objectContaining({ rcpt: null }),
+      expect.anything()
     );
   });
 
@@ -224,7 +248,8 @@ describe('RspamdCheckStep', () => {
       expect.objectContaining({
         ip: '203.0.113.9',
         helo: 'sender.attacker.example',
-      })
+      }),
+      expect.anything()
     );
   });
 
