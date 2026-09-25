@@ -2,13 +2,22 @@ import type { ImapFlow } from 'imapflow';
 import type { Logger as PinoLoggerLike } from 'pino';
 import type { Mailbox } from '../infrastructure/mailboxes/mailbox.js';
 import { ScanConfig } from '../config/app-config.js';
-import { defaultMailboxSettings } from '../config/mailbox-settings.defaults.js';
+import {
+  defaultMailboxSettings,
+  resolveMailboxSettings,
+  type MailboxSettings,
+} from '../config/mailbox-settings.defaults.js';
+import { validateOverrides } from '../config/mailbox-settings.schema.js';
 import {
   newClient,
   safeLogout,
 } from '../infrastructure/imap/imap-connection.factory.js';
-import { resolveMailboxFolders } from '../infrastructure/imap/folder.resolver.js';
+import {
+  resolveMailboxFolders,
+  type MailboxFolders,
+} from '../infrastructure/imap/folder.resolver.js';
 import { waitForNewMail } from '../infrastructure/imap/inbox.watcher.js';
+import { readSettingsOverrides } from '../infrastructure/state/mailbox-settings.repository.js';
 import {
   createMailboxSession,
   type MailboxSession,
@@ -87,7 +96,11 @@ export interface JobStatus {
 /** A mailbox's overall runner status, as exposed by `getStatus()` - see design.md D5. */
 export interface MailboxRunnerStatus {
   mailboxId: string;
-  /** Derived: `'degraded'` iff any job has `consecutiveFailures > 0`. */
+  /**
+   * Derived: `'degraded'` iff any job has `consecutiveFailures > 0`, or this
+   * mailbox has never once bootstrapped successfully
+   * (`bootstrapFailures > 0` - `4-mailbox-settings-email` design.md D4).
+   */
   state: 'running' | 'degraded';
   /** Which trigger mode this mailbox is in - see design.md D6 (set by `start()`, task 3). */
   mode: 'idle' | 'loop';
@@ -153,6 +166,24 @@ export class MailboxRunner {
    */
   private idleFailureCount = 0;
 
+  /**
+   * This mailbox's resolved settings - code defaults merged with any stored
+   * override (`4-mailbox-settings-email` design.md D3/D4). Starts as
+   * `defaultMailboxSettings` so `getStatus()`/any pre-bootstrap access never
+   * sees `undefined`, and is only ever reassigned once per successful
+   * `bootstrap()` - read once per runner lifetime and cached, never re-read
+   * on every job run.
+   */
+  private settings: MailboxSettings = defaultMailboxSettings;
+
+  /**
+   * Consecutive `bootstrap()` failures - separate from both `JobState`'s
+   * per-job counters and `idleFailureCount`, since bootstrap (connect +
+   * settings load + folder init) is not one of the five jobs and has exactly
+   * one caller (`start()`'s own retry loop, design.md D4).
+   */
+  private bootstrapFailures = 0;
+
   constructor(
     private readonly mailbox: Mailbox,
     // Used by the bootstrap `start()` method task group 3 adds, not by any
@@ -169,22 +200,23 @@ export class MailboxRunner {
   /**
    * Opens one fresh `MailboxSession`: connects a new IMAP client, resolves
    * this mailbox's folders against the server's real delimiter, and
-   * assembles the session around `defaultMailboxSettings`. Ported unchanged
-   * from `mailbox-loop.service.ts`'s `openSession` per design.md D4 - the
-   * caller is responsible for closing `session.imap` (via `safeLogout`) once
-   * its job is done.
+   * assembles the session around `this.settings` - the settings `bootstrap()`
+   * resolved (once) and cached, per `4-mailbox-settings-email` design.md D4.
+   * Ported unchanged in shape from `mailbox-loop.service.ts`'s `openSession`
+   * - the caller is responsible for closing `session.imap` (via
+   * `safeLogout`) once its job is done.
    */
   private async openSession(mailbox: Mailbox): Promise<MailboxSession> {
     const imap: ImapFlow = newClient(mailbox, this.logger);
     await imap.connect();
     const folders = await resolveMailboxFolders(imap, {
-      ...defaultMailboxSettings.folders,
+      ...this.settings.folders,
       state: mailbox.stateFolder,
     });
     return createMailboxSession({
       mailbox,
       imap,
-      settings: defaultMailboxSettings,
+      settings: this.settings,
       folders,
       logger: this.logger,
     });
@@ -361,7 +393,7 @@ export class MailboxRunner {
 
     return {
       mailboxId: this.mailbox.id,
-      state: degraded ? 'degraded' : 'running',
+      state: degraded || this.bootstrapFailures > 0 ? 'degraded' : 'running',
       mode: this.mode,
       lastError: this.lastError,
       jobs,
@@ -369,41 +401,72 @@ export class MailboxRunner {
   }
 
   /**
-   * Bootstraps this mailbox: opens its first IMAP connection, runs
-   * `folderInitService.initFolders` once against it, and - only on success -
-   * checks `imap.capabilities.has('IDLE')` on that very connection before
-   * closing it, recording the result as `this.mode` for the runner's
-   * lifetime (design.md D6). Ported from `mailbox-loop.service.ts`'s
-   * `bootstrapMailbox`.
+   * Bootstraps this mailbox: connects a fresh IMAP client, loads and caches
+   * this mailbox's settings, resolves its folders against those settings,
+   * builds a `MailboxSession` around them, runs `folderInitService.
+   * initFolders` once, and - only on success - checks `imap.capabilities.
+   * has('IDLE')` on that same connection before closing it, recording the
+   * result as `this.mode` for the runner's lifetime (design.md D6).
+   * Per `4-mailbox-settings-email` design.md D4, settings load happens
+   * *before* folder resolution (not after), since folder resolution is
+   * itself parameterized by `this.settings.folders`. Ported from
+   * `mailbox-loop.service.ts`'s `bootstrapMailbox`.
    *
-   * A connect failure or `initFolders` throwing is logged and swallowed -
-   * `start()` resolves rather than rejects on bootstrap failure, so a caller
-   * starting several mailboxes' runners (`RunnerRegistry`, task group 4) is
-   * never short-circuited by one mailbox's bootstrap failing.
+   * A connect failure, a `validateOverrides` type-error throw, or
+   * `initFolders` throwing is logged and swallowed - `start()`'s retry loop
+   * (design.md D4) is what keeps calling this again with backoff, so a
+   * caller starting several mailboxes' runners (`RunnerRegistry`, task group
+   * 4) is never short-circuited by one mailbox's bootstrap failing, and a
+   * mailbox that can't yet bootstrap isn't abandoned forever.
    *
    * @returns This mailbox's resolved folders on success (used by `start()`
    *   to arm the IDLE loop against the right inbox folder), or `undefined`
    *   on bootstrap failure.
    */
-  private async bootstrap(): Promise<{ folders: MailboxSession['folders'] } | undefined> {
-    let session: MailboxSession | undefined;
+  private async bootstrap(): Promise<{ folders: MailboxFolders } | undefined> {
+    let imap: ImapFlow | undefined;
     try {
-      session = await this.openSession(this.mailbox);
+      imap = newClient(this.mailbox, this.logger);
+      await imap.connect();
+
+      const rawOverrides = await readSettingsOverrides(
+        imap,
+        this.mailbox.stateFolder,
+        this.logger,
+      );
+      this.settings = resolveMailboxSettings(
+        validateOverrides(rawOverrides, this.logger, this.mailbox.id),
+      );
+
+      const folders = await resolveMailboxFolders(imap, {
+        ...this.settings.folders,
+        state: this.mailbox.stateFolder,
+      });
+      const session = createMailboxSession({
+        mailbox: this.mailbox,
+        imap,
+        settings: this.settings,
+        folders,
+        logger: this.logger,
+      });
       await this.folderInitService.initFolders(session);
-      this.mode = session.imap.capabilities.has('IDLE') ? 'idle' : 'loop';
-      return { folders: session.folders };
+
+      this.mode = imap.capabilities.has('IDLE') ? 'idle' : 'loop';
+      this.bootstrapFailures = 0;
+      return { folders };
     } catch (error) {
+      this.bootstrapFailures++;
       this.logger.error(
         {
           mailboxId: this.mailbox.id,
           error: error instanceof Error ? error.message : String(error),
         },
-        'Mailbox bootstrap (connect + folder init) failed - this runner will not start',
+        'Mailbox bootstrap (connect + settings + folder init) failed',
       );
       return undefined;
     } finally {
-      if (session) {
-        await safeLogout(session.imap, session.logger);
+      if (imap) {
+        await safeLogout(imap, this.logger);
       }
     }
   }
@@ -526,23 +589,32 @@ export class MailboxRunner {
   }
 
   /**
-   * Bootstraps this mailbox (folder init + IDLE capability check) and, on
-   * success, starts the global interval (task 3.2/D7) plus - only when
-   * `mode === 'idle'` - the dedicated IDLE loop (task 3.3/D6). Resolves
-   * without throwing on bootstrap failure (see `bootstrap()`'s doc) so
-   * `RunnerRegistry` (task group 4) can start every mailbox's runner
-   * independently via `Promise.all`.
+   * Bootstraps this mailbox (settings load + folder init + IDLE capability
+   * check), retrying with backoff on failure rather than giving up after one
+   * attempt - `4-mailbox-settings-email` design.md D4's closure of the gap
+   * left by `3-mailbox-runners`: a mailbox that can't yet connect/load
+   * settings must stay degraded and keep retrying, not stop trying forever.
+   * On the first successful `bootstrap()`, starts the global interval (task
+   * 3.2/D7) plus - only when `mode === 'idle'` - the dedicated IDLE loop
+   * (task 3.3/D6), then returns. `stop()` called mid-retry is checked both
+   * right after `bootstrap()` resolves and via `sleep()`'s own abort
+   * handling, so shutdown during a bootstrap retry does not wait out a full
+   * backoff delay nor attempt one more bootstrap. Resolves without throwing
+   * on bootstrap failure so `RunnerRegistry` (task group 4) can start every
+   * mailbox's runner independently via `Promise.all`.
    */
   async start(): Promise<void> {
-    const bootstrapResult = await this.bootstrap();
-    if (!bootstrapResult || this.stopped) {
-      return;
-    }
-
-    this.startInterval();
-
-    if (this.mode === 'idle') {
-      void this.runIdleLoop(bootstrapResult.folders.inbox);
+    while (!this.stopped) {
+      const result = await this.bootstrap();
+      if (result) {
+        this.startInterval();
+        if (this.mode === 'idle') {
+          void this.runIdleLoop(result.folders.inbox);
+        }
+        return;
+      }
+      if (this.stopped) return;
+      await this.sleep(backoffMs(this.bootstrapFailures));
     }
   }
 

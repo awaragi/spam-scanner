@@ -7,6 +7,7 @@ import {
   STATE_KEY_SCANNER,
   STATE_KEY_WHITELIST_MAP,
   STATE_KEY_BLACKLIST_MAP,
+  STATE_KEY_MAILBOX_SETTINGS,
 } from './state-format.js';
 
 describe('validateState', () => {
@@ -178,6 +179,7 @@ describe('state-key constants and byte-identical parity', () => {
     expect(STATE_KEY_SCANNER).toBe('scanner');
     expect(STATE_KEY_WHITELIST_MAP).toBe('rspamd-whitelist-map');
     expect(STATE_KEY_BLACKLIST_MAP).toBe('rspamd-blacklist-map');
+    expect(STATE_KEY_MAILBOX_SETTINGS).toBe('mailbox-settings');
   });
 
   test('formatStateAsEmail produces the expected byte-identical format for known input', () => {

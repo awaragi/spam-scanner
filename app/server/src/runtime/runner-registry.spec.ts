@@ -13,13 +13,19 @@ import { SenderListTrainingService } from '../application/training/sender-list-t
 import { ScanService } from '../application/scanning/scan.service.js';
 import { AiFailureTracker } from '../domain/ai/ai-failure-tracker.js';
 
-const { mockNewClient, mockSafeLogout, mockResolveMailboxFolders } = vi.hoisted(
-  () => ({
-    mockNewClient: vi.fn(),
-    mockSafeLogout: vi.fn(),
-    mockResolveMailboxFolders: vi.fn(),
-  }),
-);
+const {
+  mockNewClient,
+  mockSafeLogout,
+  mockResolveMailboxFolders,
+  mockReadSettingsOverrides,
+  mockWriteSettingsOverrides,
+} = vi.hoisted(() => ({
+  mockNewClient: vi.fn(),
+  mockSafeLogout: vi.fn(),
+  mockResolveMailboxFolders: vi.fn(),
+  mockReadSettingsOverrides: vi.fn(),
+  mockWriteSettingsOverrides: vi.fn(),
+}));
 
 vi.mock('../infrastructure/imap/imap-connection.factory.js', () => ({
   newClient: mockNewClient,
@@ -30,10 +36,24 @@ vi.mock('../infrastructure/imap/folder.resolver.js', () => ({
   resolveMailboxFolders: mockResolveMailboxFolders,
 }));
 
+// `bootstrap()` (4-mailbox-settings-email design.md D4) now reads this
+// mailbox's settings before folder resolution - mocked the same way as
+// `mailbox-runner.spec.ts` so this file's fake IMAP client (which doesn't
+// implement the real gateway methods this repository calls) is never
+// actually touched. `updateSettings` (task group 4/D5) also writes overrides
+// through this same module, so the mock object gains a
+// `writeSettingsOverrides` entry rather than a second `vi.mock` call for the
+// same module path.
+vi.mock('../infrastructure/state/mailbox-settings.repository.js', () => ({
+  readSettingsOverrides: mockReadSettingsOverrides,
+  writeSettingsOverrides: mockWriteSettingsOverrides,
+}));
+
 // Imported after the mocks above, per this codebase's existing convention
 // (see mailbox-runner.spec.ts) - `vi.mock` calls are hoisted above every
 // import in this file regardless of where they're written.
 import { RunnerRegistry } from './runner-registry.js';
+import { MailboxRunner } from './mailbox-runner.js';
 
 function fixtureMailbox(overrides: Partial<Mailbox> = {}): Mailbox {
   return {
@@ -169,6 +189,8 @@ describe('RunnerRegistry', () => {
     mockNewClient.mockImplementation(() => fixtureImap());
     mockSafeLogout.mockResolvedValue(undefined);
     mockResolveMailboxFolders.mockResolvedValue(fixtureFolders());
+    mockReadSettingsOverrides.mockResolvedValue(undefined);
+    mockWriteSettingsOverrides.mockResolvedValue(undefined);
   });
 
   // --- 4.1: independent per-mailbox bootstrap ---------------------------
@@ -190,7 +212,16 @@ describe('RunnerRegistry', () => {
       mailboxes: [goodMailbox, badMailbox],
     });
 
-    await registry.onApplicationBootstrap();
+    // The bad mailbox's bootstrap now retries forever with backoff
+    // (`4-mailbox-settings-email` design.md D4), so its `start()` call never
+    // resolves while it keeps failing. `onApplicationBootstrap` itself is
+    // synchronous and fires every runner's `start()` without awaiting it
+    // (exactly to avoid hanging on a permanently-unreachable mailbox), so the
+    // runner map is populated the moment this call returns, and
+    // `getStatus()`/`triggerNow()` are already usable regardless of whether
+    // either runner's bootstrap has resolved yet - exactly the "does not
+    // block" property this test exercises.
+    registry.onApplicationBootstrap();
 
     const status = registry.getStatus();
     const mailboxIds = status.mailboxes.map((m) => m.mailboxId).sort();
@@ -203,6 +234,10 @@ describe('RunnerRegistry', () => {
     await expect(
       registry.triggerNow('good@example.com', 'trainSpam'),
     ).resolves.toBeUndefined();
+
+    // Stop every runner, including the bad mailbox's still-retrying one, so
+    // no real backoff timer is left pending once this test ends.
+    registry.onApplicationShutdown();
   });
 
   // --- 4.2: getStatus() / triggerNow() -----------------------------------
@@ -210,7 +245,7 @@ describe('RunnerRegistry', () => {
   describe('getStatus()', () => {
     test('returns both the per-mailbox array and the top-level AI status field', async () => {
       const { registry, aiFailureTracker } = await buildRegistry();
-      await registry.onApplicationBootstrap();
+      registry.onApplicationBootstrap();
 
       aiFailureTracker.recordFailure(new Error('rate limited'), 3);
 
@@ -228,7 +263,7 @@ describe('RunnerRegistry', () => {
 
     test("ai status reflects a fresh tracker's empty state when nothing has failed", async () => {
       const { registry } = await buildRegistry();
-      await registry.onApplicationBootstrap();
+      registry.onApplicationBootstrap();
 
       const status = registry.getStatus();
 
@@ -245,7 +280,7 @@ describe('RunnerRegistry', () => {
     test('delegates to the matching mailbox runner', async () => {
       const mailbox = fixtureMailbox();
       const { registry } = await buildRegistry({ mailboxes: [mailbox] });
-      await registry.onApplicationBootstrap();
+      registry.onApplicationBootstrap();
 
       // Assert delegation indirectly through the targeted runner's own
       // status update after triggering (no HTTP layer exists yet to
@@ -261,7 +296,7 @@ describe('RunnerRegistry', () => {
 
     test('throws a clear error for an unknown mailboxId', async () => {
       const { registry } = await buildRegistry();
-      await registry.onApplicationBootstrap();
+      registry.onApplicationBootstrap();
 
       await expect(
         registry.triggerNow('does-not-exist@example.com', 'scan'),
@@ -278,7 +313,7 @@ describe('RunnerRegistry', () => {
         fixtureMailbox({ id: 'b@example.com' }),
       ];
       const { registry } = await buildRegistry({ mailboxes });
-      await registry.onApplicationBootstrap();
+      registry.onApplicationBootstrap();
 
       expect(() => {
         registry.onApplicationShutdown();
@@ -289,6 +324,143 @@ describe('RunnerRegistry', () => {
       await expect(
         registry.triggerNow('a@example.com', 'trainSpam'),
       ).resolves.toBeUndefined();
+    });
+  });
+
+  // --- 4.1/4.2/4.3: updateSettings() (design.md D5) -----------------------
+
+  describe('updateSettings()', () => {
+    test('a valid update stops the old runner, writes the new settings message, and replaces the map entry with a fresh runner using the new settings', async () => {
+      const mailbox = fixtureMailbox();
+      const { registry } = await buildRegistry({ mailboxes: [mailbox] });
+      registry.onApplicationBootstrap();
+
+      // Run a job on the pre-update runner so it accumulates observable
+      // state (`lastResult`) a brand-new replacement runner would not have.
+      await registry.triggerNow(mailbox.id, 'scan');
+      expect(registry.getStatus().mailboxes[0]?.jobs.scan.lastResult).toBe(
+        'success',
+      );
+
+      const stopSpy = vi.spyOn(MailboxRunner.prototype, 'stop');
+      try {
+        const overrides = { folders: { spam: 'INBOX.updated-spam' } };
+        // The new runner's own bootstrap (fired but not awaited by
+        // `updateSettings`, D5 step 6) re-reads settings from the state
+        // folder - simulate that read now returning what was "just
+        // written" so the new runner's resolved folders are observably
+        // different from the old runner's defaults.
+        mockReadSettingsOverrides.mockResolvedValue(overrides);
+
+        await registry.updateSettings(mailbox.id, overrides);
+
+        // Step 3: the existing runner was stopped.
+        expect(stopSpy).toHaveBeenCalledTimes(1);
+
+        // Step 4: the validated overrides were written against the
+        // mailbox's own state folder.
+        expect(mockWriteSettingsOverrides).toHaveBeenCalledWith(
+          expect.anything(),
+          mailbox.stateFolder,
+          overrides,
+          expect.anything(),
+        );
+
+        // Steps 5/6: the map entry now points at a brand-new runner with no
+        // job history yet - a direct, observable difference from the old
+        // runner's `lastResult` asserted above.
+        expect(
+          registry.getStatus().mailboxes[0]?.jobs.scan.lastResult,
+        ).toBeUndefined();
+
+        // The replacement runner's bootstrap used the newly written
+        // settings, not the old runner's stale cached defaults.
+        await vi.waitFor(() => {
+          expect(mockResolveMailboxFolders).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ spam: 'INBOX.updated-spam' }),
+          );
+        });
+      } finally {
+        stopSpy.mockRestore();
+      }
+    });
+
+    test('an invalid update (a recognized key with the wrong type) rejects without stopping or writing anything', async () => {
+      const mailbox = fixtureMailbox();
+      const { registry } = await buildRegistry({ mailboxes: [mailbox] });
+      registry.onApplicationBootstrap();
+
+      await registry.triggerNow(mailbox.id, 'scan');
+      expect(registry.getStatus().mailboxes[0]?.jobs.scan.lastResult).toBe(
+        'success',
+      );
+
+      const stopSpy = vi.spyOn(MailboxRunner.prototype, 'stop');
+      try {
+        await expect(
+          registry.updateSettings(mailbox.id, {
+            thresholds: { clean: 'not-a-number' },
+          }),
+        ).rejects.toThrow();
+
+        expect(stopSpy).not.toHaveBeenCalled();
+        expect(mockWriteSettingsOverrides).not.toHaveBeenCalled();
+
+        // The original runner - and its already-accumulated job history -
+        // is still the one in the map, unaffected by the rejected update.
+        expect(
+          registry.getStatus().mailboxes[0]?.jobs.scan.lastResult,
+        ).toBe('success');
+      } finally {
+        stopSpy.mockRestore();
+      }
+    });
+
+    test('rejects with the same "Unknown mailbox" error triggerNow uses, for an unknown mailboxId', async () => {
+      const { registry } = await buildRegistry();
+      registry.onApplicationBootstrap();
+
+      await expect(
+        registry.updateSettings('does-not-exist@example.com', {
+          aiEnabled: false,
+        }),
+      ).rejects.toThrow('Unknown mailbox: does-not-exist@example.com');
+
+      expect(mockWriteSettingsOverrides).not.toHaveBeenCalled();
+    });
+
+    test('a hand-edited settings message is overwritten completely, not merged, by the next update', async () => {
+      const mailbox = fixtureMailbox();
+      const { registry } = await buildRegistry({ mailboxes: [mailbox] });
+      registry.onApplicationBootstrap();
+
+      // Simulate a settings message that exists in the mailbox's state
+      // folder because of a hand edit made directly, bypassing
+      // `updateSettings` entirely - if anything read the state folder right
+      // now, this is what it would find.
+      const handEditedOverrides = { aiEnabled: false };
+      mockReadSettingsOverrides.mockResolvedValue(handEditedOverrides);
+
+      const secondOverrides = { thresholds: { clean: 12 } };
+      await registry.updateSettings(mailbox.id, secondOverrides);
+
+      // The write carries only this call's own validated overrides - never
+      // merged with the hand-edited content already sitting in the state
+      // folder, since `updateSettings` never reads-then-merges (design.md
+      // D5).
+      expect(mockWriteSettingsOverrides).toHaveBeenCalledWith(
+        expect.anything(),
+        mailbox.stateFolder,
+        secondOverrides,
+        expect.anything(),
+      );
+      expect(mockWriteSettingsOverrides).not.toHaveBeenCalledWith(
+        expect.anything(),
+        mailbox.stateFolder,
+        expect.objectContaining(handEditedOverrides),
+        expect.anything(),
+      );
     });
   });
 });

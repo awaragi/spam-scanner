@@ -377,6 +377,24 @@ describe('ScanService', () => {
       expect(fakeAiGateway.classifyEmail).not.toHaveBeenCalled();
     });
 
+    test('global AI_ENABLED=false + per-mailbox settings.aiEnabled=true: AI is still never called (opt-out can only turn AI off, never on)', async () => {
+      const { scanService, fakeRspamdGateway, fakeAiGateway } =
+        await buildScanService({ aiConfig: { enabled: false } });
+      const session = fixtureSession({
+        settings: { ...defaultMailboxSettings, aiEnabled: true },
+      });
+      mockSearch.mockResolvedValue([101]);
+      mockFetchMessagesByUIDs.mockResolvedValue([fixtureMessage({ uid: 101 })]);
+      fakeRspamdGateway.checkEmail.mockResolvedValue({
+        score: 1,
+        required_score: 15,
+      }); // clean tier
+
+      await scanService.runScan(session);
+
+      expect(fakeAiGateway.classifyEmail).not.toHaveBeenCalled();
+    });
+
     test("per-mailbox settings.aiEnabled=false: AI is never called even though the app-wide AiConfig is enabled", async () => {
       const { scanService, fakeRspamdGateway, fakeAiGateway } =
         await buildScanService({ aiConfig: { enabled: true } });

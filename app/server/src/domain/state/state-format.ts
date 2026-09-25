@@ -4,12 +4,14 @@
 
 /**
  * State-message keys within per-mailbox state folder identifying each piece of
- * JSON state (scanner progress, whitelist, blacklist). These constants must
- * remain unchanged for compatibility with terminal's state format.
+ * JSON state (scanner progress, whitelist, blacklist, settings overrides).
+ * The first three must remain unchanged for compatibility with terminal's
+ * state format; `STATE_KEY_MAILBOX_SETTINGS` is server-only and additive.
  */
 export const STATE_KEY_SCANNER = 'scanner';
 export const STATE_KEY_WHITELIST_MAP = 'rspamd-whitelist-map';
 export const STATE_KEY_BLACKLIST_MAP = 'rspamd-blacklist-map';
+export const STATE_KEY_MAILBOX_SETTINGS = 'mailbox-settings';
 
 /**
  * Validates a state object

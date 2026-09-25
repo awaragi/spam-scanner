@@ -5,6 +5,7 @@ import type { Mailbox } from '../infrastructure/mailboxes/mailbox.js';
 import type { MailboxFolders } from '../infrastructure/imap/folder.resolver.js';
 import type { MailboxSession } from '../application/mailbox-session.js';
 import { ScanConfig } from '../config/app-config.js';
+import { defaultMailboxSettings } from '../config/mailbox-settings.defaults.js';
 import { FolderInitService } from '../application/folders/folder-init.service.js';
 import { RspamdTrainingService } from '../application/training/rspamd-training.service.js';
 import { SenderListTrainingService } from '../application/training/sender-list-training.service.js';
@@ -15,11 +16,13 @@ const {
   mockSafeLogout,
   mockResolveMailboxFolders,
   mockWaitForNewMail,
+  mockReadSettingsOverrides,
 } = vi.hoisted(() => ({
   mockNewClient: vi.fn(),
   mockSafeLogout: vi.fn(),
   mockResolveMailboxFolders: vi.fn(),
   mockWaitForNewMail: vi.fn(),
+  mockReadSettingsOverrides: vi.fn(),
 }));
 
 vi.mock('../infrastructure/imap/imap-connection.factory.js', () => ({
@@ -33,6 +36,10 @@ vi.mock('../infrastructure/imap/folder.resolver.js', () => ({
 
 vi.mock('../infrastructure/imap/inbox.watcher.js', () => ({
   waitForNewMail: mockWaitForNewMail,
+}));
+
+vi.mock('../infrastructure/state/mailbox-settings.repository.js', () => ({
+  readSettingsOverrides: mockReadSettingsOverrides,
 }));
 
 // Imported after the mocks above, per this codebase's existing convention
@@ -213,6 +220,7 @@ describe('MailboxRunner', () => {
     mockSafeLogout.mockResolvedValue(undefined);
     mockResolveMailboxFolders.mockResolvedValue(fixtureFolders());
     mockWaitForNewMail.mockReset();
+    mockReadSettingsOverrides.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -530,7 +538,17 @@ describe('MailboxRunner', () => {
       runner.stop();
     });
 
-    test('a bootstrap failure is logged and start() resolves without throwing, and no loop starts', async () => {
+    /**
+     * `start()` no longer gives up after one failed bootstrap (task 3.4) -
+     * it retries with backoff until either bootstrap succeeds or `stop()` is
+     * called. This test pins the "logged, degraded, no loop starts" part of
+     * the old single-attempt behavior while adapting to the new retry loop
+     * (via `stop()`, so the test itself terminates); the retry loop's own
+     * timing is covered by the dedicated "bootstrap retry with backoff"
+     * tests below.
+     */
+    test('a bootstrap failure is logged, degrades the mailbox, and start() keeps retrying until stop() is called', async () => {
+      vi.useFakeTimers();
       mockNewClient.mockImplementation(() =>
         fixtureImap({
           connect: vi.fn().mockRejectedValue(new Error('connect refused')),
@@ -538,13 +556,222 @@ describe('MailboxRunner', () => {
       );
       const { runner, loggerError } = buildRunner();
 
-      await expect(runner.start()).resolves.toBeUndefined();
+      const startPromise = runner.start();
+      await vi.waitFor(() => expect(loggerError).toHaveBeenCalledTimes(1));
 
-      expect(loggerError).toHaveBeenCalledTimes(1);
-      // Bootstrap's own failed connection attempt is the only one - neither
+      // The first failed connection attempt is the only one so far - neither
       // the interval nor an IDLE loop ever started a second connection.
       expect(mockNewClient).toHaveBeenCalledTimes(1);
       expect(runner.getStatus().mode).toBe('loop');
+      expect(runner.getStatus().state).toBe('degraded');
+
+      runner.stop();
+      await expect(startPromise).resolves.toBeUndefined();
+    });
+  });
+
+  // --- 4-mailbox-settings-email task 3.2: bootstrap loads and caches settings ---
+
+  describe('bootstrap() loads and caches settings (4-mailbox-settings-email task 3.2)', () => {
+    test('a mailbox with a valid settings override resolves job sessions against the overridden settings, not raw defaults', async () => {
+      mockReadSettingsOverrides.mockResolvedValue({
+        folders: { spam: 'INBOX.CustomSpam' },
+        thresholds: { clean: 10 },
+      });
+      let seenSession: MailboxSession | undefined;
+      const runSpam = vi.fn().mockImplementation((session: MailboxSession) => {
+        seenSession = session;
+        return Promise.resolve();
+      });
+      const { runner } = buildRunner({ runSpam });
+
+      await runner.start();
+      runner.stop();
+
+      await runner.runTrainSpam();
+
+      expect(seenSession?.settings.folders.spam).toBe('INBOX.CustomSpam');
+      // Every other folder/field not overridden still comes from defaults.
+      expect(seenSession?.settings.folders.inbox).toBe(
+        defaultMailboxSettings.folders.inbox,
+      );
+      expect(seenSession?.settings.thresholds.clean).toBe(10);
+      expect(seenSession?.settings.thresholds.low).toBe(
+        defaultMailboxSettings.thresholds.low,
+      );
+    });
+
+    test('a mailbox with no settings message resolves to defaultMailboxSettings exactly', async () => {
+      mockReadSettingsOverrides.mockResolvedValue(undefined);
+      let seenSession: MailboxSession | undefined;
+      const runSpam = vi.fn().mockImplementation((session: MailboxSession) => {
+        seenSession = session;
+        return Promise.resolve();
+      });
+      const { runner } = buildRunner({ runSpam });
+
+      await runner.start();
+      runner.stop();
+
+      await runner.runTrainSpam();
+
+      expect(seenSession?.settings).toEqual(defaultMailboxSettings);
+    });
+
+    test('settings are read once during bootstrap, not re-read on every job run', async () => {
+      mockReadSettingsOverrides.mockResolvedValue({
+        thresholds: { clean: 10 },
+      });
+      const { runner } = buildRunner();
+
+      await runner.start();
+      runner.stop();
+
+      await runner.runTrainSpam();
+      await runner.runTrainHam();
+
+      // One read for bootstrap itself - none for either job run afterward.
+      expect(mockReadSettingsOverrides).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // --- 4-mailbox-settings-email task 3.3: jobs use resolved settings/folders ---
+
+  describe('jobs use resolved settings after bootstrap (4-mailbox-settings-email task 3.3)', () => {
+    test('a job run after a successful bootstrap with overridden folders opens its session against the overridden folder names', async () => {
+      // Echo the folders resolveMailboxFolders was actually asked to resolve,
+      // instead of the fixed fixtureFolders() default, so this test can tell
+      // overridden folder names apart from hardcoded defaults.
+      mockResolveMailboxFolders.mockImplementation(
+        (_imap: unknown, folders: MailboxFolders) => Promise.resolve(folders),
+      );
+      mockReadSettingsOverrides.mockResolvedValue({
+        folders: { spam: 'INBOX.CustomSpam' },
+      });
+      let seenSession: MailboxSession | undefined;
+      const runSpam = vi.fn().mockImplementation((session: MailboxSession) => {
+        seenSession = session;
+        return Promise.resolve();
+      });
+      const { runner } = buildRunner({ runSpam });
+
+      await runner.start();
+      runner.stop();
+
+      await runner.runTrainSpam();
+
+      expect(seenSession?.folders.spam).toBe('INBOX.CustomSpam');
+      expect(seenSession?.folders.inbox).toBe(
+        defaultMailboxSettings.folders.inbox,
+      );
+    });
+  });
+
+  // --- 4-mailbox-settings-email task 3.4: bootstrap retry with backoff ---------
+
+  describe('start(): bootstrap retry with backoff (4-mailbox-settings-email task 3.4)', () => {
+    test('the first two connect attempts fail and the third succeeds; the interval only starts after the third, with strictly increasing backoff delays', async () => {
+      vi.useFakeTimers();
+      const connect = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('connect refused'))
+        .mockRejectedValueOnce(new Error('connect refused'))
+        .mockResolvedValue(undefined);
+      mockNewClient.mockImplementation(() =>
+        fixtureImap({ connect, capabilities: new Map() }),
+      );
+      const { runner, runSpam } = buildRunner({ scanIntervalSeconds: 5 });
+
+      const startPromise = runner.start();
+
+      // The 1st bootstrap attempt (connect + its rejection) runs synchronously
+      // up to `sleep()`'s fake timer - `newClient()` is already called by the
+      // time `start()`'s first `await` is reached.
+      expect(mockNewClient).toHaveBeenCalledTimes(1);
+
+      // backoffMs(1) === 2 ** 1 * 1000 = 2000ms - no 2nd attempt before then.
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(mockNewClient).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(mockNewClient).toHaveBeenCalledTimes(2);
+
+      // backoffMs(2) === 2 ** 2 * 1000 = 4000ms - strictly longer than the
+      // first backoff, and no 3rd attempt before it elapses.
+      await vi.advanceTimersByTimeAsync(3999);
+      expect(mockNewClient).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(mockNewClient).toHaveBeenCalledTimes(3);
+
+      await startPromise;
+
+      expect(runner.getStatus().state).toBe('running');
+      expect(runner.getStatus().mode).toBe('loop');
+      // The interval has not started yet at this point - no tick has fired.
+      expect(runSpam).not.toHaveBeenCalled();
+
+      // The interval only starts once bootstrap finally succeeded.
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(runSpam).toHaveBeenCalledTimes(1);
+
+      runner.stop();
+    });
+
+    test("stop() called while retrying exits the loop promptly, without a further bootstrap attempt", async () => {
+      vi.useFakeTimers();
+      const connect = vi.fn().mockRejectedValue(new Error('connect refused'));
+      mockNewClient.mockImplementation(() =>
+        fixtureImap({ connect, capabilities: new Map() }),
+      );
+      const { runner } = buildRunner();
+
+      const startPromise = runner.start();
+      // The 1st attempt's connect() call has already happened synchronously.
+      expect(mockNewClient).toHaveBeenCalledTimes(1);
+      // Let the 1st attempt's rejection/catch/finally chain settle so
+      // `start()` is actually parked inside `sleep()` before `stop()` fires.
+      await vi.advanceTimersByTimeAsync(0);
+
+      runner.stop();
+      await startPromise;
+
+      // Advancing well past backoffMs(1) does not trigger a further attempt -
+      // stop() made the retry loop exit instead of sleeping out the backoff.
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(mockNewClient).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // --- 4-mailbox-settings-email task 3.5: getStatus() reflects bootstrapFailures ---
+
+  describe('getStatus(): bootstrapFailures degrade the mailbox (4-mailbox-settings-email task 3.5)', () => {
+    test('a runner stuck retrying bootstrap reports degraded even though no job has ever run', async () => {
+      vi.useFakeTimers();
+      const connect = vi.fn().mockRejectedValue(new Error('connect refused'));
+      mockNewClient.mockImplementation(() =>
+        fixtureImap({ connect, capabilities: new Map() }),
+      );
+      const { runner } = buildRunner();
+
+      const startPromise = runner.start();
+      // The 1st attempt's connect() call has already happened synchronously;
+      // flush its rejection/catch chain so `bootstrapFailures` is updated.
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mockNewClient).toHaveBeenCalledTimes(1);
+
+      const status = runner.getStatus();
+      expect(status.state).toBe('degraded');
+      for (const job of [
+        'scan',
+        'trainSpam',
+        'trainHam',
+        'trainWhitelist',
+        'trainBlacklist',
+      ] as const) {
+        expect(status.jobs[job].consecutiveFailures).toBe(0);
+      }
+
+      runner.stop();
+      await startPromise;
     });
   });
 

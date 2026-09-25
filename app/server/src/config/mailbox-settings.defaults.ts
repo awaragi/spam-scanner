@@ -11,6 +11,7 @@
  * `thresholdsGroup` and `aiGroup` defaults - cross-check any change against
  * that file until `terminal/` is retired.
  */
+import type { OverridableSettings } from './mailbox-settings.schema.js';
 
 /** The IMAP folder names a mailbox is organized into (see `folder-resolution`). */
 export interface MailboxFolderSettings {
@@ -98,3 +99,46 @@ export const defaultMailboxSettings: MailboxSettings = {
   },
   aiEnabled: true,
 };
+
+/**
+ * Resolves a mailbox's validated settings overrides against
+ * `defaultMailboxSettings` into the exact `MailboxSettings` shape every
+ * consumer (`MailboxSession`, `ScanService`, both training services,
+ * `FolderInitService`) already expects - see design.md D3. A one-level-deep
+ * merge: each of the four nested groups is object-spread over its own
+ * default group (an override to one field in a group leaves every other
+ * field in that same group at its default); top-level scalars fall back to
+ * the default only when `undefined`. `overrides === undefined` (no settings
+ * message at all) returns `defaultMailboxSettings` unchanged.
+ *
+ * Does NOT know about the global `AI_ENABLED` flag - the "opt-out can only
+ * turn AI off, never on" rule is enforced separately, where both values are
+ * already in scope (`application/scanning/ai-classification.step.ts`'s
+ * existing `settings.aiEnabled && globalAiConfig.enabled` check).
+ */
+export function resolveMailboxSettings(
+  overrides: OverridableSettings | undefined
+): MailboxSettings {
+  if (overrides === undefined) {
+    return defaultMailboxSettings;
+  }
+
+  return {
+    folders: { ...defaultMailboxSettings.folders, ...overrides.folders },
+    scanRead: overrides.scanRead ?? defaultMailboxSettings.scanRead,
+    scanInitialState:
+      overrides.scanInitialState ?? defaultMailboxSettings.scanInitialState,
+    processingMode:
+      overrides.processingMode ?? defaultMailboxSettings.processingMode,
+    labels: { ...defaultMailboxSettings.labels, ...overrides.labels },
+    thresholds: {
+      ...defaultMailboxSettings.thresholds,
+      ...overrides.thresholds,
+    },
+    aiEscalation: {
+      ...defaultMailboxSettings.aiEscalation,
+      ...overrides.aiEscalation,
+    },
+    aiEnabled: overrides.aiEnabled ?? defaultMailboxSettings.aiEnabled,
+  };
+}

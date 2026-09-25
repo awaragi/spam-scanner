@@ -11,6 +11,12 @@ import { RspamdTrainingService } from '../application/training/rspamd-training.s
 import { SenderListTrainingService } from '../application/training/sender-list-training.service.js';
 import { ScanService } from '../application/scanning/scan.service.js';
 import { AiFailureTracker } from '../domain/ai/ai-failure-tracker.js';
+import { validateOverrides } from '../config/mailbox-settings.schema.js';
+import {
+  newClient,
+  safeLogout,
+} from '../infrastructure/imap/imap-connection.factory.js';
+import { writeSettingsOverrides } from '../infrastructure/state/mailbox-settings.repository.js';
 import {
   MailboxRunner,
   type JobName,
@@ -55,16 +61,26 @@ export class RunnerRegistry
   ) {}
 
   /**
-   * Constructs one `MailboxRunner` per mailbox and starts each independently.
-   * `MailboxRunner.start()` already resolves rather than rejects on its own
-   * bootstrap failure (design.md D1's port from `mailbox-loop.service.ts`),
-   * so one mailbox's connect/folder-init failure never blocks another's -
-   * `Promise.all` is still wrapped in a try/catch here purely as a defensive
-   * backstop in case `start()` ever throws, matching design.md's "a failure
-   * in one mailbox's runner SHALL NOT affect any other mailbox's runner, and
+   * Constructs one `MailboxRunner` per mailbox and starts each independently,
+   * WITHOUT awaiting any runner's `start()` to completion.
+   *
+   * `4-mailbox-settings-email`'s D4 made `start()` retry its bootstrap
+   * (connect + settings load + folder init) forever, with backoff, until it
+   * succeeds - it only resolves once bootstrap has actually succeeded, or
+   * once `stop()` is called. A mailbox that can never connect (bad
+   * credentials, deleted account) therefore never resolves its `start()`
+   * call. Awaiting every runner's `start()` via `Promise.all` before this
+   * method returns would make `onApplicationBootstrap` - a real Nest
+   * lifecycle hook - hang forever in that case, blocking the rest of the
+   * application's startup. Each `start()` call is instead fired and
+   * forgotten (`void runner.start()`), with a `.catch()` kept purely as a
+   * defensive backstop (`start()` itself already resolves rather than
+   * rejects on every failure it knows about) so an unexpected throw still
+   * can't reach an unhandled rejection - matching design.md's "a failure in
+   * one mailbox's runner SHALL NOT affect any other mailbox's runner, and
    * SHALL NOT stop the server process".
    */
-  async onApplicationBootstrap(): Promise<void> {
+  onApplicationBootstrap(): void {
     const mailboxes = this.mailboxRepository.findAll();
     for (const mailbox of mailboxes) {
       const runner = new MailboxRunner(
@@ -77,17 +93,15 @@ export class RunnerRegistry
         this.pinoLogger.logger,
       );
       this.runners.set(mailbox.id, runner);
-    }
-
-    try {
-      await Promise.all(
-        [...this.runners.values()].map((runner) => runner.start()),
-      );
-    } catch (error) {
-      this.pinoLogger.error(
-        { error: error instanceof Error ? error.message : String(error) },
-        'Unexpected error starting mailbox runners',
-      );
+      void runner.start().catch((error: unknown) => {
+        this.pinoLogger.error(
+          {
+            mailboxId: mailbox.id,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          'Unexpected error starting mailbox runner',
+        );
+      });
     }
   }
 
@@ -117,6 +131,96 @@ export class RunnerRegistry
       throw new Error(`Unknown mailbox: ${mailboxId}`);
     }
     await runner.triggerNow(job);
+  }
+
+  /**
+   * Updates a mailbox's settings overrides - design.md D5's six-step
+   * sequence. Validates first (`validateOverrides`, D2): a *type* error on a
+   * recognized key throws here, before anything below runs - nothing is
+   * stopped, nothing is written, and the existing runner and its cached
+   * settings are left completely unaffected, per the spec's "An invalid
+   * update is rejected without affecting the running mailbox" scenario. An
+   * unrecognized/global-only key is dropped with a warning instead, and the
+   * rest of the update proceeds.
+   *
+   * On a valid update: stops the existing runner (no in-flight job is
+   * aborted, per `MailboxRunner.stop()`'s own contract), opens a throwaway
+   * IMAP connection to write the validated overrides as a complete
+   * replacement of any previously stored settings message - this call never
+   * reads-then-merges the currently-stored message, so the spec's
+   * "hand-edited settings message is overwritten, not merged" scenario falls
+   * out of this for free - then constructs a brand-new `MailboxRunner` for
+   * the same mailbox (D5's "Alternative considered": a fresh instance avoids
+   * carrying the old runner's per-job backoff/failure history across an
+   * unrelated settings change).
+   *
+   * Mirrors `onApplicationBootstrap`'s own "don't block on a runner's own
+   * bootstrap resolving" principle (see that method's doc comment): the new
+   * runner's `.start()` is fired but not awaited to completion - its
+   * bootstrap retries with backoff (design.md D4) and may still be retrying
+   * when this method returns. The map entry is replaced immediately once the
+   * new runner is constructed, so `getStatus()`/`triggerNow()` calls arriving
+   * during that retry see the new (possibly degraded) runner rather than the
+   * stopped old one or nothing.
+   */
+  async updateSettings(
+    mailboxId: string,
+    overrides: Record<string, unknown>,
+  ): Promise<void> {
+    const existingRunner = this.runners.get(mailboxId);
+    if (!existingRunner) {
+      throw new Error(`Unknown mailbox: ${mailboxId}`);
+    }
+
+    // Step 2 (D5): throws (ZodError) on a type error against a recognized
+    // key, before anything below runs. `overrides` is always a defined
+    // object here (an update always provides something), so the result is
+    // never `undefined` in practice - the `?? {}` below only satisfies
+    // `validateOverrides`'s general `| undefined` return type.
+    const validated =
+      validateOverrides(overrides, this.pinoLogger.logger, mailboxId) ?? {};
+
+    const mailbox = this.mailboxRepository
+      .findAll()
+      .find((candidate) => candidate.id === mailboxId);
+    if (!mailbox) {
+      throw new Error(`Unknown mailbox: ${mailboxId}`);
+    }
+
+    existingRunner.stop();
+
+    const imap = newClient(mailbox, this.pinoLogger.logger);
+    try {
+      await imap.connect();
+      await writeSettingsOverrides(
+        imap,
+        mailbox.stateFolder,
+        { ...validated },
+        this.pinoLogger.logger,
+      );
+    } finally {
+      await safeLogout(imap, this.pinoLogger.logger);
+    }
+
+    const newRunner = new MailboxRunner(
+      mailbox,
+      this.folderInitService,
+      this.rspamdTrainingService,
+      this.senderListTrainingService,
+      this.scanService,
+      this.scanConfig,
+      this.pinoLogger.logger,
+    );
+    void newRunner.start().catch((error: unknown) => {
+      this.pinoLogger.error(
+        {
+          mailboxId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Unexpected error starting mailbox runner',
+      );
+    });
+    this.runners.set(mailboxId, newRunner);
   }
 
   /**
