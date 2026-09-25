@@ -895,6 +895,40 @@ describe('MailboxRunner', () => {
       expect(runScan).toHaveBeenCalledTimes(2);
       expect(mockNewClient).toHaveBeenCalledTimes(4);
     });
+
+    test('passes scan last_uid into waitForNewMail after a successful scan', async () => {
+      mockNewClient.mockImplementation(() =>
+        fixtureImap({ capabilities: capabilitiesWithIdle() }),
+      );
+      mockWaitForNewMail
+        .mockResolvedValueOnce(undefined)
+        .mockImplementationOnce(pendingWaitForNewMail);
+
+      const runScan = vi
+        .fn()
+        .mockResolvedValueOnce({ processed: 1, last_uid: 42 })
+        .mockResolvedValue({ processed: 0, last_uid: 42 });
+
+      const { runner } = buildRunner({
+        scanIntervalSeconds: 999_999,
+        runScan,
+      });
+
+      await runner.start();
+
+      await vi.waitFor(() => expect(runScan).toHaveBeenCalledTimes(1));
+      expect(mockWaitForNewMail.mock.calls[0]?.[2]).toEqual(
+        expect.objectContaining({
+          lastUid: undefined,
+          logger: expect.any(Object),
+        }),
+      );
+      expect(mockWaitForNewMail.mock.calls[1]?.[2]).toEqual(
+        expect.objectContaining({ lastUid: 42 }),
+      );
+
+      runner.stop();
+    });
   });
 
   // --- 3.4: IDLE reconnect with backoff ------------------------------------

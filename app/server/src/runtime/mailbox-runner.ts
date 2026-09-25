@@ -184,6 +184,13 @@ export class MailboxRunner {
    */
   private bootstrapFailures = 0;
 
+  /**
+   * Highest inbox UID processed by the most recent successful `scan` job -
+   * fed into `waitForNewMail`'s pre-IDLE catch-up (same role as terminal's
+   * orchestrator `lastUid` across scan/IDLE cycles).
+   */
+  private scanLastUid: number | undefined;
+
   constructor(
     private readonly mailbox: Mailbox,
     // Used by the bootstrap `start()` method task group 3 adds, not by any
@@ -196,6 +203,14 @@ export class MailboxRunner {
     private readonly scanConfig: ScanConfig,
     private readonly logger: PinoLoggerLike,
   ) {}
+
+  /** Logger scoped to this mailbox for runner-level narration (IDLE cycle, etc.). */
+  private mailboxLogger(): PinoLoggerLike {
+    return this.logger.child({
+      mailboxId: this.mailbox.id,
+      component: 'mailbox-runner',
+    });
+  }
 
   /**
    * Opens one fresh `MailboxSession`: connects a new IMAP client, resolves
@@ -302,7 +317,10 @@ export class MailboxRunner {
   /** Runs one scan pass for this mailbox, in its own session. */
   async runScan(): Promise<void> {
     await this.runWithSession('scan', async (session) => {
-      await this.scanService.runScan(session);
+      const result = await this.scanService.runScan(session);
+      if (typeof result.last_uid === 'number') {
+        this.scanLastUid = result.last_uid;
+      }
     });
   }
 
@@ -591,12 +609,16 @@ export class MailboxRunner {
         await imap.connect();
         this.idleFailureCount = 0;
 
+        const runnerLog = this.mailboxLogger();
         while (!this.stopped) {
+          runnerLog.info('Waiting for new messages (IDLE)');
           await waitForNewMail(imap, inboxFolder, {
             signal: this.idleAbortController.signal,
-            logger: this.logger,
+            lastUid: this.scanLastUid,
+            logger: runnerLog,
           });
           if (this.stopped) break;
+          runnerLog.info('IDLE wakeup received, restarting scan cycle');
           await this.runScan();
         }
       } catch (error) {
