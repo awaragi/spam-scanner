@@ -8,17 +8,19 @@ import { ScanningModule } from './application/scanning/scanning.module.js';
 import { TrainingModule } from './application/training/training.module.js';
 import { FoldersModule } from './application/folders/folders.module.js';
 import { RuntimeModule } from './runtime/runtime.module.js';
+import { ApiModule } from './api/api.module.js';
 
 /**
  * The whole app, wired per design.md D1/D3/D9 (task 7.2 - the final
- * integration step of `2-nest-server-foundation`).
+ * integration step of `2-nest-server-foundation`) and `5-server-api-auth`
+ * design.md D9 (`ApiModule`, imported last).
  *
  * Import order follows the dependency direction (D3): `AppConfigModule`
  * (`@Global`, validates the environment once at bootstrap) and
  * `AppLoggingModule` (nestjs-pino, itself `@Global`) first, then the
  * infrastructure adapters, then the application use-cases that consume them,
- * then `RuntimeModule` - the only thing driving behavior at runtime for this
- * change. `api/` stays empty until `5-server-api-auth`.
+ * then `RuntimeModule`, and finally `ApiModule` - the HTTP surface sitting
+ * at the top of the dependency direction, consuming everything below it.
  *
  * Both `AppConfigModule` and nestjs-pino's `LoggerModule` (imported inside
  * `AppLoggingModule`) are `@Global()`, so importing each once here is enough
@@ -36,6 +38,7 @@ import { RuntimeModule } from './runtime/runtime.module.js';
     TrainingModule,
     FoldersModule,
     RuntimeModule,
+    ApiModule,
   ],
 })
 export class AppModule {}

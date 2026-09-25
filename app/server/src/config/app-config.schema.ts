@@ -34,6 +34,10 @@ export interface AppConfig {
   LOG_FILTER_INCLUDES: string;
   LOG_FILTER_EXCLUDES: string;
   PORT: number;
+  API_ADMIN_PASSWORD: string;
+  API_JWT_SECRET: string;
+  API_ADMIN_TOKEN_TTL: number;
+  API_MAILBOX_TOKEN_TTL: number;
   MAILBOX_ID: string;
   MAILBOX_IMAP_HOST: string;
   MAILBOX_IMAP_PORT: number;
@@ -289,6 +293,37 @@ const serverGroup: ConfigGroupDef = {
 };
 
 /**
+ * HTTP API auth - one admin password and one JWT signing secret, shared by
+ * both token types (see design.md D1/D2). Neither has a safe default
+ * (same pattern as `MAILBOX_IMAP_PASSWORD`): a server that can't verify
+ * an admin login or sign a token should refuse to start rather than run
+ * wide open.
+ */
+const apiGroup: ConfigGroupDef = {
+  title: 'HTTP API Auth Configuration',
+  schema: z.object({
+    API_ADMIN_PASSWORD: z
+      .string()
+      .min(1)
+      .describe(
+        'API_ADMIN_PASSWORD: the single admin password checked by POST /auth/login. No default - the server refuses to start without one.'
+      ),
+    API_JWT_SECRET: z
+      .string()
+      .min(1)
+      .describe(
+        'API_JWT_SECRET: HMAC signing secret shared by admin and mailbox tokens. No default - the server refuses to start without one.'
+      ),
+    API_ADMIN_TOKEN_TTL: intField(3600).describe(
+      'API_ADMIN_TOKEN_TTL: seconds an admin token stays valid before re-login is required. Default: 3600 (1h)'
+    ),
+    API_MAILBOX_TOKEN_TTL: intField(3600).describe(
+      'API_MAILBOX_TOKEN_TTL: seconds a mailbox token stays valid before it must be re-exchanged. Default: 3600 (1h)'
+    ),
+  }),
+};
+
+/**
  * The one mailbox's connection info. The `MAILBOX_` prefix marks these keys
  * as the temporary env-backed mailbox registry, not app settings - they go
  * away once mailboxes move to real storage (see design.md D5). Unlike
@@ -349,6 +384,7 @@ export const configGroups: ConfigGroupDef[] = [
   scanGroup,
   loggingGroup,
   serverGroup,
+  apiGroup,
   mailboxGroup,
 ];
 

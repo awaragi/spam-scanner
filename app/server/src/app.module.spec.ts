@@ -43,6 +43,8 @@ describe('AppModule', () => {
       MAILBOX_IMAP_USER: 'owner@example.com',
       MAILBOX_IMAP_PASSWORD: 'secret',
       MAILBOX_STATE_FOLDER: 'INBOX.scanner.state',
+      API_ADMIN_PASSWORD: 'admin-secret',
+      API_JWT_SECRET: 'jwt-secret',
     });
 
     const AppModule = await loadAppModule();

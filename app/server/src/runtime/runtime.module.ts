@@ -27,5 +27,6 @@ import { RunnerRegistry } from './runner-registry.js';
     AiModule,
   ],
   providers: [RunnerRegistry],
+  exports: [RunnerRegistry],
 })
 export class RuntimeModule {}

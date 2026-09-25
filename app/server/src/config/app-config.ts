@@ -104,6 +104,29 @@ export class ServerConfig {
 }
 
 /**
+ * HTTP API auth - one admin password and one JWT signing secret, plus each
+ * token type's TTL (see design.md D1). Consumed by `api/auth/auth.service.ts`
+ * and `JwtModule.registerAsync`'s factory.
+ */
+export class ApiAuthConfig {
+  readonly adminPassword: string;
+  readonly jwtSecret: string;
+  readonly adminTokenTtlSeconds: number;
+  readonly mailboxTokenTtlSeconds: number;
+
+  constructor(config: AppConfigService) {
+    this.adminPassword = config.get('API_ADMIN_PASSWORD', { infer: true });
+    this.jwtSecret = config.get('API_JWT_SECRET', { infer: true });
+    this.adminTokenTtlSeconds = config.get('API_ADMIN_TOKEN_TTL', {
+      infer: true,
+    });
+    this.mailboxTokenTtlSeconds = config.get('API_MAILBOX_TOKEN_TTL', {
+      infer: true,
+    });
+  }
+}
+
+/**
  * The one mailbox's connection info (see the `server/mailbox-registry`
  * capability) - `MAILBOX_` env keys are a temporary env-backed registry, not
  * app settings (see design.md D5).

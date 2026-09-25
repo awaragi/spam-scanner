@@ -364,6 +364,37 @@ export class MailboxRunner {
   }
 
   /**
+   * This mailbox's currently resolved settings - `5-server-api-auth`
+   * design.md D6, ready for `RunnerRegistry.getMailboxSettings` to expose
+   * over HTTP. Additive: just returns the cached `this.settings` bootstrap
+   * already resolved, with no behavior change of its own.
+   */
+  getSettings(): MailboxSettings {
+    return this.settings;
+  }
+
+  /**
+   * Runs folder initialization on demand - `5-server-api-auth` design.md
+   * D6, ready for `RunnerRegistry.triggerInitFolders` to expose over HTTP.
+   * Opens a fresh session (mirroring `runWithSession`'s session lifecycle)
+   * and calls `folderInitService.initFolders`, the same call `bootstrap`
+   * makes, closing the session in `finally`. Deliberately bypasses the
+   * coalescing `runJob` wrapper - folder init is bootstrap work, not one of
+   * the five `JobName` jobs `runJob` coalesces.
+   */
+  async triggerInitFolders(): Promise<void> {
+    let session: MailboxSession | undefined;
+    try {
+      session = await this.openSession(this.mailbox);
+      await this.folderInitService.initFolders(session);
+    } finally {
+      if (session) {
+        await safeLogout(session.imap, session.logger);
+      }
+    }
+  }
+
+  /**
    * This mailbox's current status - design.md D5. `state` and `lastError`
    * are derived from the per-job state, never tracked separately.
    */

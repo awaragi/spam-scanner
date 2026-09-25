@@ -12,6 +12,7 @@ import { SenderListTrainingService } from '../application/training/sender-list-t
 import { ScanService } from '../application/scanning/scan.service.js';
 import { AiFailureTracker } from '../domain/ai/ai-failure-tracker.js';
 import { validateOverrides } from '../config/mailbox-settings.schema.js';
+import type { MailboxSettings } from '../config/mailbox-settings.defaults.js';
 import {
   newClient,
   safeLogout,
@@ -131,6 +132,43 @@ export class RunnerRegistry
       throw new Error(`Unknown mailbox: ${mailboxId}`);
     }
     await runner.triggerNow(job);
+  }
+
+  /**
+   * The one mailbox's status - `5-server-api-auth` design.md D6, ready for
+   * the mailbox API to expose over HTTP. Same "unknown mailbox throws"
+   * contract as `triggerNow`.
+   */
+  getMailboxStatus(mailboxId: string): MailboxRunnerStatus {
+    const runner = this.runners.get(mailboxId);
+    if (!runner) {
+      throw new Error(`Unknown mailbox: ${mailboxId}`);
+    }
+    return runner.getStatus();
+  }
+
+  /**
+   * The mailbox's currently resolved settings - `5-server-api-auth`
+   * design.md D6. Same "unknown mailbox throws" contract as `triggerNow`.
+   */
+  getMailboxSettings(mailboxId: string): MailboxSettings {
+    const runner = this.runners.get(mailboxId);
+    if (!runner) {
+      throw new Error(`Unknown mailbox: ${mailboxId}`);
+    }
+    return runner.getSettings();
+  }
+
+  /**
+   * Runs folder initialization on demand for one mailbox - `5-server-api-auth`
+   * design.md D6. Same "unknown mailbox throws" contract as `triggerNow`.
+   */
+  async triggerInitFolders(mailboxId: string): Promise<void> {
+    const runner = this.runners.get(mailboxId);
+    if (!runner) {
+      throw new Error(`Unknown mailbox: ${mailboxId}`);
+    }
+    await runner.triggerInitFolders();
   }
 
   /**

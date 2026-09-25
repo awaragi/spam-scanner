@@ -37,6 +37,39 @@ describe('RspamdGateway', () => {
     vi.clearAllMocks();
   });
 
+  describe('ping', () => {
+    test('returns true when rspamd responds successfully', async () => {
+      vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
+        ok: true,
+      } as Response);
+
+      const result = await gateway.ping();
+
+      expect(result).toBe(true);
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/ping'),
+        expect.objectContaining({ method: 'GET' }),
+      );
+    });
+
+    test('returns false without throwing on a non-ok response', async () => {
+      vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+      } as Response);
+
+      await expect(gateway.ping()).resolves.toBe(false);
+    });
+
+    test('returns false without throwing on a network failure or timeout', async () => {
+      vi.mocked(global.fetch).mockRejectedValueOnce(
+        new Error('The operation was aborted'),
+      );
+
+      await expect(gateway.ping()).resolves.toBe(false);
+    });
+  });
+
   describe('checkEmail', () => {
     test('should send email to /checkv2 endpoint and return result', async () => {
       const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';

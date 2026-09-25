@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AppConfigSchema } from './app-config.schema.js';
 import {
   AiConfig,
+  ApiAuthConfig,
   MailboxConnectionConfig,
   RspamdConfig,
   ScanConfig,
@@ -17,6 +18,7 @@ const sections = [
   ScanConfig,
   LoggingConfig,
   ServerConfig,
+  ApiAuthConfig,
   MailboxConnectionConfig,
 ];
 

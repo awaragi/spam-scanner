@@ -50,6 +50,8 @@ describe('AppConfigModule', () => {
       LOG_LEVEL: 'debug',
       LOG_FORMAT: 'pretty',
       PORT: '4000',
+      API_ADMIN_PASSWORD: 'admin-secret',
+      API_JWT_SECRET: 'jwt-secret',
     });
 
     const {
@@ -59,6 +61,7 @@ describe('AppConfigModule', () => {
       ScanConfig,
       LoggingConfig,
       ServerConfig,
+      ApiAuthConfig,
       MailboxConnectionConfig,
     } = await loadConfigModule();
 
@@ -92,6 +95,12 @@ describe('AppConfigModule', () => {
 
       const server = moduleRef.get(ServerConfig);
       expect(server.port).toBe(4000);
+
+      const apiAuth = moduleRef.get(ApiAuthConfig);
+      expect(apiAuth.adminPassword).toBe('admin-secret');
+      expect(apiAuth.jwtSecret).toBe('jwt-secret');
+      expect(apiAuth.adminTokenTtlSeconds).toBe(3600);
+      expect(apiAuth.mailboxTokenTtlSeconds).toBe(3600);
 
       const mailbox = moduleRef.get(MailboxConnectionConfig);
       expect(mailbox.id).toBe('owner@example.com');

@@ -304,6 +304,85 @@ describe('RunnerRegistry', () => {
     });
   });
 
+  // --- 5-server-api-auth task 6.2: getMailboxStatus/getMailboxSettings/triggerInitFolders ---
+
+  describe('getMailboxStatus()', () => {
+    test('returns the matching mailbox runner status', async () => {
+      const mailbox = fixtureMailbox();
+      const { registry } = await buildRegistry({ mailboxes: [mailbox] });
+      registry.onApplicationBootstrap();
+
+      const status = registry.getMailboxStatus(mailbox.id);
+
+      expect(status.mailboxId).toBe(mailbox.id);
+    });
+
+    test('throws a clear error for an unknown mailboxId', async () => {
+      const { registry } = await buildRegistry();
+      registry.onApplicationBootstrap();
+
+      expect(() =>
+        registry.getMailboxStatus('does-not-exist@example.com'),
+      ).toThrow('Unknown mailbox: does-not-exist@example.com');
+    });
+  });
+
+  describe('getMailboxSettings()', () => {
+    test('delegates to the matching mailbox runner', async () => {
+      const mailbox = fixtureMailbox();
+      const { registry } = await buildRegistry({ mailboxes: [mailbox] });
+      registry.onApplicationBootstrap();
+
+      const settingsSpy = vi.spyOn(MailboxRunner.prototype, 'getSettings');
+      try {
+        const settings = registry.getMailboxSettings(mailbox.id);
+
+        expect(settingsSpy).toHaveBeenCalledTimes(1);
+        expect(settings.folders.inbox).toBeDefined();
+      } finally {
+        settingsSpy.mockRestore();
+      }
+    });
+
+    test('throws a clear error for an unknown mailboxId', async () => {
+      const { registry } = await buildRegistry();
+      registry.onApplicationBootstrap();
+
+      expect(() =>
+        registry.getMailboxSettings('does-not-exist@example.com'),
+      ).toThrow('Unknown mailbox: does-not-exist@example.com');
+    });
+  });
+
+  describe('triggerInitFolders()', () => {
+    test('delegates to the matching mailbox runner', async () => {
+      const mailbox = fixtureMailbox();
+      const { registry, initFolders } = await buildRegistry({
+        mailboxes: [mailbox],
+      });
+      registry.onApplicationBootstrap();
+      // Bootstrap's own `initFolders` call (fired but not awaited by
+      // `onApplicationBootstrap`) must settle before clearing the mock,
+      // otherwise its call can land after the clear and be miscounted
+      // alongside `triggerInitFolders`'s own call below.
+      await vi.waitFor(() => expect(initFolders).toHaveBeenCalledTimes(1));
+      initFolders.mockClear();
+
+      await registry.triggerInitFolders(mailbox.id);
+
+      expect(initFolders).toHaveBeenCalledTimes(1);
+    });
+
+    test('rejects with the same "Unknown mailbox" error for an unknown mailboxId', async () => {
+      const { registry } = await buildRegistry();
+      registry.onApplicationBootstrap();
+
+      await expect(
+        registry.triggerInitFolders('does-not-exist@example.com'),
+      ).rejects.toThrow('Unknown mailbox: does-not-exist@example.com');
+    });
+  });
+
   // --- 4.3: onApplicationShutdown() --------------------------------------
 
   describe('onApplicationShutdown()', () => {

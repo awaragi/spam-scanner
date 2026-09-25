@@ -82,6 +82,34 @@ export class RspamdGateway {
   }
 
   /**
+   * A lightweight best-effort reachability probe against rspamd's `/ping`
+   * endpoint - `5-server-api-auth` design.md D8, for `HealthService`'s
+   * `rspamd: 'reachable'|'unreachable'` status. Reuses the same base URL,
+   * password header, and timeout every other call on this gateway already
+   * uses (`buildHeaders`/`this.config`), but - unlike `checkEmail`/
+   * `learnHam`/`learnSpam` - never throws: any error (network failure,
+   * non-ok response, timeout) resolves `false` rather than propagating, so
+   * a health check never fails just because rspamd happens to be down.
+   * @returns `true` when rspamd responded successfully, `false` otherwise.
+   */
+  async ping(): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.config.url}/ping`, {
+        method: 'GET',
+        headers: this.buildHeaders(),
+        signal: AbortSignal.timeout(this.config.timeoutMs),
+      });
+      return response.ok;
+    } catch (err) {
+      this.logger.debug(
+        { error: err instanceof Error ? err.message : String(err) },
+        'Rspamd ping probe failed',
+      );
+      return false;
+    }
+  }
+
+  /**
    * Checks email for spam using Rspamd /checkv2 endpoint
    * @param emailContent - Raw email content including headers
    * @param [envelope] -

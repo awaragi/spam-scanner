@@ -940,4 +940,44 @@ describe('MailboxRunner', () => {
       runner.stop();
     });
   });
+
+  // --- 5-server-api-auth task 6.1: getSettings() / triggerInitFolders() ---
+
+  describe('getSettings() (5-server-api-auth task 6.1)', () => {
+    test('returns the resolved settings after a bootstrap', async () => {
+      mockReadSettingsOverrides.mockResolvedValue({
+        thresholds: { clean: 10 },
+      });
+      const { runner } = buildRunner();
+
+      await runner.start();
+      runner.stop();
+
+      const settings = runner.getSettings();
+
+      expect(settings.thresholds.clean).toBe(10);
+      expect(settings.thresholds.low).toBe(defaultMailboxSettings.thresholds.low);
+    });
+  });
+
+  describe('triggerInitFolders() (5-server-api-auth task 6.1)', () => {
+    test('opens a session, calls initFolders, and logs out', async () => {
+      const { runner, initFolders } = buildRunner();
+
+      await runner.triggerInitFolders();
+
+      expect(mockNewClient).toHaveBeenCalledTimes(1);
+      expect(initFolders).toHaveBeenCalledTimes(1);
+      expect(mockSafeLogout).toHaveBeenCalledTimes(1);
+    });
+
+    test('logs out even when initFolders throws', async () => {
+      const initFolders = vi.fn().mockRejectedValue(new Error('boom'));
+      const { runner } = buildRunner({ initFolders });
+
+      await expect(runner.triggerInitFolders()).rejects.toThrow('boom');
+
+      expect(mockSafeLogout).toHaveBeenCalledTimes(1);
+    });
+  });
 });

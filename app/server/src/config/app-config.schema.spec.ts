@@ -13,6 +13,8 @@ function requiredOnlyEnv(): Record<string, string> {
     MAILBOX_IMAP_HOST: 'imap.example.com',
     MAILBOX_IMAP_USER: 'owner@example.com',
     MAILBOX_IMAP_PASSWORD: 'secret',
+    API_ADMIN_PASSWORD: 'admin-secret',
+    API_JWT_SECRET: 'jwt-secret',
   };
 }
 
@@ -56,6 +58,12 @@ describe('AppConfigSchema', () => {
     // HTTP server
     expect(result.data.PORT).toBe(3000);
 
+    // HTTP API auth
+    expect(result.data.API_ADMIN_PASSWORD).toBe('admin-secret');
+    expect(result.data.API_JWT_SECRET).toBe('jwt-secret');
+    expect(result.data.API_ADMIN_TOKEN_TTL).toBe(3600);
+    expect(result.data.API_MAILBOX_TOKEN_TTL).toBe(3600);
+
     // Mailbox connection
     expect(result.data.MAILBOX_ID).toBe('owner@example.com');
     expect(result.data.MAILBOX_IMAP_HOST).toBe('imap.example.com');
@@ -75,6 +83,7 @@ describe('AppConfigSchema', () => {
       'Scan/Train Configuration',
       'Logging Configuration',
       'HTTP Server Configuration',
+      'HTTP API Auth Configuration',
       "The Server's Mailbox Connection",
     ]);
   });
@@ -93,6 +102,8 @@ describe('AppConfigSchema', () => {
       'BATCH_PROCESS_SIZE',
       'MAX_RETRIES',
       'PORT',
+      'API_ADMIN_TOKEN_TTL',
+      'API_MAILBOX_TOKEN_TTL',
       'MAILBOX_IMAP_PORT',
     ])('rejects a non-numeric %s rather than silently producing NaN', key => {
       const result = AppConfigSchema.safeParse({
@@ -172,6 +183,39 @@ describe('AppConfigSchema', () => {
     });
 
     test.each(['MAILBOX_ID', 'MAILBOX_IMAP_HOST', 'MAILBOX_IMAP_USER', 'MAILBOX_IMAP_PASSWORD'])(
+      'rejects a missing required field %s',
+      key => {
+        const env = requiredOnlyEnv();
+        delete (env as Record<string, string | undefined>)[key];
+
+        const result = AppConfigSchema.safeParse(env);
+
+        expect(result.success).toBe(false);
+        if (result.success) return;
+        expect(
+          result.error.issues.some(issue => issue.path.join('.') === key)
+        ).toBe(true);
+      }
+    );
+
+    test('parses a fixture env that sets all four HTTP API auth keys', () => {
+      const result = AppConfigSchema.safeParse({
+        ...requiredOnlyEnv(),
+        API_ADMIN_PASSWORD: 'admin-secret',
+        API_JWT_SECRET: 'jwt-secret',
+        API_ADMIN_TOKEN_TTL: '7200',
+        API_MAILBOX_TOKEN_TTL: '1800',
+      });
+
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.data.API_ADMIN_PASSWORD).toBe('admin-secret');
+      expect(result.data.API_JWT_SECRET).toBe('jwt-secret');
+      expect(result.data.API_ADMIN_TOKEN_TTL).toBe(7200);
+      expect(result.data.API_MAILBOX_TOKEN_TTL).toBe(1800);
+    });
+
+    test.each(['API_ADMIN_PASSWORD', 'API_JWT_SECRET'])(
       'rejects a missing required field %s',
       key => {
         const env = requiredOnlyEnv();
