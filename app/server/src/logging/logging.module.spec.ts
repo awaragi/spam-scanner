@@ -1,7 +1,12 @@
 import { describe, test, expect } from 'vitest';
 import { Writable } from 'stream';
 import pino from 'pino';
-import { buildPinoOptions, canLoadPinoPretty } from './logging.module.js';
+import {
+  buildPinoOptions,
+  buildReqSerializer,
+  canLoadPinoPretty,
+  redactAuthorizationHeaders,
+} from './logging.module.js';
 import type { LoggingConfig } from '../config/app-config.js';
 
 function fixtureLoggingConfig(overrides: Partial<LoggingConfig> = {}): LoggingConfig {
@@ -77,6 +82,28 @@ describe('buildPinoOptions', () => {
     expect(text).not.toContain('super-secret-ai');
     expect(text).toContain('not-a-secret');
     expect(text).toContain('[REDACTED]');
+  });
+
+  test('redacts Authorization bearer tokens under headers', () => {
+    const options = buildPinoOptions(fixtureLoggingConfig({ level: 'debug' }));
+    const { stream, lines } = captureLines();
+    const logger = pino(options, stream);
+
+    logger.debug(
+      {
+        headers: {
+          authorization: 'Bearer eyJhbGciOiJIUzI1NiJ9.secret',
+          'content-type': 'application/json',
+        },
+      },
+      'auth header',
+    );
+
+    const [line] = lines();
+    const text = JSON.stringify(line);
+    expect(text).not.toContain('eyJhbGciOiJIUzI1NiJ9');
+    expect(text).toContain('[REDACTED]');
+    expect(text).toContain('application/json');
   });
 
   test('redacts the same secrets one level of nesting deep (e.g. under headers)', () => {
@@ -157,6 +184,33 @@ describe('buildPinoOptions', () => {
 
       expect(lines()).toHaveLength(1);
     });
+  });
+});
+
+describe('buildReqSerializer', () => {
+  test('redacts Authorization on serialized HTTP requests', () => {
+    const serialized = buildReqSerializer()({
+      method: 'GET',
+      url: '/admin/mailboxes',
+      headers: {
+        authorization: 'Bearer secret-jwt',
+        host: 'localhost:3000',
+      },
+    } as Parameters<ReturnType<typeof buildReqSerializer>>[0]);
+
+    expect(serialized.headers.authorization).toBe('[REDACTED]');
+    expect(serialized.headers.host).toBe('localhost:3000');
+  });
+});
+
+describe('redactAuthorizationHeaders', () => {
+  test('is case-insensitive on header names', () => {
+    expect(
+      redactAuthorizationHeaders({
+        Authorization: 'Bearer x',
+        'X-Test': 'ok',
+      }),
+    ).toEqual({ Authorization: '[REDACTED]', 'X-Test': 'ok' });
   });
 });
 

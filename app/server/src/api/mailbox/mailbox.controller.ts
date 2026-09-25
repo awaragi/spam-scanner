@@ -9,6 +9,7 @@ import {
   Put,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RunnerRegistry } from '../../runtime/runner-registry.js';
 import type { MailboxRunnerStatus } from '../../runtime/mailbox-runner.js';
 import type { MailboxSettings } from '../../config/mailbox-settings.defaults.js';
@@ -78,6 +79,8 @@ async function withUnknownMailboxAsNotFoundAsync<T>(
  * `mailboxes/:mailboxId` and gated by `MailboxScopeGuard` so a token only
  * ever reaches its own mailbox's routes.
  */
+@ApiTags('mailbox')
+@ApiBearerAuth('bearer')
 @Controller('mailboxes/:mailboxId')
 @UseGuards(MailboxScopeGuard)
 export class MailboxController {

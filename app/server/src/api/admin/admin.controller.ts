@@ -1,4 +1,5 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RunnerRegistry } from '../../runtime/runner-registry.js';
 import type { MailboxRunnerStatus } from '../../runtime/mailbox-runner.js';
 import {
@@ -58,6 +59,8 @@ export interface AdminSettings {
  * settings. Every route requires `AdminGuard` - a mailbox token is rejected
  * before any handler runs.
  */
+@ApiTags('admin')
+@ApiBearerAuth('bearer')
 @Controller('admin')
 @UseGuards(AdminGuard)
 export class AdminController {

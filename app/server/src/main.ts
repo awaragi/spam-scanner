@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
 import { ServerConfig } from './config/app-config.js';
@@ -29,6 +30,26 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   app.useLogger(app.get(Logger));
   app.enableShutdownHooks(undefined, { useProcessExit: true });
+
+  app.enableCors({
+    origin: [
+      'http://localhost:4200',
+      'http://127.0.0.1:4200',
+    ],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  });
+
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Spam Scanner Server API')
+    .setDescription('Control plane for mailbox scanning and training')
+    .setVersion('1.0')
+    .addBearerAuth(
+      { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+      'bearer',
+    )
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api/docs', app, document);
 
   const { port } = app.get(ServerConfig);
   await app.listen(port);

@@ -1,4 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { HealthService } from './health.service.js';
 
 /**
@@ -8,6 +9,7 @@ import { HealthService } from './health.service.js';
  * by `AdminController` (`GET /admin/health`, task 9.1) - this controller
  * deliberately carries no other route.
  */
+@ApiTags('health')
 @Controller('health')
 export class HealthController {
   constructor(private readonly healthService: HealthService) {}

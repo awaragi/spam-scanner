@@ -1,8 +1,33 @@
 import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
-import type { Logger as PinoLogger, LoggerOptions } from 'pino';
+import pino, { type Logger as PinoLogger, type LoggerOptions } from 'pino';
 import { stdTimeFunctions } from 'pino';
 import { LoggingConfig } from '../config/app-config.js';
+
+/** Strip JWT bearer tokens from objects logged under a `headers` bag. */
+export function redactAuthorizationHeaders(
+  headers: Record<string, string>,
+): Record<string, string> {
+  const out = { ...headers };
+  for (const key of Object.keys(out)) {
+    if (key.toLowerCase() === 'authorization') {
+      out[key] = '[REDACTED]';
+    }
+  }
+  return out;
+}
+
+/** pino-http `req` serializer — redacts `Authorization` on every access log line. */
+export function buildReqSerializer(): pino.SerializerFn {
+  const base = pino.stdSerializers.req;
+  return req => {
+    const serialized = base(req);
+    if (serialized?.headers) {
+      serialized.headers = redactAuthorizationHeaders(serialized.headers);
+    }
+    return serialized;
+  };
+}
 
 const VALID_LOG_LEVELS = ['trace', 'debug', 'info', 'warn', 'error', 'fatal'];
 const VALID_LOG_FORMATS = ['json', 'jsonl', 'pretty'];
@@ -114,6 +139,9 @@ export function buildPinoOptions(logging: LoggingConfig): LoggerOptions {
         '*.AI_API_KEY',
         '*.headers.Password',
         '*.Password',
+        'req.headers.authorization',
+        '*.headers.authorization',
+        'headers.authorization',
       ],
       censor: '[REDACTED]',
     },
@@ -180,7 +208,12 @@ export function buildPinoOptions(logging: LoggingConfig): LoggerOptions {
     LoggerModule.forRootAsync({
       inject: [LoggingConfig],
       useFactory: (logging: LoggingConfig) => ({
-        pinoHttp: buildPinoOptions(logging),
+        pinoHttp: {
+          ...buildPinoOptions(logging),
+          serializers: {
+            req: buildReqSerializer(),
+          },
+        },
       }),
     }),
   ],

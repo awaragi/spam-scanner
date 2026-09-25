@@ -9,7 +9,8 @@
     "test": "npm test --workspace=terminal",
     "lint": "npm run lint --workspace=terminal",
     "format:check": "npm run format:check --workspace=terminal",
-    "mock-rspamd": "node bin/local/mock-rspamd.mjs"
+    "mock-rspamd": "node bin/local/mock-rspamd.mjs",
+    "front:start": "npm start --workspace=front"
   },
   "devDependencies": {
     "express": "^5.1.0"
