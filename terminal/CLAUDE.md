@@ -1,0 +1,92 @@
+# spam-scanner
+
+Node.js (ESM) IMAP spam scanner. Rspamd is a stateless content scorer shared across
+mailboxes via HTTP (`/checkv2`, `/learnham`, `/learnspam`) — it has no list or mailbox
+awareness. Whitelist/blacklist matching, scan state, and IDLE orchestration all live in
+app code; per-mailbox state (scanner progress, whitelist, blacklist) is stored as JSON in
+that mailbox's own IMAP state folder, not a local file or database.
+
+## Project structure
+
+- `src/cli/` — top-level entry scripts (`orchestrator.ts`, `scan-inbox.ts`, `train-*.ts`,
+  `init-folders.ts`)
+- `src/admin/` — maintenance scripts (export/import list and mailbox state)
+- `src/lib/core/` — platform/bootstrap concern, not one of the four layers below:
+  `config.ts` (reads `process.env`), `context.ts` (`createDefaultContext()`, builds the
+  `ctx` object threaded through controllers), `logger.ts` (imported ambiently everywhere)
+- `src/lib/utils/` — pure, generic, no domain knowledge: `*.util.ts`, 100% unit tested,
+  zero mocks, never sees `ctx`
+- `src/lib/services/` — pure, spam-scanner domain rules: `*.service.ts`, 100% unit
+  tested, zero mocks, never takes `ctx` as a parameter
+- `src/lib/clients/` — the impure I/O boundary: `*.client.ts` (IMAP/rspamd/AI/state),
+  reads `config.ts` directly rather than `ctx`, mocked freely in controller tests
+- `src/lib/controllers/workflows/` — top-level orchestrator-invoked entry points (scan,
+  train, init, idle, etc.): `*.controller.ts`, take `ctx` as a trailing parameter
+  defaulted to `createDefaultContext()`
+- `src/lib/controllers/steps/` — smaller reusable units a workflow controller calls to
+  do one thing against one external system: `*.step.ts`
+- `test/unit/` — mirrors `src/lib/`'s structure (`controllers/workflows/`,
+  `controllers/steps/`, `services/`, `utils/`, `clients/`, `admin/`)
+- `test/support/` — shared fixtures/fake-client factories used by both `test/unit/` and
+  `test/integration/`
+- `test/integration/` — hits a real AI provider, run separately via
+  `npm run test:integration`
+- `bin/` — shell scripts for local and Docker startup
+- `rspamd/` — Rspamd Docker configuration
+- `openspec/` — spec-driven change process (specs, active/archived changes); the
+  project's process of record for design/plan/spec work
+
+## Architecture invariants
+
+- Layer dependencies flow one way: `controllers` → `services`/`clients` → `utils`/`core`.
+  A service or util must never import a client or controller.
+- `services/` and `utils/` never take `ctx` — a controller extracts the specific value a
+  service/util needs and passes it explicitly.
+- `clients/` read `config` directly rather than `ctx`, since they're the I/O boundary and
+  own their own connection/config concerns.
+- `controllers/workflows/*.controller.ts` take `ctx` as a trailing parameter defaulted to
+  `createDefaultContext()`, so standalone `src/cli/*.ts` scripts and the orchestrator can
+  call them identically.
+- Standalone `src/cli/*.ts` scripts follow the same pattern: `newClient()` → `connect()`
+  → run the workflow → `safeLogout()` in a `finally` block.
+
+## Testing
+
+- `npm test` runs unit tests (`test/unit/**`); `npm run test:integration` runs
+  `test/integration/**` against a real AI provider (loads `.env` via `env-cmd`).
+- A controller test mocks only the `*.client.ts` modules it needs (transitively) and
+  builds `ctx` as a plain object literal via `test/support/fixtures.ts`'s
+  `fixtureContext()` — never mocked.
+- `services/` and `utils/` tests are 100% unit tested with zero mocks.
+
+## Commands
+
+- `npm test` — run unit tests (vitest)
+- `npm run test:coverage` — run unit tests with coverage (v8 provider); writes
+  `coverage/index.html` (gitignored)
+- `npm run test:integration` — run integration tests against a real AI provider
+- `npm run format` / `npm run format:check` — Prettier write/check
+- `npm run lint` — ESLint (`eslint.config.js`, flat config); reports only, not
+  wired into a `--fix` script or CI yet
+- `npm run generate:env-example` — regenerate `.env.example` from
+  `config.ts`'s `configGroups` (single source of truth for shape, defaults,
+  and docs - see that file's module doc comment); a unit test in
+  `config.test.ts` fails if `.env.example` drifts from what this produces,
+  so run it after changing `configGroups` rather than hand-editing the file.
+  The underlying `src/cli/generate-env.ts --output <path> [--input <path>]`
+  also migrates an existing env file onto the current structure via
+  `--input`, keeping its values in place of defaults for any key it already
+  sets.
+- `bin/local/start.sh <env-file> [script]` — run a script locally with `.env` loaded
+  (defaults to `src/cli/orchestrator.ts`)
+
+## Conventions
+
+- Structured logging via `pino` through `rootLogger.forComponent(name)`; never log
+  credentials or email content.
+- IMAP operations use UIDs, not sequence numbers; always safely close/logout connections in a
+  `finally` block.
+- Config comes from environment variables read once in `src/lib/core/config.ts` — never
+  read `process.env` elsewhere.
+- Prefer Mermaid for diagrams in Markdown docs (renders inline, version-controlled).
+- Document new environment variables in `.env.example` alongside `README.md`.

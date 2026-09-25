@@ -1,0 +1,51 @@
+{
+  "name": "spam-scanner",
+  "version": "1.0.0",
+  "description": "Node.js IMAP spam scanner and trainer backed by Rspamd, with mailbox-contained state and an optional AI safety-net classifier.",
+  "license": "MIT",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/awaragi/spam-scanner.git"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node src/cli/orchestrator.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "type-check": "tsc --noEmit",
+    "generate:env-example": "node src/cli/generate-env.ts --output ../.env.example",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "env-cmd -f .env vitest run --config vitest.integration.config.js"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.3",
+    "email-addresses": "^5.0.0",
+    "imapflow": "^1.0.148",
+    "mailparser": "^3.9.28",
+    "openai": "^7.17.0",
+    "pino": "^8.14.1",
+    "yargs": "^17.7.2",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.2",
+    "@types/yargs": "^17.0.35",
+    "@vitest/coverage-v8": "^3.2.7",
+    "env-cmd": "^10.1.0",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.12.0",
+    "pino-pretty": "^10.0.0",
+    "prettier": "^3.6.2",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.1",
+    "vitest": "^3.2.4"
+  }
+}

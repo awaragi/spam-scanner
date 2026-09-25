@@ -4,7 +4,7 @@ include:
 services:
   spam-scanner:
     image: spam-scanner:latest
-    build: .
+    build: ./terminal
     env_file: .env
     depends_on:
       rspamd:

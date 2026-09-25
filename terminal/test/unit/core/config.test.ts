@@ -324,7 +324,7 @@ describe('configGroups -> .env.example sync', () => {
   test('the committed .env.example matches what configGroups renders', () => {
     const repoRoot = resolve(
       dirname(fileURLToPath(import.meta.url)),
-      '../../..'
+      '../../../..'
     );
     const committed = readFileSync(resolve(repoRoot, '.env.example'), 'utf8');
 

@@ -33,5 +33,5 @@ jobs:
 
       - uses: docker/build-push-action@v7
         with:
-          context: .
+          context: ./terminal
           push: false

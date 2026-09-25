@@ -6,5 +6,5 @@ metadata:
   version: '1.0'
 ---
 
-Read `skills/prompt-engineer/SKILL.md` (repo root) now, in full, and follow it exactly as
+Read `terminal/skills/prompt-engineer/SKILL.md` now, in full, and follow it exactly as
 this skill's instructions, passing along any `args` given here.
