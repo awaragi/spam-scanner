@@ -78,6 +78,39 @@ describe('readSettingsOverrides', () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
+  test('state folder does not exist yet (NONEXISTENT): returns undefined without logging, and does not search', async () => {
+    const imap = makeImap();
+    imap.mailboxOpen = vi.fn().mockRejectedValue(
+      Object.assign(new Error('Mailbox does not exist'), {
+        serverResponseCode: 'NONEXISTENT',
+      })
+    );
+    const warn = vi.fn();
+
+    const result = await readSettingsOverrides(
+      asImapFlow(imap),
+      'INBOX.state',
+      { warn } as any
+    );
+
+    expect(result).toBeUndefined();
+    expect(mockedSearch).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  test('mailboxOpen fails for a reason other than NONEXISTENT: the error propagates', async () => {
+    const imap = makeImap();
+    imap.mailboxOpen = vi.fn().mockRejectedValue(
+      Object.assign(new Error('Authentication failed'), {
+        serverResponseCode: 'AUTHENTICATIONFAILED',
+      })
+    );
+
+    await expect(
+      readSettingsOverrides(asImapFlow(imap), 'INBOX.state')
+    ).rejects.toThrow('Authentication failed');
+  });
+
   test('a valid JSON object message exists: returns that exact object', async () => {
     const imap = makeImap();
     const overrides = { thresholds: { clean: 10 }, aiEnabled: false };

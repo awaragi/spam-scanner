@@ -245,6 +245,38 @@ describe('readScannerState', () => {
     expect(warn).toHaveBeenCalled();
   });
 
+  test('no state, default given: the computed baseline is persisted immediately (regression - a mailbox whose state was wiped must be able to start scanning new mail, not recompute a moving "now" forever)', async () => {
+    const imap = makeImap({
+      status: vi.fn().mockResolvedValue({ uidNext: 7385 }),
+    });
+    mockedSearch.mockResolvedValue([]);
+    const defaultState = {
+      last_uid: 0,
+      last_seen_date: 'd',
+      last_checked: 'c',
+    };
+
+    const result = await readScannerState(
+      asImapFlow(imap),
+      'INBOX.state',
+      defaultState,
+      'INBOX',
+      'new',
+      { warn } as any
+    );
+
+    // writeScannerState was actually invoked (append with the baseline
+    // that was just returned, not a stale or different value).
+    expect(imap.append).toHaveBeenCalledTimes(1);
+    expect(imap.append.mock.calls[0][1]).toContain(
+      JSON.stringify(result)
+    );
+    // The connection ends up back on the caller's original mailbox
+    // ('INBOX', per makeImap's fixture), not left on the state folder that
+    // writeScannerState itself selects internally.
+    expect(imap.mailboxOpen).toHaveBeenLastCalledWith('INBOX');
+  });
+
   test('no state, default given, mailboxPath with UIDNEXT === 1 (empty mailbox): last_uid is 0, warns', async () => {
     const imap = makeImap({
       status: vi.fn().mockResolvedValue({ uidNext: 1 }),

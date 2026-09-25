@@ -6,7 +6,7 @@ import {
   STATE_KEY_MAILBOX_SETTINGS,
 } from '../../domain/state/state-format.js';
 import { parseEmail } from '../../domain/utils/email-parser.js';
-import { open, search, fetchMessagesByUIDs } from '../imap/mailbox.gateway.js';
+import { search, fetchMessagesByUIDs } from '../imap/mailbox.gateway.js';
 
 /**
  * Extract the body text from an RFC822 message's raw buffer.
@@ -53,6 +53,18 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * logged as a warning, since that's a real (if rare) difference worth
  * flagging distinctly from "never configured".
  *
+ * The state folder itself not existing yet gets the same "no overrides"
+ * treatment. `bootstrap()` (`runtime/mailbox-runner.ts`) calls this before
+ * `FolderInitService.initFolders` has had a chance to create the state
+ * folder (settings load deliberately runs first - design.md D4), so a
+ * mailbox that has never been initialized at all - not merely "never
+ * configured" - hits this path on its very first bootstrap. Without this,
+ * that mailbox could never bootstrap: IMAP's `NONEXISTENT` response would
+ * propagate as an error, `initFolders` (the only thing that creates the
+ * folder) would never run, and every retry would fail identically forever.
+ * Any other failure (auth, network, a real permissions problem) still
+ * propagates.
+ *
  * @param imap - Connected ImapFlow client
  * @param stateFolder - Path to the state folder
  * @param logger - Optional logger
@@ -67,8 +79,23 @@ export async function readSettingsOverrides(
   // remember original mailbox
   const originalPath = currentMailboxPath(imap);
 
-  // Open the state folder in read-only mode
-  await open(imap, stateFolder, true, logger);
+  // Open the state folder in read-only mode. Calls imap.mailboxOpen directly
+  // (matching writeSettingsOverrides below) rather than the shared open()
+  // gateway helper, which always logs failures at error level - NONEXISTENT
+  // is an expected, self-healing case here (see doc comment above) and
+  // should stay as quiet as "no settings message".
+  try {
+    await imap.mailboxOpen(stateFolder, { readOnly: true });
+  } catch (err) {
+    if (
+      err instanceof Error &&
+      (err as { serverResponseCode?: string }).serverResponseCode ===
+        'NONEXISTENT'
+    ) {
+      return undefined;
+    }
+    throw err;
+  }
 
   // Search for settings messages
   const results = await search(imap, criteria, logger);

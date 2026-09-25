@@ -89,12 +89,26 @@ export async function readScannerState(
         'No scanner state found, using default state'
       );
 
-      // Restore original mailbox if it existed
+      const initialState = { ...defaultState, last_uid };
+
+      // Persist this immediately - it fixes the "new mail only" baseline in
+      // place. Without this, every subsequent call with no persisted state
+      // would recompute last_uid against whatever's currently newest in the
+      // mailbox, a moving target that perpetually re-anchors to "just
+      // arrived" before it's ever processed - a mailbox whose state was
+      // wiped (or a genuinely fresh one) could never actually start
+      // scanning new mail.
+      await writeScannerState(imap, stateFolder, initialState, logger);
+
+      // writeScannerState's own mailbox restore lands back on the state
+      // folder (where this function's read left the connection selected,
+      // mid-function) - not this function's caller's original mailbox.
+      // Restore that instead.
       if (originalPath) {
         await imap.mailboxOpen(originalPath);
       }
 
-      return { ...defaultState, last_uid };
+      return initialState;
     } else {
       throw new Error('Scanner state not found');
     }
