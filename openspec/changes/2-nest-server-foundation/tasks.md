@@ -59,7 +59,7 @@
 
 ## 9. End-to-end verification
 
-- [ ] 9.1 Run the full `app/server` unit suite and confirm every ported test passes with unchanged behavioral assertions — verify: green test run
-- [ ] 9.2 Run dependency-cruiser across the now-populated tree — verify: zero layering violations
-- [ ] 9.3 Confirm `app/server/.env.example` is committed and matches the schema — verify: the drift test from 3.1 passes
-- [ ] 9.4 Confirm the server can take over scanning an existing mailbox from terminal without losing state, without actually running either against a real mailbox (per the same caution as `1-monorepo-restructure`'s deferred smoke test) — verify: a code-level test asserting the server's state-key constants and state-message byte format are identical to terminal's for the same input
+- [x] 9.1 Run the full `app/server` unit suite and confirm every ported test passes with unchanged behavioral assertions — verify: green test run **Done.**
+- [x] 9.2 Run dependency-cruiser across the now-populated tree — verify: zero layering violations **Done.**
+- [x] 9.3 Confirm `app/server/.env.example` is committed and matches the schema — verify: the drift test from 3.1 passes **Done** - explicitly re-ran the drift test in isolation (1/1 pass).
+- [x] 9.4 Confirm the server can take over scanning an existing mailbox from terminal without losing state, without actually running either against a real mailbox (per the same caution as `1-monorepo-restructure`'s deferred smoke test) — verify: a code-level test asserting the server's state-key constants and state-message byte format are identical to terminal's for the same input **Done** - covered by task 4.4's byte-identical parity tests in state-format.spec.ts, re-confirmed (19/19 pass).
