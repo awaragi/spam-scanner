@@ -1,0 +1,95 @@
+/**
+ * Local structural shape for a described/defaulted Zod field - not imported
+ * from `core/config.ts` (utils must never import types from core) and not
+ * zod's own internal types (this only needs the two properties it actually
+ * reads).
+ */
+interface DescribedField {
+  description?: string;
+  _def: { type: string; defaultValue?: unknown };
+}
+
+interface TitledSchemaGroup {
+  title: string;
+  schema: { shape: Record<string, DescribedField> };
+}
+
+interface SchemaGroup {
+  schema: { shape: Record<string, DescribedField> };
+}
+
+/**
+ * Renders a dotenv-style file (e.g. `.env.example`) from an ordered array of
+ * `{ title, schema }` groups, where `schema` is a Zod object whose fields
+ * carry `.describe()` text and (optionally) a `.default()`. Pure function of
+ * its input - no filesystem access, so it's usable both by
+ * `src/cli/generate-env.js` and by a test asserting the committed
+ * file matches what the schema would produce.
+ *
+ * `values`, when given, overrides a key's rendered value with
+ * `values[key]` whenever that key is present (own property) in `values` -
+ * used by `generate-env.js`'s `--input` flag to migrate an existing
+ * env file onto the current structure/headers/comments while preserving
+ * whatever it already sets. A key absent from `values` still falls back to
+ * its schema default, same as when `values` is omitted entirely.
+ * @param groups
+ * @param [values]
+ * @returns the full file content, ending in a single trailing newline
+ */
+export function renderEnvFile(
+  groups: TitledSchemaGroup[],
+  values: Record<string, string> = {}
+): string {
+  const lines: string[] = [];
+  groups.forEach((group, index) => {
+    if (index > 0) {
+      lines.push('');
+    }
+    lines.push(`# ${group.title}`);
+    for (const [key, field] of Object.entries(group.schema.shape)) {
+      if (field.description) {
+        for (const commentLine of field.description.split('\n')) {
+          lines.push(commentLine.length > 0 ? `# ${commentLine}` : '#');
+        }
+      }
+      const value = Object.prototype.hasOwnProperty.call(values, key)
+        ? values[key]
+        : fieldDefault(field);
+      lines.push(`${key}=${value}`);
+    }
+  });
+  lines.push('');
+  return lines.join('\n');
+}
+
+/**
+ * Compares an existing env file's parsed `values` (e.g. via `dotenv.parse()`)
+ * against `groups`' known keys - used to report, after a `renderEnvFile`
+ * migration, which keys fell back to their default (worth reviewing) and
+ * which keys in `values` don't match any known config variable (e.g.
+ * renamed or removed since the file was last generated).
+ * @param groups
+ * @param values
+ */
+export function diffEnvValues(
+  groups: SchemaGroup[],
+  values: Record<string, string>
+): { defaultedKeys: string[]; unknownKeys: string[] } {
+  const knownKeys = groups.flatMap(group => Object.keys(group.schema.shape));
+  const knownKeySet = new Set(knownKeys);
+  const defaultedKeys = knownKeys.filter(
+    key => !Object.prototype.hasOwnProperty.call(values, key)
+  );
+  const unknownKeys = Object.keys(values).filter(key => !knownKeySet.has(key));
+  return { defaultedKeys, unknownKeys };
+}
+
+/**
+ * A field's `.default()` value as a string, or '' when it has none (e.g.
+ * `.optional()` fields like `IMAP_HOST` with no safe default).
+ * @param field
+ */
+function fieldDefault(field: DescribedField): string {
+  const raw = field._def.defaultValue;
+  return raw === undefined ? '' : String(raw);
+}

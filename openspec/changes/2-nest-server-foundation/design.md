@@ -309,9 +309,16 @@ in-flight job to finish. `3-mailbox-runners` replaces all of this.
   - It is tested against fixture env files. The assistant never reads a real
     `.env`, and the operator runs the script.
 
-Both scripts are compiled together with the app (the build tsconfig includes
-`scripts/`) and run from `dist/`, so they share the same module resolution as
-`src/`.
+**Amended during implementation:** both scripts run directly via `node` with
+relative `.ts`-extension imports (Node 24's native TypeScript support), the
+same way `terminal/`'s own CLI scripts already run — not compiled into
+`dist/` via `tsconfig.build.json` as originally planned above. They are
+operator-invoked tooling, never imported by the running server, so nothing
+requires them to share the main app's build pipeline; folding `scripts/`
+into `tsconfig.build.json`'s `include` would also shift `dist/main.js` to
+`dist/src/main.js`, disturbing the path `main.ts`/the Dockerfile (D12, task
+8.1) assume, for no behavioral benefit. `npm run lint`'s dependency-cruiser
+pass still covers `scripts/`.
 
 ### D11. Module format and imports
 
