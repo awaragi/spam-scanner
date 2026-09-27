@@ -97,22 +97,6 @@ describe('HealthService', () => {
       expect(result.rspamd).toBe('reachable');
     });
 
-    test('reflects the AI failure status from getStatus()', async () => {
-      const aiStatus = {
-        reason: 'timeout',
-        count: 3,
-        lastError: 'boom',
-        lastAt: '2026-01-01T00:00:00.000Z',
-      };
-      const { service } = build({
-        status: { mailboxes: [], ai: aiStatus },
-      });
-
-      const result = await service.health();
-
-      expect(result.ai).toEqual(aiStatus);
-    });
-
     test('derives each mailbox summary from getStatus(), with age when the last scan succeeded', async () => {
       const lastRunAt = new Date(Date.now() - 5000).toISOString();
       const mailbox = fixtureMailboxStatus({

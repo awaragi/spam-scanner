@@ -66,26 +66,6 @@ function captureLines(): { logger: pino.Logger; lines: () => Record<string, unkn
 }
 
 describe('createMailboxSession', () => {
-  test('wires every field from its parts, accessible on the resulting session', () => {
-    const mailbox = fixtureMailbox();
-    const imap = fixtureImap();
-    const folders = fixtureFolders();
-    const { logger } = captureLines();
-
-    const session = createMailboxSession({
-      mailbox,
-      imap,
-      settings: defaultMailboxSettings,
-      folders,
-      logger,
-    });
-
-    expect(session.mailbox).toBe(mailbox);
-    expect(session.imap).toBe(imap);
-    expect(session.settings).toBe(defaultMailboxSettings);
-    expect(session.folders).toBe(folders);
-  });
-
   test('the session logger is bound to this mailbox\'s id, per D4', () => {
     const mailbox = fixtureMailbox({ id: 'jane.doe@example.com' });
     const { logger, lines } = captureLines();

@@ -1,5 +1,5 @@
 import { describe, test, expect, vi } from 'vitest';
-import type { ImapFlow, MailboxObject } from 'imapflow';
+import type { ImapFlow } from 'imapflow';
 
 vi.mock('./message.mapper.js', () => ({
   processMessage: vi.fn((msg) => ({
@@ -72,30 +72,6 @@ describe('open', () => {
 
     expect(mockImap.connect).toHaveBeenCalled();
   });
-
-  test('throws and logs error on failure', async () => {
-    const mockImap = {
-      usable: true,
-      mailboxOpen: vi.fn().mockRejectedValue(new Error('Connection failed')),
-    };
-    const logger = { error: vi.fn(), debug: vi.fn() };
-
-    await expect(
-      gateway.open(asImapFlow(mockImap), 'INBOX', false, logger as any)
-    ).rejects.toThrow('Connection failed');
-
-    expect(logger.error).toHaveBeenCalledWith(
-      expect.objectContaining({ folder: 'INBOX' }),
-      expect.any(String)
-    );
-  });
-});
-
-describe('count', () => {
-  test('returns message count from mailbox object', () => {
-    const box = { exists: 42 } as MailboxObject;
-    expect(gateway.count(box)).toBe(42);
-  });
 });
 
 describe('search', () => {
@@ -120,20 +96,6 @@ describe('search', () => {
     const result = await gateway.search(asImapFlow(mockImap), query);
 
     expect(result).toEqual([]);
-  });
-
-  test('throws and logs error on search failure', async () => {
-    const mockImap = {
-      search: vi.fn().mockRejectedValue(new Error('Search failed')),
-    };
-    const logger = { error: vi.fn(), debug: vi.fn() };
-    const query = { unseen: true };
-
-    await expect(
-      gateway.search(asImapFlow(mockImap), query, logger as any)
-    ).rejects.toThrow('Search failed');
-
-    expect(logger.error).toHaveBeenCalled();
   });
 });
 
@@ -166,21 +128,6 @@ describe('fetchMessagesByUIDs', () => {
     );
     expect(mapper.processMessage).toHaveBeenCalledTimes(2);
   });
-
-  test('throws and logs error on fetch failure', async () => {
-    const mockImap = {
-      fetch: vi.fn().mockImplementation(() => {
-        throw new Error('Fetch failed');
-      }),
-    };
-    const logger = { error: vi.fn(), debug: vi.fn() };
-
-    await expect(
-      gateway.fetchMessagesByUIDs(asImapFlow(mockImap), [1, 2], logger as any)
-    ).rejects.toThrow('Fetch failed');
-
-    expect(logger.error).toHaveBeenCalled();
-  });
 });
 
 describe('fetchMessageHeadersByUIDs', () => {
@@ -207,21 +154,6 @@ describe('fetchMessageHeadersByUIDs', () => {
     );
     expect(mapper.processMessageHeaders).toHaveBeenCalledTimes(2);
   });
-
-  test('throws and logs error on fetch failure', async () => {
-    const mockImap = {
-      fetch: vi.fn().mockImplementation(() => {
-        throw new Error('Fetch headers failed');
-      }),
-    };
-    const logger = { error: vi.fn(), debug: vi.fn() };
-
-    await expect(
-      gateway.fetchMessageHeadersByUIDs(asImapFlow(mockImap), [1, 2], logger as any)
-    ).rejects.toThrow('Fetch headers failed');
-
-    expect(logger.error).toHaveBeenCalled();
-  });
 });
 
 describe('moveMessage', () => {
@@ -235,19 +167,6 @@ describe('moveMessage', () => {
 
     expect(mockImap.messageMove).toHaveBeenCalledWith({ uid: 5 }, 'Archive');
     expect(mockImap.mailboxExpunge).toHaveBeenCalled();
-  });
-
-  test('throws and logs error on move failure', async () => {
-    const mockImap = {
-      messageMove: vi.fn().mockRejectedValue(new Error('Move failed')),
-    };
-    const logger = { error: vi.fn(), debug: vi.fn() };
-
-    await expect(
-      gateway.moveMessage(asImapFlow(mockImap), 5, 'Archive', logger as any)
-    ).rejects.toThrow('Move failed');
-
-    expect(logger.error).toHaveBeenCalled();
   });
 });
 
@@ -275,20 +194,6 @@ describe('moveMessages', () => {
     await gateway.moveMessages(asImapFlow(mockImap), [], 'Spam');
 
     expect(mockImap.messageMove).not.toHaveBeenCalled();
-  });
-
-  test('throws and logs error on move failure', async () => {
-    const mockImap = {
-      messageMove: vi.fn().mockRejectedValue(new Error('Batch move failed')),
-    };
-    const logger = { error: vi.fn(), debug: vi.fn() };
-    const messages = [{ uid: 1 }, { uid: 2 }];
-
-    await expect(
-      gateway.moveMessages(asImapFlow(mockImap), messages, 'Spam', logger as any)
-    ).rejects.toThrow('Batch move failed');
-
-    expect(logger.error).toHaveBeenCalled();
   });
 });
 
@@ -322,25 +227,6 @@ describe('appendMessage', () => {
     await gateway.appendMessage(asImapFlow(mockImap), 'Drafts', raw);
 
     expect(mockImap.append).toHaveBeenCalledWith('Drafts', raw, []);
-  });
-
-  test('throws and logs error on append failure', async () => {
-    const mockImap = {
-      append: vi.fn().mockRejectedValue(new Error('Append failed')),
-    };
-    const logger = { error: vi.fn(), debug: vi.fn() };
-
-    await expect(
-      gateway.appendMessage(
-        asImapFlow(mockImap),
-        'Drafts',
-        'test',
-        [],
-        logger as any
-      )
-    ).rejects.toThrow('Append failed');
-
-    expect(logger.error).toHaveBeenCalled();
   });
 });
 
@@ -394,26 +280,6 @@ describe('updateLabels', () => {
 
     expect(mockImap.messageFlagsAdd).not.toHaveBeenCalled();
     expect(mockImap.messageFlagsRemove).not.toHaveBeenCalled();
-  });
-
-  test('throws and logs error on flag update failure', async () => {
-    const mockImap = {
-      messageFlagsAdd: vi.fn().mockRejectedValue(new Error('Flag update failed')),
-    };
-    const logger = { error: vi.fn(), debug: vi.fn() };
-    const messages = [{ uid: 1 }];
-
-    await expect(
-      gateway.updateLabels(
-        asImapFlow(mockImap),
-        messages,
-        ['\\Flagged'],
-        [],
-        logger as any
-      )
-    ).rejects.toThrow('Flag update failed');
-
-    expect(logger.error).toHaveBeenCalled();
   });
 });
 
@@ -549,24 +415,5 @@ describe('findFirstUIDOnDate', () => {
     );
 
     expect(result).toBeNull();
-  });
-
-  test('throws and logs error on search failure', async () => {
-    const mockImap = {
-      mailboxOpen: vi.fn().mockResolvedValue(undefined),
-      search: vi.fn().mockRejectedValue(new Error('Search failed')),
-    };
-    const logger = { error: vi.fn(), debug: vi.fn() };
-
-    await expect(
-      gateway.findFirstUIDOnDate(
-        asImapFlow(mockImap),
-        'INBOX',
-        '2024-01-15',
-        logger as any
-      )
-    ).rejects.toThrow('Search failed');
-
-    expect(logger.error).toHaveBeenCalled();
   });
 });

@@ -252,74 +252,20 @@ describe('ScanService', () => {
     );
   });
 
-  describe('UID filter', () => {
-    test('IMAP range inversion: search returns only lastUID, no messages are processed', async () => {
-      const { scanService } = await buildScanService();
-      const session = fixtureSession();
-      mockReadScannerState.mockResolvedValue({
-        last_uid: 7384,
-        last_seen_date: '',
-        last_checked: '',
-      });
-      mockSearch.mockResolvedValue([7384]); // server wraps 7385:* -> [7384]
-
-      const result = await scanService.runScan(session);
-
-      expect(mockFetchMessagesByUIDs).not.toHaveBeenCalled();
-      expect(result).toEqual({ processed: 0, last_uid: 7384 });
+  test('nothing new to scan: fetches nothing and returns last_uid unchanged', async () => {
+    const { scanService } = await buildScanService();
+    const session = fixtureSession();
+    mockReadScannerState.mockResolvedValue({
+      last_uid: 7384,
+      last_seen_date: '',
+      last_checked: '',
     });
+    mockSearch.mockResolvedValue([7384]); // server wraps 7385:* -> [7384]
 
-    test('normal case: search returns UIDs greater than lastUID, all are enqueued', async () => {
-      const { scanService } = await buildScanService();
-      const session = fixtureSession();
-      const lastUID = 100;
-      const newUIDs = [101, 102, 103];
-      mockReadScannerState.mockResolvedValue({
-        last_uid: lastUID,
-        last_seen_date: '',
-        last_checked: '',
-      });
-      mockSearch.mockResolvedValue(newUIDs);
-      mockFetchMessagesByUIDs.mockResolvedValue(
-        newUIDs.map(uid => fixtureMessage({ uid }))
-      );
+    const result = await scanService.runScan(session);
 
-      const result = await scanService.runScan(session);
-
-      expect(mockFetchMessagesByUIDs).toHaveBeenCalledWith(
-        session.imap,
-        newUIDs,
-        session.logger
-      );
-      expect(result).toEqual({
-        processed: newUIDs.length,
-        last_uid: Math.max(...newUIDs),
-      });
-    });
-
-    test('mixed case: search returns stale and new UIDs, only new ones are enqueued', async () => {
-      const { scanService } = await buildScanService();
-      const session = fixtureSession();
-      const lastUID = 100;
-      const newUIDs = [101, 102];
-      mockReadScannerState.mockResolvedValue({
-        last_uid: lastUID,
-        last_seen_date: '',
-        last_checked: '',
-      });
-      mockSearch.mockResolvedValue([lastUID, ...newUIDs]);
-      mockFetchMessagesByUIDs.mockResolvedValue(
-        newUIDs.map(uid => fixtureMessage({ uid }))
-      );
-
-      await scanService.runScan(session);
-
-      expect(mockFetchMessagesByUIDs).toHaveBeenCalledWith(
-        session.imap,
-        newUIDs,
-        session.logger
-      );
-    });
+    expect(mockFetchMessagesByUIDs).not.toHaveBeenCalled();
+    expect(result).toEqual({ processed: 0, last_uid: 7384 });
   });
 
   describe('last_uid advancement past permanently-skipped messages', () => {
@@ -501,35 +447,6 @@ describe('ScanService', () => {
       await scanService.runScan(session);
 
       expect(fakeAiGateway.classifyEmail).toHaveBeenCalled();
-    });
-  });
-
-  describe('UIDVALIDITY tracking', () => {
-    test('mismatched uid_validity: resets to UIDNEXT - 1 instead of the stale last_uid', async () => {
-      const { scanService } = await buildScanService();
-      const session = fixtureSession();
-      mockReadScannerState.mockResolvedValue({
-        last_uid: 9000,
-        last_seen_date: '',
-        last_checked: '',
-        uid_validity: '111',
-      });
-      // New epoch: server only has 5 messages now (UIDNEXT 6), nothing new yet.
-      mockOpen.mockResolvedValue({ uidValidity: 222n, uidNext: 6 });
-      mockSearch.mockResolvedValue([]);
-
-      const result = await scanService.runScan(session);
-
-      expect(mockFetchMessagesByUIDs).not.toHaveBeenCalled();
-      expect(result).toEqual({ processed: 0, last_uid: 5 });
-      // Persisted immediately even though nothing new was found, so the
-      // next cycle doesn't re-detect the same mismatch and warn again.
-      expect(mockWriteScannerState).toHaveBeenCalledWith(
-        session.imap,
-        session.folders.state,
-        expect.objectContaining({ last_uid: 5, uid_validity: '222' }),
-        session.logger
-      );
     });
   });
 

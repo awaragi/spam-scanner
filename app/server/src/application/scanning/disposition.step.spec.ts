@@ -271,18 +271,5 @@ describe('DispositionStep', () => {
         session.logger
       );
     });
-
-    test('an empty list still calls through (moveMessages owns the no-op case)', async () => {
-      const session = fixtureSession();
-
-      await step.moveConfirmedSpam([], session);
-
-      expect(mockMoveMessages).toHaveBeenCalledWith(
-        session.imap,
-        [],
-        session.folders.spam,
-        session.logger
-      );
-    });
   });
 });

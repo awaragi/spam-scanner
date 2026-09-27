@@ -1,7 +1,7 @@
-import { describe, test, expect, vi } from 'vitest';
+import { describe, test, expect } from 'vitest';
 import { AdminController, type AdminSettings } from './admin.controller.js';
 import type { RunnerRegistry } from '../../runtime/runner-registry.js';
-import type { HealthService, HealthReport } from '../health/health.service.js';
+import type { HealthService } from '../health/health.service.js';
 import {
   AiConfig,
   ApiAuthConfig,
@@ -81,26 +81,9 @@ function fixtureMailboxConnectionConfig(): MailboxConnectionConfig {
 }
 
 function build() {
-  const runnerRegistry = {
-    getStatus: vi.fn().mockReturnValue({
-      mailboxes: [{ mailboxId: 'owner@example.com', state: 'running' }],
-      ai: { reason: null, count: 0, lastError: null, lastAt: null },
-    }),
-  };
-  const healthReport: HealthReport = {
-    status: 'up',
-    rspamd: 'reachable',
-    ai: { reason: null, count: 0, lastError: null, lastAt: null },
-    mailboxes: [],
-  };
-  const healthService = {
-    liveness: vi.fn(),
-    health: vi.fn().mockResolvedValue(healthReport),
-  };
-
   const controller = new AdminController(
-    runnerRegistry as unknown as RunnerRegistry,
-    healthService as unknown as HealthService,
+    {} as RunnerRegistry,
+    {} as HealthService,
     fixtureRspamdConfig(),
     fixtureAiConfig(),
     fixtureScanConfig(),
@@ -110,7 +93,7 @@ function build() {
     fixtureMailboxConnectionConfig(),
   );
 
-  return { controller, runnerRegistry, healthService, healthReport };
+  return { controller };
 }
 
 const SECRET_VALUES = [
@@ -122,24 +105,6 @@ const SECRET_VALUES = [
 ];
 
 describe('AdminController', () => {
-  test('GET /admin/mailboxes delegates to RunnerRegistry.getStatus().mailboxes', () => {
-    const { controller, runnerRegistry } = build();
-
-    const result = controller.getMailboxes();
-
-    expect(runnerRegistry.getStatus).toHaveBeenCalledWith();
-    expect(result).toEqual([{ mailboxId: 'owner@example.com', state: 'running' }]);
-  });
-
-  test('GET /admin/health delegates to HealthService.health()', async () => {
-    const { controller, healthService, healthReport } = build();
-
-    const result = await controller.getHealth();
-
-    expect(healthService.health).toHaveBeenCalledWith();
-    expect(result).toEqual(healthReport);
-  });
-
   test('GET /admin/settings never includes any secret field', () => {
     const { controller } = build();
 

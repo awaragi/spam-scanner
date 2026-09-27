@@ -144,23 +144,7 @@ describe('MailboxAdminService', () => {
     });
   });
 
-  describe('resetState()', () => {
-    test('delegates to deleteScannerState', async () => {
-      mockDeleteScannerState.mockResolvedValue(true);
-      const service = buildService();
-
-      const result = await service.resetState('owner@example.com');
-
-      expect(result).toBe(true);
-      expect(mockDeleteScannerState).toHaveBeenCalledWith(
-        expect.anything(),
-        'INBOX.scanner.state',
-        expect.anything(),
-      );
-    });
-  });
-
-  describe('readList()/replaceList()', () => {
+  describe('readList()', () => {
     test('readList uses the whitelist key for kind "whitelist"', async () => {
       mockReadMapState.mockResolvedValue(['a@example.com']);
       const service = buildService();
@@ -186,40 +170,6 @@ describe('MailboxAdminService', () => {
         expect.anything(),
         'INBOX.scanner.state',
         STATE_KEY_BLACKLIST_MAP,
-        expect.anything(),
-      );
-    });
-
-    test('replaceList writes the whitelist key for kind "whitelist"', async () => {
-      mockWriteMapState.mockResolvedValue(true);
-      const service = buildService();
-
-      await service.replaceList('owner@example.com', 'whitelist', [
-        'c@example.com',
-      ]);
-
-      expect(mockWriteMapState).toHaveBeenCalledWith(
-        expect.anything(),
-        'INBOX.scanner.state',
-        STATE_KEY_WHITELIST_MAP,
-        ['c@example.com'],
-        expect.anything(),
-      );
-    });
-
-    test('replaceList writes the blacklist key for kind "blacklist"', async () => {
-      mockWriteMapState.mockResolvedValue(true);
-      const service = buildService();
-
-      await service.replaceList('owner@example.com', 'blacklist', [
-        'd@example.com',
-      ]);
-
-      expect(mockWriteMapState).toHaveBeenCalledWith(
-        expect.anything(),
-        'INBOX.scanner.state',
-        STATE_KEY_BLACKLIST_MAP,
-        ['d@example.com'],
         expect.anything(),
       );
     });

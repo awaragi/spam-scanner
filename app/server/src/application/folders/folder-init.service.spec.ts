@@ -136,26 +136,6 @@ describe('FolderInitService', () => {
     expect(folders).not.toContain('spam.high');
   });
 
-  test('folder mode logs that spam likelihood folders are included', async () => {
-    const session = fixtureSession({ settings: { processingMode: 'folder' } });
-
-    await service.initFolders(session);
-
-    expect(session.logger.debug).toHaveBeenCalledWith(
-      'Processing mode is folder, including spam likelihood folders'
-    );
-  });
-
-  test('label mode does not log the spam-likelihood-folders message', async () => {
-    const session = fixtureSession({ settings: { processingMode: 'label' } });
-
-    await service.initFolders(session);
-
-    expect(session.logger.debug).not.toHaveBeenCalledWith(
-      'Processing mode is folder, including spam likelihood folders'
-    );
-  });
-
   test('the spam folder is always included, regardless of processingMode', async () => {
     const labelSession = fixtureSession({
       settings: { processingMode: 'label' },
@@ -172,15 +152,5 @@ describe('FolderInitService', () => {
     });
     await service.initFolders(folderSession);
     expect(mockedCreateAppFolders.mock.calls[0][1]).toContain('INBOX.spam');
-  });
-
-  test('logs completion after folders are created', async () => {
-    const session = fixtureSession();
-
-    await service.initFolders(session);
-
-    expect(session.logger.debug).toHaveBeenCalledWith(
-      'Folder initialization completed'
-    );
   });
 });

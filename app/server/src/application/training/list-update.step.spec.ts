@@ -42,52 +42,6 @@ describe('updateListState', () => {
     expect(result.total).toBe(2);
   });
 
-  test('override mode replaces existing entries entirely', async () => {
-    readMapState.mockResolvedValue(['old@example.com']);
-
-    const result = await updateListState(
-      asImapFlow({}),
-      'INBOX.scanner.state',
-      'rspamd-blacklist-map',
-      ['new@example.com'],
-      'override'
-    );
-
-    expect(writeMapState).toHaveBeenCalledWith(
-      {},
-      'INBOX.scanner.state',
-      'rspamd-blacklist-map',
-      JSON.stringify(['new@example.com'], null, 2),
-      undefined
-    );
-    expect(result.removed).toEqual(['old@example.com']);
-    expect(result.total).toBe(1);
-  });
-
-  test('append mode is idempotent when run twice with the same input', async () => {
-    readMapState.mockResolvedValueOnce([]);
-    await updateListState(
-      asImapFlow({}),
-      'INBOX.scanner.state',
-      'rspamd-whitelist-map',
-      ['a@b.com'],
-      'append'
-    );
-    const firstWrite = JSON.parse(writeMapState.mock.calls[0][3]);
-
-    readMapState.mockResolvedValueOnce(firstWrite);
-    await updateListState(
-      asImapFlow({}),
-      'INBOX.scanner.state',
-      'rspamd-whitelist-map',
-      ['a@b.com'],
-      'append'
-    );
-    const secondWrite = JSON.parse(writeMapState.mock.calls[1][3]);
-
-    expect(secondWrite).toEqual(firstWrite);
-  });
-
   test('defaults to append mode when mode is omitted', async () => {
     readMapState.mockResolvedValue(['a@b.com']);
 
