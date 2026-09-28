@@ -9,31 +9,11 @@ set -euo pipefail
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+source "${SCRIPT_DIR}/lib/env-var.sh"
 
-load_env_var() {
-  local name="$1"
-  local default_value="$2"
-
-  if [[ -n "${!name:-}" ]]; then
-    echo "${!name}"
-    return
-  fi
-
-  if [[ -f "${PROJECT_ROOT}/.env" ]]; then
-    local value
-    value="$(grep -E "^${name}=" "${PROJECT_ROOT}/.env" | tail -n1 | cut -d= -f2-)"
-    if [[ -n "${value}" ]]; then
-      echo "${value}"
-      return
-    fi
-  fi
-
-  echo "${default_value}"
-}
-
-readonly RSPAMD_BASE_URL="$(load_env_var RSPAMD_URL "http://localhost:11334")"
+readonly RSPAMD_BASE_URL="$(read_env_var RSPAMD_URL "http://localhost:11334")"
 readonly RSPAMD_URL="${RSPAMD_BASE_URL%/}/checkv2"
-readonly RSPAMD_PASSWORD="$(load_env_var RSPAMD_PASSWORD "")"
+readonly RSPAMD_PASSWORD="$(read_env_var RSPAMD_PASSWORD "")"
 
 usage() {
   cat <<'EOF'

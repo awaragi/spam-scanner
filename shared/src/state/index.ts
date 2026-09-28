@@ -6,6 +6,7 @@ export {
 } from './state-format.js';
 export type { ScannerState } from './state-format.js';
 export {
+  scannerStateSchema,
   validateState,
   formatAppStateEmail,
   formatStateAsEmail,

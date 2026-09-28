@@ -538,4 +538,84 @@ describe('RunnerRegistry', () => {
       );
     });
   });
+
+  // --- withRunnerPaused(): coordinates an external IMAP write against the
+  // mailbox's own runner (MailboxAdminService's state/list writes) ---------
+
+  describe('withRunnerPaused()', () => {
+    test('stops the existing runner, runs fn, and replaces the map entry with a fresh runner once fn resolves', async () => {
+      const mailbox = fixtureMailbox();
+      const { registry } = await buildRegistry({ mailboxes: [mailbox] });
+      registry.onApplicationBootstrap();
+
+      // Run a job on the pre-pause runner so it accumulates observable
+      // state (`lastResult`) a brand-new replacement runner would not have.
+      await registry.triggerNow(mailbox.id, 'scan');
+      expect(registry.getStatus().mailboxes[0]?.jobs.scan.lastResult).toBe(
+        'success',
+      );
+
+      const stopSpy = vi.spyOn(MailboxRunner.prototype, 'stop');
+      try {
+        const fn = vi.fn().mockResolvedValue('fn-result');
+
+        const result = await registry.withRunnerPaused(mailbox.id, fn);
+
+        expect(result).toBe('fn-result');
+        expect(stopSpy).toHaveBeenCalledTimes(1);
+        expect(fn).toHaveBeenCalledTimes(1);
+
+        // The map entry now points at a brand-new runner with no job
+        // history yet - a direct, observable difference from the old
+        // runner's `lastResult` asserted above.
+        expect(
+          registry.getStatus().mailboxes[0]?.jobs.scan.lastResult,
+        ).toBeUndefined();
+      } finally {
+        stopSpy.mockRestore();
+      }
+    });
+
+    test("restarts a fresh runner even when fn rejects, and rethrows fn's error", async () => {
+      const mailbox = fixtureMailbox();
+      const { registry } = await buildRegistry({ mailboxes: [mailbox] });
+      registry.onApplicationBootstrap();
+
+      await registry.triggerNow(mailbox.id, 'scan');
+      expect(registry.getStatus().mailboxes[0]?.jobs.scan.lastResult).toBe(
+        'success',
+      );
+
+      const stopSpy = vi.spyOn(MailboxRunner.prototype, 'stop');
+      try {
+        const fn = vi.fn().mockRejectedValue(new Error('write failed'));
+
+        await expect(registry.withRunnerPaused(mailbox.id, fn)).rejects.toThrow(
+          'write failed',
+        );
+
+        expect(stopSpy).toHaveBeenCalledTimes(1);
+        // A fresh runner replaced the map entry despite fn's rejection - the
+        // mailbox is never left with no active runner after a failed write.
+        expect(
+          registry.getStatus().mailboxes[0]?.jobs.scan.lastResult,
+        ).toBeUndefined();
+      } finally {
+        stopSpy.mockRestore();
+      }
+    });
+
+    test('rejects with the same "Unknown mailbox" error triggerNow uses, without calling fn', async () => {
+      const { registry } = await buildRegistry();
+      registry.onApplicationBootstrap();
+
+      const fn = vi.fn();
+
+      await expect(
+        registry.withRunnerPaused('does-not-exist@example.com', fn),
+      ).rejects.toThrow('Unknown mailbox: does-not-exist@example.com');
+
+      expect(fn).not.toHaveBeenCalled();
+    });
+  });
 });

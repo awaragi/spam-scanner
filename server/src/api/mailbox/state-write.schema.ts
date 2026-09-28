@@ -1,21 +1,19 @@
-import { z } from 'zod';
+import type { z } from 'zod';
+import { scannerStateSchema } from 'shared/state';
 
 /**
  * Body shape for `PUT .../state`: a complete replacement scanner state
- * (design.md D7's restore/backup use case). Mirrors `ScannerState`
- * (`shared`'s `state/state-format.ts`) - `uid_validity` optional, everything
- * else required. `writeScannerState` also calls `validateState` itself, but
- * this schema rejects a malformed body with a 400 before an IMAP connection
- * is ever opened, matching `settings-update.schema.ts`/`list-replace.schema.ts`'s
- * "validate at the API boundary" role for this controller.
+ * (a restore/backup use case - not covered by `5-server-api-auth`
+ * design.md's D7, which only designed read/reset for scanner state; this
+ * route extends that same throwaway-connection pattern to a full write, with
+ * no design record of its own). Reuses `scannerStateSchema` directly (same
+ * pattern as `settings-update.schema.ts`/`overridableSchema`) rather than
+ * an independently-declared schema, so the API boundary and
+ * `writeScannerState`'s own `validateState` call can never drift on what a
+ * valid scanner state looks like. This schema rejects a malformed body with
+ * a 400 before an IMAP connection is ever opened; `validateState` is what
+ * actually enforces it once the request reaches the service.
  */
-export const stateWriteSchema = z
-  .object({
-    last_uid: z.number().int().nonnegative(),
-    last_seen_date: z.string().min(1),
-    last_checked: z.string().min(1),
-    uid_validity: z.string().min(1).optional(),
-  })
-  .strict();
+export const stateWriteSchema = scannerStateSchema;
 
 export type StateWriteBody = z.infer<typeof stateWriteSchema>;

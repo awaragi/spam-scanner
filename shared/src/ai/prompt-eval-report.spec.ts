@@ -21,7 +21,7 @@ function baseConfig(
 
 describe('formatPromptEvalReport', () => {
   test('includes the config snapshot in the header', () => {
-    const report = formatPromptEvalReport({
+    const { report } = formatPromptEvalReport({
       bucketNames: [],
       results: [],
       config: baseConfig({ model: 'gpt-5-mini', promptPath: '/tmp/v2.txt' }),
@@ -37,7 +37,7 @@ describe('formatPromptEvalReport', () => {
   });
 
   test('lists every entry in a bucket and computes summary stats', () => {
-    const report = formatPromptEvalReport({
+    const { report } = formatPromptEvalReport({
       bucketNames: ['ham'],
       results: [
         {
@@ -74,7 +74,7 @@ describe('formatPromptEvalReport', () => {
   });
 
   test('renders a bucket with zero entries without error', () => {
-    const report = formatPromptEvalReport({
+    const { report } = formatPromptEvalReport({
       bucketNames: ['marketing'],
       results: [],
       config: baseConfig(),
@@ -86,7 +86,7 @@ describe('formatPromptEvalReport', () => {
   });
 
   test('shows a failed entry distinctly from a scored one and excludes it from stats', () => {
-    const report = formatPromptEvalReport({
+    const { report } = formatPromptEvalReport({
       bucketNames: ['spam'],
       results: [
         {
@@ -115,8 +115,41 @@ describe('formatPromptEvalReport', () => {
     );
   });
 
+  test('returns each bucket entry count alongside the report text', () => {
+    const { bucketCounts } = formatPromptEvalReport({
+      bucketNames: ['ham', 'spam'],
+      results: [
+        {
+          bucket: 'ham',
+          filename: 'a.eml',
+          score: 5,
+          reasoning: 'ok',
+          error: null,
+        },
+        {
+          bucket: 'spam',
+          filename: 'y.eml',
+          score: 95,
+          reasoning: 'scam',
+          error: null,
+        },
+        {
+          bucket: 'spam',
+          filename: 'z.eml',
+          score: 99,
+          reasoning: 'scam',
+          error: null,
+        },
+      ],
+      config: baseConfig(),
+      generatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    });
+
+    expect(bucketCounts).toEqual({ ham: 1, spam: 2 });
+  });
+
   test('renders multiple buckets in the order given', () => {
-    const report = formatPromptEvalReport({
+    const { report } = formatPromptEvalReport({
       bucketNames: ['ham', 'marketing', 'spam'],
       results: [
         {

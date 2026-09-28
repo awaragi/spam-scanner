@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import { MailboxRepository } from '../infrastructure/mailboxes/mailbox.repository.js';
+import type { Mailbox } from '../infrastructure/mailboxes/mailbox.js';
 import { ScanConfig } from '../config/app-config.js';
 import { FolderInitService } from '../application/folders/folder-init.service.js';
 import { RspamdTrainingService } from '../application/training/rspamd-training.service.js';
@@ -242,6 +243,18 @@ export class RunnerRegistry
       await safeLogout(imap, this.pinoLogger.logger);
     }
 
+    this.restartRunner(mailbox);
+  }
+
+  /**
+   * Constructs a fresh `MailboxRunner` for `mailbox` and starts it
+   * fire-and-forget (see `onApplicationBootstrap`'s doc comment on why
+   * `start()` isn't awaited), replacing whatever runner the map currently
+   * holds for its id. Shared by `updateSettings` and `withRunnerPaused` -
+   * both stop an existing runner, do some external work, then need this
+   * exact same "new instance, started, swapped into the map" sequence.
+   */
+  private restartRunner(mailbox: Mailbox): void {
     const newRunner = new MailboxRunner(
       mailbox,
       this.folderInitService,
@@ -254,13 +267,48 @@ export class RunnerRegistry
     void newRunner.start().catch((error: unknown) => {
       this.pinoLogger.error(
         {
-          mailboxId,
+          mailboxId: mailbox.id,
           error: error instanceof Error ? error.message : String(error),
         },
         'Unexpected error starting mailbox runner',
       );
     });
-    this.runners.set(mailboxId, newRunner);
+    this.runners.set(mailbox.id, newRunner);
+  }
+
+  /**
+   * Stops the mailbox's runner, runs `fn`, then always starts a fresh
+   * runner for it - even when `fn` throws, so a failed external write never
+   * leaves the mailbox with no active runner. For coordinating an external
+   * IMAP write against the same per-mailbox state folder the runner's own
+   * jobs read and write on their own connection (`MailboxAdminService`'s
+   * `writeState`/`deleteState`/`replaceList` - without this, an admin write
+   * racing a live scan/train job's own state write could silently lose one
+   * of the two writes). Mirrors `updateSettings`'s own stop-then-restart
+   * shape, generalized over what happens in between. Same "unknown mailbox
+   * throws" contract as `triggerNow`.
+   */
+  async withRunnerPaused<T>(
+    mailboxId: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const existingRunner = this.runners.get(mailboxId);
+    if (!existingRunner) {
+      throw new Error(`Unknown mailbox: ${mailboxId}`);
+    }
+    const mailbox = this.mailboxRepository
+      .findAll()
+      .find((candidate) => candidate.id === mailboxId);
+    if (!mailbox) {
+      throw new Error(`Unknown mailbox: ${mailboxId}`);
+    }
+
+    await existingRunner.stop();
+    try {
+      return await fn();
+    } finally {
+      this.restartRunner(mailbox);
+    }
   }
 
   /**

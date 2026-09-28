@@ -14,9 +14,17 @@ function build() {
     triggerNow: vi.fn().mockResolvedValue(undefined),
     triggerInitFolders: vi.fn().mockResolvedValue(undefined),
     getMailboxStatus: vi.fn().mockReturnValue({ mailboxId: MAILBOX_ID }),
+    // Runs `fn` through as a real `withRunnerPaused` would, so tests can
+    // assert on the wrapped MailboxAdminService call it makes.
+    withRunnerPaused: vi.fn((_mailboxId: string, fn: () => Promise<unknown>) =>
+      fn(),
+    ),
   };
   const mailboxAdminService = {
     readList: vi.fn().mockResolvedValue(['a@example.com']),
+    writeState: vi.fn().mockResolvedValue(undefined),
+    deleteState: vi.fn().mockResolvedValue(true),
+    replaceList: vi.fn().mockResolvedValue(undefined),
   };
 
   const controller = new MailboxController(
@@ -90,6 +98,78 @@ describe('MailboxController', () => {
       BadRequestException,
     );
     expect(mailboxAdminService.readList).not.toHaveBeenCalled();
+  });
+
+  describe('paused writes (writeState/deleteState/replaceList/importList)', () => {
+    const stateBody = { last_uid: 1, last_seen_date: 'a', last_checked: 'b' };
+
+    test('writeState runs through RunnerRegistry.withRunnerPaused before calling MailboxAdminService', async () => {
+      const { controller, runnerRegistry, mailboxAdminService } = build();
+
+      const result = await controller.writeState(MAILBOX_ID, stateBody);
+
+      expect(runnerRegistry.withRunnerPaused).toHaveBeenCalledWith(
+        MAILBOX_ID,
+        expect.any(Function),
+      );
+      expect(mailboxAdminService.writeState).toHaveBeenCalledWith(
+        MAILBOX_ID,
+        stateBody,
+      );
+      expect(result).toEqual({ written: true });
+    });
+
+    test('deleteState runs through RunnerRegistry.withRunnerPaused', async () => {
+      const { controller, runnerRegistry, mailboxAdminService } = build();
+
+      const result = await controller.deleteState(MAILBOX_ID);
+
+      expect(runnerRegistry.withRunnerPaused).toHaveBeenCalledWith(
+        MAILBOX_ID,
+        expect.any(Function),
+      );
+      expect(mailboxAdminService.deleteState).toHaveBeenCalledWith(MAILBOX_ID);
+      expect(result).toEqual({ deleted: true });
+    });
+
+    test('replaceList and importList both run through RunnerRegistry.withRunnerPaused', async () => {
+      const { controller, runnerRegistry, mailboxAdminService } = build();
+      const addresses = ['a@example.com'];
+
+      const replaced = await controller.replaceList(
+        MAILBOX_ID,
+        'whitelist',
+        addresses,
+      );
+      const imported = await controller.importList(
+        MAILBOX_ID,
+        'blacklist',
+        addresses,
+      );
+
+      expect(runnerRegistry.withRunnerPaused).toHaveBeenCalledTimes(2);
+      expect(mailboxAdminService.replaceList).toHaveBeenCalledWith(
+        MAILBOX_ID,
+        'whitelist',
+        addresses,
+      );
+      expect(mailboxAdminService.replaceList).toHaveBeenCalledWith(
+        MAILBOX_ID,
+        'blacklist',
+        addresses,
+      );
+      expect(replaced).toEqual({ replaced: true });
+      expect(imported).toEqual({ imported: true });
+    });
+
+    test("translates withRunnerPaused's Unknown mailbox rejection to NotFoundException", async () => {
+      const { controller, runnerRegistry } = build();
+      runnerRegistry.withRunnerPaused.mockRejectedValue(UNKNOWN_MAILBOX_ERROR);
+
+      await expect(
+        controller.writeState(MAILBOX_ID, stateBody),
+      ).rejects.toThrow(NotFoundException);
+    });
   });
 
   describe('route body pipes', () => {

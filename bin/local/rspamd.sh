@@ -21,6 +21,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 COMPOSE_FILE="${SCRIPT_DIR}/docker-compose.yml"
+source "${SCRIPT_DIR}/lib/env-var.sh"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -36,9 +37,7 @@ require_env() {
 
 load_spam_scanner_data() {
     # Read SPAM_SCANNER_DATA from .env (Docker Compose does not expand ~)
-    local value
-    value=$(grep -E '^SPAM_SCANNER_DATA=' "${PROJECT_ROOT}/.env" | cut -d= -f2-)
-    echo "${value:-${HOME}/.spam-scanner}"
+    read_env_var SPAM_SCANNER_DATA "${HOME}/.spam-scanner"
 }
 
 # ---------------------------------------------------------------------------

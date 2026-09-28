@@ -103,16 +103,29 @@ without stopping the runner or writing anything.
 - **THEN** the server rejects the request and the mailbox's runner and stored
   settings are left unchanged
 
-### Requirement: A mailbox token holder can read and reset that mailbox's scanner state
+### Requirement: A mailbox token holder can read, write, and reset that mailbox's scanner state
 The server SHALL expose mailbox-scoped endpoints to read the mailbox's
-scanner state and to reset it. Reading SHALL return the stored scanner state,
-or report that none exists. Resetting SHALL delete the stored scanner state
-so the next scan re-establishes it.
+scanner state, to replace it wholesale (a restore/backup use case), and to
+reset it. Reading SHALL return the stored scanner state, or report that none
+exists. Writing SHALL validate the supplied state and, when valid, replace
+the stored scanner state entirely; invalid input SHALL be rejected without
+changing the stored state. Resetting SHALL delete the stored scanner state so
+the next scan re-establishes it.
 
 #### Scenario: Reading scanner state returns it
 - **WHEN** a mailbox token holder reads its mailbox's scanner state and a
   state message exists
 - **THEN** the server returns the stored scanner state
+
+#### Scenario: Writing scanner state replaces it
+- **WHEN** a mailbox token holder writes a valid scanner state for its
+  mailbox
+- **THEN** the server stores exactly that state, and a subsequent read
+  returns it
+
+#### Scenario: Invalid scanner state input is rejected without changing the stored state
+- **WHEN** a mailbox token holder submits scanner state that fails validation
+- **THEN** the server rejects the request and the stored state is unchanged
 
 #### Scenario: Resetting scanner state deletes it
 - **WHEN** a mailbox token holder resets its mailbox's scanner state
@@ -145,9 +158,9 @@ stored list.
 The server SHALL validate every request body against a schema for that route
 before performing any privileged action. A request whose body fails
 validation SHALL be rejected as invalid input, and SHALL NOT trigger a job,
-write settings, reset state, or modify a list.
+write settings, write or reset state, or modify a list.
 
 #### Scenario: A malformed body never reaches the privileged action
 - **WHEN** a caller submits a request whose body fails its route's schema
 - **THEN** the server rejects it as invalid input before any job trigger,
-  settings write, state reset, or list modification occurs
+  settings write, state write or reset, or list modification occurs

@@ -18,7 +18,8 @@ vi.mock('openai', () => {
 });
 
 import OpenAI from 'openai';
-import { AiGateway, AiContent } from './ai.gateway.js';
+import { AiGateway } from './ai.gateway.js';
+import type { AiContent } from 'shared/ai';
 import { AiConfig } from '../../config/app-config.js';
 
 function mockReply(content: string | undefined) {

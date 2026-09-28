@@ -14,6 +14,7 @@ import {
   type PromptEvalResultEntry,
 } from 'shared/ai';
 import { parseAiClassificationOutput, mapWithConcurrency } from 'shared/utils';
+import type { AiConfig } from '../server/src/config/app-config.ts';
 
 /**
  * Offline AI-prompt evaluation: scores a labeled `.eml` dataset with a
@@ -62,18 +63,28 @@ interface DatasetMessage {
   raw: Buffer;
 }
 
-interface EvalAiConfig {
-  model: string;
-  baseUrl: string;
-  apiKey: string;
-  timeoutMs: number;
-  maxRetries: number;
-  concurrency: number;
-  maxInputTokens: number;
-  maxOutputTokens: number;
+/**
+ * The subset of production's `AiConfig` this script actually reads, plus
+ * two fields `AiConfig` doesn't have (`escalateTo*Threshold`, informational
+ * only here - see their assignment below). `Pick`ing from `AiConfig` itself
+ * (type-only import, no `@nestjs/config` pulled in at runtime) means a
+ * rename over there is caught here by the type checker instead of only
+ * surfacing as a runtime `AI_*` env-var lookup failure.
+ */
+type EvalAiConfig = Pick<
+  AiConfig,
+  | 'model'
+  | 'baseUrl'
+  | 'apiKey'
+  | 'timeoutMs'
+  | 'maxRetries'
+  | 'concurrency'
+  | 'maxInputTokens'
+  | 'maxOutputTokens'
+> & {
   escalateToLowThreshold: number;
   escalateToHighThreshold: number;
-}
+};
 
 /**
  * Loads a labeled `.eml` dataset. Each bucket (`ham`/`marketing`/`spam`) is a
@@ -81,42 +92,71 @@ interface EvalAiConfig {
  * object so the unmodified `extractAiContent` can be called exactly as
  * production does.
  */
+// Disk-read + MIME-parse concurrency for loading the dataset - unrelated to
+// aiConfig.concurrency (that's an AI-request-rate knob, not a local file I/O
+// one), so it's its own small fixed constant.
+const DATASET_LOAD_CONCURRENCY = 8;
+
+async function loadEmlFile(
+  bucket: string,
+  bucketPath: string,
+  filename: string,
+): Promise<DatasetMessage> {
+  const raw = await fs.readFile(path.join(bucketPath, filename));
+  const parsed = await simpleParser(raw);
+  // mailparser types `to` as a single AddressObject OR an array of them
+  // (multiple `To:` recipients) - `from` has no array case.
+  const toAddresses = Array.isArray(parsed.to)
+    ? parsed.to
+    : parsed.to
+      ? [parsed.to]
+      : [];
+  return {
+    bucket,
+    filename,
+    envelope: {
+      from: parsed.from?.value ?? [],
+      to: toAddresses.flatMap((addressObject) => addressObject.value),
+      subject: parsed.subject ?? '',
+      date: parsed.date,
+    },
+    raw,
+  };
+}
+
 async function loadEmlDataset(
   bucketPaths: Partial<Record<BucketName, string>>,
 ): Promise<{ bucketNames: string[]; messages: DatasetMessage[] }> {
   const bucketNames = Object.keys(bucketPaths);
-  const messages: DatasetMessage[] = [];
+  const fileRefs: Array<{
+    bucket: string;
+    bucketPath: string;
+    filename: string;
+  }> = [];
 
   for (const bucket of bucketNames) {
     const bucketPath = bucketPaths[bucket as BucketName]!;
-    let files: string[];
     try {
-      files = (await fs.readdir(bucketPath, { withFileTypes: true }))
+      const files = (await fs.readdir(bucketPath, { withFileTypes: true }))
         .filter((entry) => entry.isFile() && entry.name.endsWith('.eml'))
         .map((entry) => entry.name);
+      fileRefs.push(
+        ...files.map((filename) => ({ bucket, bucketPath, filename })),
+      );
     } catch (err) {
       throw new Error(
         `Bucket folder not readable: ${bucket} (${bucketPath}) (${err instanceof Error ? err.message : String(err)})`,
         { cause: err },
       );
     }
-
-    for (const filename of files) {
-      const raw = await fs.readFile(path.join(bucketPath, filename));
-      const parsed = await simpleParser(raw);
-      messages.push({
-        bucket,
-        filename,
-        envelope: {
-          from: parsed.from?.value ?? [],
-          to: parsed.to?.value ?? [],
-          subject: parsed.subject ?? '',
-          date: parsed.date,
-        },
-        raw,
-      });
-    }
   }
+
+  const messages = await mapWithConcurrency(
+    fileRefs,
+    DATASET_LOAD_CONCURRENCY,
+    ({ bucket, bucketPath, filename }) =>
+      loadEmlFile(bucket, bucketPath, filename),
+  );
 
   return { bucketNames, messages };
 }
@@ -224,7 +264,7 @@ export async function runPromptEval({
   );
 
   const generatedAt = new Date();
-  const reportText = formatPromptEvalReport({
+  const { report: reportText, bucketCounts } = formatPromptEvalReport({
     bucketNames,
     results,
     config: {
@@ -240,13 +280,6 @@ export async function runPromptEval({
   });
 
   const reportPath = await writeReport(reportsDir, reportText, generatedAt);
-
-  const bucketCounts = Object.fromEntries(
-    bucketNames.map((bucket) => [
-      bucket,
-      results.filter((r) => r.bucket === bucket).length,
-    ]),
-  );
 
   return { reportPath, bucketCounts };
 }

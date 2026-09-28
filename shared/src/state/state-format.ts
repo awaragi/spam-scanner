@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 /**
  * Utility functions for state management
  */
@@ -13,12 +15,6 @@ export const STATE_KEY_WHITELIST_MAP = 'rspamd-whitelist-map';
 export const STATE_KEY_BLACKLIST_MAP = 'rspamd-blacklist-map';
 export const STATE_KEY_MAILBOX_SETTINGS = 'mailbox-settings';
 
-/**
- * Validates a state object
- * @param state - State object to validate
- * @throws {Error} - If state is invalid
- * @returns - True if state is valid
- */
 const REQUIRED_STATE_PROPERTIES = [
   'last_uid',
   'last_seen_date',
@@ -30,13 +26,33 @@ const REQUIRED_STATE_PROPERTIES = [
 // can't serialize BigInt directly.
 const OPTIONAL_STATE_PROPERTIES = ['uid_validity'];
 
-export interface ScannerState {
-  last_uid: number;
-  last_seen_date: string;
-  last_checked: string;
-  uid_validity?: string;
-}
+/**
+ * The single source of truth for a scanner state's field-level shape -
+ * shared with `server`'s `PUT .../state` request body schema
+ * (`state-write.schema.ts`) so the API boundary and this internal reader
+ * can never independently drift on what counts as a well-formed field
+ * value. `last_uid` must be a non-negative integer (IMAP UIDs are) and the
+ * date fields must be non-empty - stricter than a bare `typeof` check, by
+ * design: this is what "valid" scanner state actually means, not just
+ * "JSON-shaped like one".
+ */
+export const scannerStateSchema = z
+  .object({
+    last_uid: z.number().int().nonnegative(),
+    last_seen_date: z.string().min(1),
+    last_checked: z.string().min(1),
+    uid_validity: z.string().min(1).optional(),
+  })
+  .strict();
 
+export type ScannerState = z.infer<typeof scannerStateSchema>;
+
+/**
+ * Validates a state object
+ * @param state - State object to validate
+ * @throws {Error} - If state is invalid
+ * @returns - True if state is valid
+ */
 export function validateState(state: unknown): state is ScannerState {
   if (!state || typeof state !== 'object') {
     throw new Error('Invalid state: must be a non-null object');
@@ -64,24 +80,9 @@ export function validateState(state: unknown): state is ScannerState {
     throw new Error('Invalid state: invalid property names');
   }
 
-  const candidate = state as Record<string, unknown>;
-
-  // Check property types
-  if (typeof candidate.last_uid !== 'number') {
-    throw new Error('Invalid state: invalid property types');
-  }
-
-  if (
-    typeof candidate.last_seen_date !== 'string' ||
-    typeof candidate.last_checked !== 'string'
-  ) {
-    throw new Error('Invalid state: invalid property types');
-  }
-
-  if (
-    candidate.uid_validity !== undefined &&
-    typeof candidate.uid_validity !== 'string'
-  ) {
+  // Field-level shape (types plus the non-negative-integer/non-empty-string
+  // refinements) is `scannerStateSchema`'s job, not a second hand-rolled copy.
+  if (!scannerStateSchema.safeParse(state).success) {
     throw new Error('Invalid state: invalid property types');
   }
 

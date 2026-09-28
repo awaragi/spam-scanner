@@ -152,20 +152,34 @@ export class MailboxController {
     return this.mailboxAdminService.readState(mailboxId);
   }
 
+  /**
+   * Runs through `RunnerRegistry.withRunnerPaused` so this throwaway-connection
+   * write can't race the mailbox's own runner writing scanner state on its
+   * own connection (e.g. mid-scan) - see that method's doc comment.
+   */
   @Put('state')
   async writeState(
     @Param('mailboxId') mailboxId: string,
     @Body(new ZodValidationPipe(stateWriteSchema)) body: StateWriteBody,
   ): Promise<{ written: true }> {
-    await this.mailboxAdminService.writeState(mailboxId, body);
+    await withUnknownMailboxAsNotFoundAsync(() =>
+      this.runnerRegistry.withRunnerPaused(mailboxId, () =>
+        this.mailboxAdminService.writeState(mailboxId, body),
+      ),
+    );
     return { written: true };
   }
 
+  /** Paused the same way as `writeState` - see its doc comment. */
   @Delete('state')
   async deleteState(
     @Param('mailboxId') mailboxId: string,
   ): Promise<{ deleted: boolean }> {
-    const deleted = await this.mailboxAdminService.deleteState(mailboxId);
+    const deleted = await withUnknownMailboxAsNotFoundAsync(() =>
+      this.runnerRegistry.withRunnerPaused(mailboxId, () =>
+        this.mailboxAdminService.deleteState(mailboxId),
+      ),
+    );
     return { deleted };
   }
 
@@ -194,16 +208,21 @@ export class MailboxController {
     return this.mailboxAdminService.readList(mailboxId, parseListKind(kind));
   }
 
+  /** Paused the same way as `writeState` - see its doc comment. */
   @Put('lists/:kind')
   async replaceList(
     @Param('mailboxId') mailboxId: string,
     @Param('kind') kind: string,
     @Body(new ZodValidationPipe(listReplaceSchema)) addresses: ListReplaceBody,
   ): Promise<{ replaced: true }> {
-    await this.mailboxAdminService.replaceList(
-      mailboxId,
-      parseListKind(kind),
-      addresses,
+    await withUnknownMailboxAsNotFoundAsync(() =>
+      this.runnerRegistry.withRunnerPaused(mailboxId, () =>
+        this.mailboxAdminService.replaceList(
+          mailboxId,
+          parseListKind(kind),
+          addresses,
+        ),
+      ),
     );
     return { replaced: true };
   }
@@ -215,10 +234,14 @@ export class MailboxController {
     @Param('kind') kind: string,
     @Body(new ZodValidationPipe(listReplaceSchema)) addresses: ListReplaceBody,
   ): Promise<{ imported: true }> {
-    await this.mailboxAdminService.replaceList(
-      mailboxId,
-      parseListKind(kind),
-      addresses,
+    await withUnknownMailboxAsNotFoundAsync(() =>
+      this.runnerRegistry.withRunnerPaused(mailboxId, () =>
+        this.mailboxAdminService.replaceList(
+          mailboxId,
+          parseListKind(kind),
+          addresses,
+        ),
+      ),
     );
     return { imported: true };
   }

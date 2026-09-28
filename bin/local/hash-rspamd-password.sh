@@ -13,6 +13,7 @@ readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 readonly ENV_FILE="${PROJECT_ROOT}/.env"
 readonly OUT_FILE="${PROJECT_ROOT}/rspamd/config/worker-controller.inc"
+source "${SCRIPT_DIR}/lib/env-var.sh"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "Error: .env not found at $ENV_FILE" >&2
@@ -20,9 +21,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-RSPAMD_PASSWORD="$(grep -E '^RSPAMD_PASSWORD=' "$ENV_FILE" | tail -n1 | cut -d= -f2-)"
-# Undo the "$$" escaping .env needs for a literal "$" (see .env.example)
-RSPAMD_PASSWORD="${RSPAMD_PASSWORD//\$\$/\$}"
+RSPAMD_PASSWORD="$(read_env_var RSPAMD_PASSWORD "")"
 if [[ -z "$RSPAMD_PASSWORD" ]]; then
   echo "Error: RSPAMD_PASSWORD is not set in $ENV_FILE" >&2
   exit 1

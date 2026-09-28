@@ -7,8 +7,6 @@ import {
   type AiContent,
 } from 'shared/ai';
 
-export type { AiContent };
-
 /**
  * Gateway for OpenAI-compatible AI classification. Constructs the client
  * from injected config, with no module-level config reads or client

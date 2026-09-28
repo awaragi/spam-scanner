@@ -52,6 +52,12 @@ function summarizeBucket(entries: PromptEvalResultEntry[]): string {
   return `summary: count=${scored.length} avg=${avg.toFixed(1)} min=${min} max=${max}${failedSuffix}`;
 }
 
+/**
+ * Returns the formatted report text alongside each bucket's entry count -
+ * the report body already groups `results` by bucket to render it, so this
+ * hands that same grouping back to the caller instead of making it re-filter
+ * `results` by bucket a second time for its own summary.
+ */
 export function formatPromptEvalReport({
   bucketNames,
   results,
@@ -62,7 +68,7 @@ export function formatPromptEvalReport({
   results: PromptEvalResultEntry[];
   config: PromptEvalConfig;
   generatedAt: Date;
-}): string {
+}): { report: string; bucketCounts: Record<string, number> } {
   const lines: string[] = [];
   lines.push('AI Prompt Eval Report');
   lines.push(`generated: ${generatedAt.toISOString()}`);
@@ -75,8 +81,10 @@ export function formatPromptEvalReport({
   lines.push(`escalateToHighThreshold: ${config.escalateToHighThreshold}`);
   lines.push('');
 
+  const bucketCounts: Record<string, number> = {};
   for (const bucket of bucketNames) {
     const entries = results.filter((r) => r.bucket === bucket);
+    bucketCounts[bucket] = entries.length;
     lines.push(`== ${bucket} (${entries.length}) ==`);
     for (const entry of entries) {
       lines.push(formatScoreLine(entry));
@@ -85,5 +93,5 @@ export function formatPromptEvalReport({
     lines.push('');
   }
 
-  return lines.join('\n').trimEnd() + '\n';
+  return { report: lines.join('\n').trimEnd() + '\n', bucketCounts };
 }

@@ -98,9 +98,11 @@ export class MailboxAdminService {
   }
 
   /**
-   * Replaces the mailbox's stored scanner state wholesale (design.md D7's
-   * restore/backup use case) - append-before-delete safety is
-   * `writeScannerState`'s own concern, not this service's.
+   * Replaces the mailbox's stored scanner state wholesale (a restore/backup
+   * use case - extends D7's throwaway-connection pattern above to a full
+   * write, which D7 itself didn't design for; no design record of its own)
+   * - append-before-delete safety is `writeScannerState`'s own concern, not
+   * this service's.
    */
   async writeState(mailboxId: string, state: ScannerState): Promise<void> {
     await this.withConnection(mailboxId, (imap, mailbox) =>
