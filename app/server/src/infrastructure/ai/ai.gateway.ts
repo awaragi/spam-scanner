@@ -110,12 +110,9 @@ ${content.text}`;
       }
 
       const result = parseAiClassificationOutput(replyContent);
-      // Subject only, at debug level - never the sender address (PII) or
-      // body text, and never at a level enabled by default in production.
-      this.logger.debug(
-        { subject: content.subject, score: result.score },
-        'AI classification response parsed',
-      );
+      // Mirrors RspamdGateway.checkEmail's own debug log: the parsed result
+      // only, never the input content (subject/sender/body).
+      this.logger.debug({ result }, 'AI classification response parsed');
       return result;
     } catch (err) {
       this.logger.error(
