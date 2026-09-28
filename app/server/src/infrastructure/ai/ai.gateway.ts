@@ -2,17 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import OpenAI from 'openai';
 import { AiConfig } from '../../config/app-config.js';
 import { parseAiClassificationOutput } from '../../domain/utils/email-parser.js';
+import {
+  buildUserContent as buildAiUserContent,
+  type AiContent,
+} from '../../domain/ai/ai-content.js';
 
-/**
- * Email content to be classified for spam likelihood
- */
-export interface AiContent {
-  from: string;
-  to: string;
-  subject: string;
-  date: string;
-  text: string;
-}
+export type { AiContent };
 
 /**
  * Gateway for OpenAI-compatible AI classification. Constructs the client
@@ -72,13 +67,7 @@ Respond with ONLY a JSON object, no markdown fences, no extra text:
    * never mixed with the static system prompt - with the body text last.
    */
   buildUserContent(content: AiContent): string {
-    return `From: ${content.from}
-To: ${content.to}
-Subject: ${content.subject}
-Date: ${content.date}
-
-Body:
-${content.text}`;
+    return buildAiUserContent(content);
   }
 
   /**

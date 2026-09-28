@@ -19,6 +19,7 @@
     "lint:deps": "depcruise src test bin",
     "generate:env": "node bin/generate-env.ts",
     "generate:env-example": "node bin/generate-env.ts --output .env.example",
+    "eval-prompt": "nest build && node bin/eval-prompt.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",

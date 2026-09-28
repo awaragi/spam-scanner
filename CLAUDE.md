@@ -98,6 +98,11 @@ force test changes.
 - `npm run generate:env -- --input <old> --output <new>` — rewrites an
   existing server env file onto the current schema, keeping its values and
   listing defaulted and unknown keys.
+- `npm run eval-prompt -- --prompt <file> --reports <folder> [--ham <folder>]
+  [--marketing <folder>] [--spam <folder>]` — offline AI-prompt evaluation:
+  scores a labeled `.eml` dataset against a system prompt supplied as a text
+  file and writes a timestamped report (no Nest/IMAP involved). See
+  `skills/prompt-engineer/`.
 - `npm run lint` / `format` / `format:check` (root) — run across every
   `app/*` workspace (front uses oxlint and Prettier too); CI runs these
 - `bin/local/server-dev.sh` — run the server with the repo-root `.env`
