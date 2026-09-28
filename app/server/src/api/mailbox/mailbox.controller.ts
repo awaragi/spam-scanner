@@ -166,6 +166,15 @@ export class MailboxController {
     return this.mailboxAdminService.readList(mailboxId, parseListKind(kind));
   }
 
+  /**
+   * Same read as `readList`, under a distinct verb the front-end's explicit
+   * "export" action calls separately from its inline list view (design.md
+   * D7: "the read and replace operations under different route verbs ...
+   * they do not need distinct service methods"). Kept as its own route
+   * rather than collapsed into `readList` so the two UI actions stay
+   * independently callable/cacheable even though today's response is
+   * identical.
+   */
   @Get('lists/:kind/export')
   async exportList(
     @Param('mailboxId') mailboxId: string,
@@ -188,6 +197,7 @@ export class MailboxController {
     return { replaced: true };
   }
 
+  /** Same write as `replaceList`, under the import verb - see `exportList`'s doc comment. */
   @Post('lists/:kind/import')
   async importList(
     @Param('mailboxId') mailboxId: string,

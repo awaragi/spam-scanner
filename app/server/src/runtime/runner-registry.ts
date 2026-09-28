@@ -179,10 +179,14 @@ export class RunnerRegistry
    * unrecognized/global-only key is dropped with a warning instead, and the
    * rest of the update proceeds.
    *
-   * On a valid update: stops the existing runner (no in-flight job is
-   * aborted, per `MailboxRunner.stop()`'s own contract), opens a throwaway
-   * IMAP connection to write the validated overrides as a complete
-   * replacement of any previously stored settings message - this call never
+   * On a valid update: stops the existing runner and awaits that stop, so its
+   * currently in-flight job (if any) finishes before anything else below
+   * runs - `MailboxRunner.stop()`'s in-flight job is not forcibly aborted,
+   * only prevented from re-running, so awaiting it here is what keeps the
+   * old runner's last job and the new runner's first job from ever touching
+   * the same mailbox concurrently. Then opens a throwaway IMAP connection to
+   * write the validated overrides as a complete replacement of any previously
+   * stored settings message - this call never
    * reads-then-merges the currently-stored message, so the spec's
    * "hand-edited settings message is overwritten, not merged" scenario falls
    * out of this for free - then constructs a brand-new `MailboxRunner` for
@@ -223,7 +227,7 @@ export class RunnerRegistry
       throw new Error(`Unknown mailbox: ${mailboxId}`);
     }
 
-    existingRunner.stop();
+    await existingRunner.stop();
 
     const imap = newClient(mailbox, this.pinoLogger.logger);
     try {
@@ -263,11 +267,12 @@ export class RunnerRegistry
    * Stops every constructed runner - design.md D9. No in-flight job is
    * forcibly aborted; each `MailboxRunner.stop()` only prevents new/coalesced
    * job runs and closes its own timers/IDLE loop, per that method's own
-   * contract.
+   * contract. Awaits every runner's `stop()` so the process does not exit
+   * mid-job.
    */
-  onApplicationShutdown(): void {
-    for (const runner of this.runners.values()) {
-      runner.stop();
-    }
+  async onApplicationShutdown(): Promise<void> {
+    await Promise.all(
+      [...this.runners.values()].map((runner) => runner.stop()),
+    );
   }
 }

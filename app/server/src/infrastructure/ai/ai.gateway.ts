@@ -110,18 +110,16 @@ ${content.text}`;
       }
 
       const result = parseAiClassificationOutput(replyContent);
+      // Subject only, at debug level - never the sender address (PII) or
+      // body text, and never at a level enabled by default in production.
       this.logger.debug(
-        { subject: content.subject, from: content.from, score: result.score },
+        { subject: content.subject, score: result.score },
         'AI classification response parsed',
       );
       return result;
     } catch (err) {
       this.logger.error(
-        {
-          subject: content.subject,
-          from: content.from,
-          error: err instanceof Error ? err.message : String(err),
-        },
+        { error: err instanceof Error ? err.message : String(err) },
         'AI classification request failed',
       );
       throw err;

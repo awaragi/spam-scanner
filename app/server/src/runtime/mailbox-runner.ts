@@ -155,6 +155,14 @@ export class MailboxRunner {
   private readonly idleAbortController = new AbortController();
 
   /**
+   * Every `runJob` run currently in flight, tracked regardless of whether its
+   * caller (interval tick, IDLE loop, `triggerNow`) awaits it inline -
+   * `stop()` awaits this set so a caller that awaits `stop()` knows the
+   * runner has gone fully quiet, not just that it will refuse new work.
+   */
+  private readonly activeRuns = new Set<Promise<void>>();
+
+  /**
    * Consecutive failures of the dedicated IDLE connection itself (opening it,
    * or `waitForNewMail` throwing) - separate from `JobState`'s per-job
    * counters (design.md D1), since holding/re-establishing the IDLE
@@ -246,11 +254,16 @@ export class MailboxRunner {
       return;
     }
     state.status = 'running';
-    do {
-      state.dirty = false;
-      await this.attempt(job, fn);
-    } while (state.dirty && !this.stopped);
-    state.status = 'idle';
+    const run = (async () => {
+      do {
+        state.dirty = false;
+        await this.attempt(job, fn);
+      } while (state.dirty && !this.stopped);
+      state.status = 'idle';
+    })();
+    this.activeRuns.add(run);
+    void run.finally(() => this.activeRuns.delete(run));
+    await run;
   }
 
   /**
@@ -667,21 +680,29 @@ export class MailboxRunner {
   }
 
   /**
-   * Requests shutdown: no in-flight job is aborted (its own `finally`-block
-   * `safeLogout` still runs when it naturally completes or throws, per
-   * design.md D9), but `runJob`'s `do/while` will not re-run a coalesced job
-   * once this flag is set, and no new job will be started by the interval
-   * (cleared here) or the IDLE loop (task group 3), which is signalled to
-   * stop via `idleAbortController` so it does not hang inside a
+   * Requests shutdown: no in-flight job is forcibly aborted (its own
+   * `finally`-block `safeLogout` still runs when it naturally completes or
+   * throws, per design.md D9), but `runJob`'s `do/while` will not re-run a
+   * coalesced job once this flag is set, and no new job will be started by
+   * the interval (cleared here) or the IDLE loop (task group 3), which is
+   * signalled to stop via `idleAbortController` so it does not hang inside a
    * `waitForNewMail` call or a reconnect backoff sleep that would otherwise
    * only resolve on its own.
+   *
+   * The synchronous effects above (`stopped`, timer, abort) all happen before
+   * the first `await`, so a caller that does not await this method still
+   * gets them immediately. A caller that *does* await it additionally waits
+   * out every job currently in `activeRuns` - this is what lets
+   * `RunnerRegistry.updateSettings` safely open a second `MailboxRunner` for
+   * the same mailbox without its first job racing this runner's last one.
    */
-  stop(): void {
+  async stop(): Promise<void> {
     this.stopped = true;
     if (this.intervalTimer) {
       clearInterval(this.intervalTimer);
       this.intervalTimer = undefined;
     }
     this.idleAbortController.abort();
+    await Promise.all(this.activeRuns);
   }
 }

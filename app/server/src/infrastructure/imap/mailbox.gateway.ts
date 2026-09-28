@@ -153,52 +153,6 @@ export async function fetchMessageHeadersByUIDs(
 }
 
 /**
- * Helper function to handle message moving and expunging
- * @param imap - ImapFlow client
- * @param uid - UID of the message to move
- * @param dest - Destination folder
- */
-export async function moveMessage(
-  imap: ImapFlow,
-  uid: number,
-  dest: string,
-  logger?: PinoLogger,
-): Promise<void> {
-  try {
-    logger?.debug({ uid, destFolder: dest }, 'Moving message by UID');
-
-    // Move the message
-    await imap.messageMove({ uid }, dest);
-    logger?.debug(
-      { uid, destFolder: dest },
-      'Successfully moved message by UID',
-    );
-
-    // Expunge to ensure the move is committed. Not part of ImapFlow's own
-    // public API/types (nor called by anything in this codebase - this
-    // function itself is unused) - cast preserves the exact pre-existing
-    // runtime behavior rather than silently "fixing" it as part of this
-    // language migration.
-    logger?.debug('Expunging to finalize the move operation');
-    await (
-      imap as unknown as { mailboxExpunge(): Promise<void> }
-    ).mailboxExpunge();
-
-    logger?.debug({ uid, destFolder: dest }, 'Move completed with expunge');
-  } catch (err) {
-    logger?.error(
-      {
-        uid,
-        destFolder: dest,
-        error: err instanceof Error ? err.message : String(err),
-      },
-      'Failed to move message by UID',
-    );
-    throw err;
-  }
-}
-
-/**
  * Move all messages to destination folder
  * @param imap - ImapFlow client
  * @param messages - Array of message objects with UIDs
@@ -285,16 +239,11 @@ export async function updateLabels(
   try {
     // Extract UIDs from messages
     const uids = messages.map((message) => message.uid);
-    // imapflow's own SearchObject type declares `uid` as a single
-    // SequenceString, but its actual range-resolving implementation accepts
-    // (and joins) a `uid: number[]` array too - a gap in its own types, not
-    // in this code.
-    const uidRange = { uid: uids } as unknown as SearchObject;
 
     // Add labels if there are any to set
     if (labelsToSet.length > 0) {
       logger?.debug({ uids, flags: labelsToSet }, 'Adding flags to messages');
-      await imap.messageFlagsAdd(uidRange, labelsToSet, options);
+      await imap.messageFlagsAdd(uids, labelsToSet, options);
       logger?.debug({ uids, flags: labelsToSet }, 'Flags added successfully');
     }
 
@@ -304,7 +253,7 @@ export async function updateLabels(
         { uids, flags: labelsToUnset },
         'Removing flags from messages',
       );
-      await imap.messageFlagsRemove(uidRange, labelsToUnset, options);
+      await imap.messageFlagsRemove(uids, labelsToUnset, options);
       logger?.debug(
         { uids, flags: labelsToUnset },
         'Flags removed successfully',
@@ -365,59 +314,5 @@ export async function createAppFolders(
     } else {
       logger?.info({ folder: folderPath }, 'Created folder');
     }
-  }
-}
-
-export async function findFirstUIDOnDate(
-  imap: ImapFlow,
-  folder: string,
-  dateString: string | undefined,
-  logger?: PinoLogger,
-): Promise<{
-  last_uid: number;
-  last_seen_date: string;
-  last_checked: string;
-} | null> {
-  try {
-    // Open the mailbox in read-only mode
-    await imap.mailboxOpen(folder, { readOnly: true });
-
-    // Prepare search criteria
-    const criteria = dateString ? { since: new Date(dateString) } : {};
-    logger?.debug({ folder, criteria }, 'Searching messages');
-
-    // Search for messages
-    const results = await imap.search(criteria);
-
-    if (!results || !results.length) {
-      logger?.debug({ folder }, 'No messages found');
-      return null;
-    }
-
-    // Get the first message
-    const message = await imap.fetchOne(results[0], { envelope: true });
-
-    if (!message) {
-      logger?.debug({ folder }, 'Failed to fetch message');
-      return null;
-    }
-
-    const last_uid = message.uid;
-    // envelope/date are guaranteed by the `{ envelope: true }` fetch query
-    // above, even though imapflow's own types mark both optional.
-    const last_seen_date = message.envelope!.date!.toISOString();
-    const last_checked = new Date().toISOString();
-
-    return {
-      last_uid,
-      last_seen_date,
-      last_checked,
-    };
-  } catch (err) {
-    logger?.error(
-      { folder, error: err instanceof Error ? err.message : String(err) },
-      'Error in findFirstUIDOnDate',
-    );
-    throw err;
   }
 }

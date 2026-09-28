@@ -18,6 +18,10 @@ import { AdminGuard } from '../common/guards/admin.guard.js';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  // Deliberately no rate limiting/lockout here - accepted as a known
+  // hardening gap in `5-server-api-auth`'s design.md (Non-Goals/Risks), not
+  // an oversight. `AuthService.login`'s constant-time password comparison
+  // only closes the timing side-channel, not brute force.
   @Post('login')
   @ApiBody({
     schema: {

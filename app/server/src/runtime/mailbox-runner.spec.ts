@@ -329,7 +329,7 @@ describe('MailboxRunner', () => {
       const first = runner.runTrainSpam();
       await vi.waitFor(() => expect(runSpam).toHaveBeenCalledTimes(1));
       const second = runner.runTrainSpam(); // marks dirty
-      runner.stop();
+      void runner.stop();
       resolveFirst();
       await first;
       await second;
@@ -506,7 +506,7 @@ describe('MailboxRunner', () => {
       expect(initFolders).toHaveBeenCalledTimes(1);
       expect(runner.getStatus().mode).toBe('idle');
 
-      runner.stop();
+      void runner.stop();
     });
 
     test("mode stays 'loop' when the bootstrap connection does not advertise the IDLE capability", async () => {
@@ -520,7 +520,7 @@ describe('MailboxRunner', () => {
       expect(initFolders).toHaveBeenCalledTimes(1);
       expect(runner.getStatus().mode).toBe('loop');
 
-      runner.stop();
+      void runner.stop();
     });
 
     test('the bootstrap connection is closed once folder init and the capability check finish', async () => {
@@ -536,7 +536,7 @@ describe('MailboxRunner', () => {
       // dedicated connection (task 3.3) is separate and stays open.
       expect(mockSafeLogout).toHaveBeenCalledTimes(1);
 
-      runner.stop();
+      void runner.stop();
     });
 
     /**
@@ -566,7 +566,7 @@ describe('MailboxRunner', () => {
       expect(runner.getStatus().mode).toBe('loop');
       expect(runner.getStatus().state).toBe('degraded');
 
-      runner.stop();
+      void runner.stop();
       await expect(startPromise).resolves.toBeUndefined();
     });
   });
@@ -587,7 +587,7 @@ describe('MailboxRunner', () => {
       const { runner } = buildRunner({ runSpam });
 
       await runner.start();
-      runner.stop();
+      void runner.stop();
 
       await runner.runTrainSpam();
 
@@ -612,7 +612,7 @@ describe('MailboxRunner', () => {
       const { runner } = buildRunner({ runSpam });
 
       await runner.start();
-      runner.stop();
+      void runner.stop();
 
       await runner.runTrainSpam();
 
@@ -626,7 +626,7 @@ describe('MailboxRunner', () => {
       const { runner } = buildRunner();
 
       await runner.start();
-      runner.stop();
+      void runner.stop();
 
       await runner.runTrainSpam();
       await runner.runTrainHam();
@@ -657,7 +657,7 @@ describe('MailboxRunner', () => {
       const { runner } = buildRunner({ runSpam });
 
       await runner.start();
-      runner.stop();
+      void runner.stop();
 
       await runner.runTrainSpam();
 
@@ -714,7 +714,7 @@ describe('MailboxRunner', () => {
       await vi.advanceTimersByTimeAsync(5000);
       expect(runSpam).toHaveBeenCalledTimes(1);
 
-      runner.stop();
+      void runner.stop();
     });
 
     test('stop() called while retrying exits the loop promptly, without a further bootstrap attempt', async () => {
@@ -732,7 +732,7 @@ describe('MailboxRunner', () => {
       // `start()` is actually parked inside `sleep()` before `stop()` fires.
       await vi.advanceTimersByTimeAsync(0);
 
-      runner.stop();
+      void runner.stop();
       await startPromise;
 
       // Advancing well past backoffMs(1) does not trigger a further attempt -
@@ -771,7 +771,7 @@ describe('MailboxRunner', () => {
         expect(status.jobs[job].consecutiveFailures).toBe(0);
       }
 
-      runner.stop();
+      void runner.stop();
       await startPromise;
     });
   });
@@ -798,7 +798,7 @@ describe('MailboxRunner', () => {
       expect(runBlacklist).toHaveBeenCalledTimes(1);
       expect(runScan).toHaveBeenCalledTimes(1);
 
-      runner.stop();
+      void runner.stop();
     });
 
     /**
@@ -837,7 +837,7 @@ describe('MailboxRunner', () => {
       expect(runBlacklist).toHaveBeenCalledTimes(1);
       expect(runScan).toHaveBeenCalledTimes(1);
 
-      runner.stop();
+      void runner.stop();
     });
 
     test('stop() clears the interval so no further tick fires', async () => {
@@ -851,7 +851,7 @@ describe('MailboxRunner', () => {
       await vi.advanceTimersByTimeAsync(5000);
       expect(runSpam).toHaveBeenCalledTimes(1);
 
-      runner.stop();
+      void runner.stop();
       await vi.advanceTimersByTimeAsync(20000);
 
       expect(runSpam).toHaveBeenCalledTimes(1);
@@ -884,7 +884,7 @@ describe('MailboxRunner', () => {
       // waitForNewMail is always called against this mailbox's inbox folder.
       expect(mockWaitForNewMail.mock.calls[0]?.[1]).toBe('INBOX');
 
-      runner.stop();
+      void runner.stop();
 
       // The pending (3rd) wait resolves via the abort signal `stop()` fires,
       // and the loop sees `stopped` and exits without an extra scan or a
@@ -928,7 +928,7 @@ describe('MailboxRunner', () => {
         expect.objectContaining({ lastUid: 42 }),
       );
 
-      runner.stop();
+      void runner.stop();
     });
   });
 
@@ -972,7 +972,7 @@ describe('MailboxRunner', () => {
 
       expect(runner.getStatus().mode).toBe('idle');
 
-      runner.stop();
+      void runner.stop();
     });
   });
 
@@ -986,7 +986,7 @@ describe('MailboxRunner', () => {
       const { runner } = buildRunner();
 
       await runner.start();
-      runner.stop();
+      void runner.stop();
 
       const settings = runner.getSettings();
 

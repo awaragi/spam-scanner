@@ -161,20 +161,6 @@ describe('fetchMessageHeadersByUIDs', () => {
   });
 });
 
-describe('moveMessage', () => {
-  test('moves a single message by UID and expunges', async () => {
-    const mockImap = {
-      messageMove: vi.fn().mockResolvedValue(undefined),
-      mailboxExpunge: vi.fn().mockResolvedValue(undefined),
-    };
-
-    await gateway.moveMessage(asImapFlow(mockImap), 5, 'Archive');
-
-    expect(mockImap.messageMove).toHaveBeenCalledWith({ uid: 5 }, 'Archive');
-    expect(mockImap.mailboxExpunge).toHaveBeenCalled();
-  });
-});
-
 describe('moveMessages', () => {
   test('moves multiple messages to destination folder', async () => {
     const mockImap = {
@@ -242,12 +228,12 @@ describe('updateLabels', () => {
     );
 
     expect(mockImap.messageFlagsAdd).toHaveBeenCalledWith(
-      expect.objectContaining({ uid: [1, 2] }),
+      [1, 2],
       ['\\Flagged'],
       { uid: true },
     );
     expect(mockImap.messageFlagsRemove).toHaveBeenCalledWith(
-      expect.objectContaining({ uid: [1, 2] }),
+      [1, 2],
       ['\\Seen'],
       { uid: true },
     );
@@ -344,67 +330,5 @@ describe('createAppFolders', () => {
     await expect(
       gateway.createAppFolders(asImapFlow(mockImap), ['INBOX/scanner']),
     ).rejects.toThrow('Failed to get folder separator');
-  });
-});
-
-describe('findFirstUIDOnDate', () => {
-  test('finds first UID on or after given date', async () => {
-    const mockMessage = {
-      uid: 100,
-      envelope: {
-        date: new Date('2024-01-15T10:00:00Z'),
-      },
-    };
-    const mockImap = {
-      mailboxOpen: vi.fn().mockResolvedValue(undefined),
-      search: vi.fn().mockResolvedValue([100, 101, 102]),
-      fetchOne: vi.fn().mockResolvedValue(mockMessage),
-    };
-
-    const result = await gateway.findFirstUIDOnDate(
-      asImapFlow(mockImap),
-      'INBOX',
-      '2024-01-15',
-    );
-
-    expect(result).toEqual({
-      last_uid: 100,
-      last_seen_date: '2024-01-15T10:00:00.000Z',
-      last_checked: expect.any(String),
-    });
-    expect(mockImap.search).toHaveBeenCalledWith(
-      expect.objectContaining({ since: expect.any(Date) }),
-    );
-  });
-
-  test('searches without date criteria when dateString is undefined', async () => {
-    const mockMessage = {
-      uid: 1,
-      envelope: { date: new Date() },
-    };
-    const mockImap = {
-      mailboxOpen: vi.fn().mockResolvedValue(undefined),
-      search: vi.fn().mockResolvedValue([1]),
-      fetchOne: vi.fn().mockResolvedValue(mockMessage),
-    };
-
-    await gateway.findFirstUIDOnDate(asImapFlow(mockImap), 'INBOX', undefined);
-
-    expect(mockImap.search).toHaveBeenCalledWith({});
-  });
-
-  test('returns null if no messages found', async () => {
-    const mockImap = {
-      mailboxOpen: vi.fn().mockResolvedValue(undefined),
-      search: vi.fn().mockResolvedValue([]),
-    };
-
-    const result = await gateway.findFirstUIDOnDate(
-      asImapFlow(mockImap),
-      'INBOX',
-      '2024-01-15',
-    );
-
-    expect(result).toBeNull();
   });
 });

@@ -235,7 +235,7 @@ describe('RunnerRegistry', () => {
 
     // Stop every runner, including the bad mailbox's still-retrying one, so
     // no real backoff timer is left pending once this test ends.
-    registry.onApplicationShutdown();
+    await registry.onApplicationShutdown();
   });
 
   // --- 4.2: getStatus() / triggerNow() -----------------------------------
@@ -392,9 +392,7 @@ describe('RunnerRegistry', () => {
       const { registry } = await buildRegistry({ mailboxes });
       registry.onApplicationBootstrap();
 
-      expect(() => {
-        registry.onApplicationShutdown();
-      }).not.toThrow();
+      await expect(registry.onApplicationShutdown()).resolves.toBeUndefined();
 
       // Triggering after shutdown should still resolve normally - stop()
       // does not tear down the runner object itself, only its timers/flags.
