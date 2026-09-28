@@ -3,7 +3,6 @@
  * package ships no types of its own and no `@types/mailparser` is
  * installed. Covers only the `ParsedMail` fields this codebase actually
  * reads (see `domain/ai/ai-content.ts`), not the library's full surface.
- * Ported from `terminal/src/lib/types/mailparser.d.ts`.
  */
 declare module 'mailparser' {
   export interface AddressObject {
@@ -31,6 +30,6 @@ declare module 'mailparser' {
 
   export function simpleParser(
     source: string | Buffer,
-    options?: SimpleParserOptions
+    options?: SimpleParserOptions,
   ): Promise<ParsedMail>;
 }

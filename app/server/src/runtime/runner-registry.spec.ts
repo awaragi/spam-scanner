@@ -87,9 +87,7 @@ function fixtureFolders(
 }
 
 /** A fake ImapFlow that satisfies `createMailboxSession`'s usable check. */
-function fixtureImap(
-  overrides: { connect?: ReturnType<typeof vi.fn> } = {},
-) {
+function fixtureImap(overrides: { connect?: ReturnType<typeof vi.fn> } = {}) {
   return asImapFlow({
     usable: true,
     connect: overrides.connect ?? vi.fn().mockResolvedValue(undefined),
@@ -488,9 +486,9 @@ describe('RunnerRegistry', () => {
 
         // The original runner - and its already-accumulated job history -
         // is still the one in the map, unaffected by the rejected update.
-        expect(
-          registry.getStatus().mailboxes[0]?.jobs.scan.lastResult,
-        ).toBe('success');
+        expect(registry.getStatus().mailboxes[0]?.jobs.scan.lastResult).toBe(
+          'success',
+        );
       } finally {
         stopSpy.mockRestore();
       }

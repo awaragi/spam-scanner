@@ -3,8 +3,7 @@ import { createAppFolders } from '../../infrastructure/imap/mailbox.gateway.js';
 import type { MailboxSession } from '../mailbox-session.js';
 
 /**
- * Ensures every IMAP folder a mailbox needs exists, ported from terminal's
- * `init.controller.ts`'s `runInit`. Unlike terminal, folder resolution
+ * Ensures every IMAP folder a mailbox needs exists. Folder resolution
  * against the server's real hierarchy delimiter has already happened by the
  * time a `MailboxSession` exists (see `folder.resolver.ts` / design.md D6),
  * so this only reads the already-resolved folder names off
@@ -18,8 +17,7 @@ export class FolderInitService {
    * the four training folders, the state folder and the spam folder, plus -
    * when `session.settings.processingMode` is `'folder'` - the spam
    * likelihood folders. Uses `session.imap` for the IMAP connection and
-   * `session.logger` for logging, in place of terminal's ambient
-   * `rootLogger`.
+   * `session.logger` for logging.
    * @param session - The mailbox session to initialize folders for.
    */
   async initFolders(session: MailboxSession): Promise<void> {
@@ -36,7 +34,7 @@ export class FolderInitService {
 
     if (settings.processingMode === 'folder') {
       logger.debug(
-        'Processing mode is folder, including spam likelihood folders'
+        'Processing mode is folder, including spam likelihood folders',
       );
       foldersToEnsure.push(folders.spamLow, folders.spamHigh);
     }

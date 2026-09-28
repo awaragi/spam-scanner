@@ -7,13 +7,13 @@ import {
 describe('formatAddressList', () => {
   test('formats a named address as "Name <addr>"', () => {
     expect(
-      formatAddressList([{ name: 'Alice', address: 'alice@example.com' }])
+      formatAddressList([{ name: 'Alice', address: 'alice@example.com' }]),
     ).toBe('Alice <alice@example.com>');
   });
 
   test('formats an address with no name as just the address', () => {
     expect(formatAddressList([{ address: 'alice@example.com' }])).toBe(
-      'alice@example.com'
+      'alice@example.com',
     );
   });
 
@@ -22,7 +22,7 @@ describe('formatAddressList', () => {
       formatAddressList([
         { name: 'Alice', address: 'alice@example.com' },
         { address: 'bob@example.com' },
-      ])
+      ]),
     ).toBe('Alice <alice@example.com>, bob@example.com');
   });
 
@@ -36,7 +36,7 @@ describe('formatAddressList', () => {
 
   test('filters out falsy/empty entries', () => {
     expect(
-      formatAddressList([{ address: '' }, { address: 'bob@example.com' }])
+      formatAddressList([{ address: '' }, { address: 'bob@example.com' }]),
     ).toBe('bob@example.com');
   });
 });
@@ -50,7 +50,7 @@ describe('truncateToTokenBudget', () => {
     const text = 'a'.repeat(50000);
     // 10 tokens * 4 chars/token = 40 chars
     expect(truncateToTokenBudget(text, 10)).toBe(
-      `${'a'.repeat(40)}…[truncated]`
+      `${'a'.repeat(40)}…[truncated]`,
     );
   });
 

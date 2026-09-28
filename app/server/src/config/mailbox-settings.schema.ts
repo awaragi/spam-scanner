@@ -115,13 +115,13 @@ function dropUnrecognized(
   recognized: ReadonlySet<string>,
   describeKey: (key: string) => string,
   logger?: PinoLogger,
-  mailboxId?: string
+  mailboxId?: string,
 ): void {
   for (const key of Object.keys(container)) {
     if (!recognized.has(key)) {
       logger?.warn(
         { mailboxId, key: describeKey(key) },
-        'Ignoring unrecognized or global-only settings key'
+        'Ignoring unrecognized or global-only settings key',
       );
       delete container[key];
     }
@@ -146,7 +146,7 @@ function dropUnrecognized(
 export function validateOverrides(
   raw: Record<string, unknown> | undefined,
   logger?: PinoLogger,
-  mailboxId?: string
+  mailboxId?: string,
 ): OverridableSettings | undefined {
   if (raw === undefined) {
     return undefined;
@@ -154,17 +154,14 @@ export function validateOverrides(
 
   // Throws (ZodError) on a type error against any recognized field, at any
   // level - unknown keys, at any level, are allowed through unvalidated.
-  const withEveryKey = passthroughSchema.parse(raw) as Record<
-    string,
-    unknown
-  >;
+  const withEveryKey = passthroughSchema.parse(raw) as Record<string, unknown>;
 
   dropUnrecognized(
     withEveryKey,
     new Set(Object.keys(overridableSchema.shape)),
-    key => key,
+    (key) => key,
     logger,
-    mailboxId
+    mailboxId,
   );
 
   for (const [groupKey, groupSchema] of Object.entries(nestedGroupSchemas)) {
@@ -173,9 +170,9 @@ export function validateOverrides(
       dropUnrecognized(
         group as Record<string, unknown>,
         new Set(Object.keys(groupSchema.shape)),
-        key => `${groupKey}.${key}`,
+        (key) => `${groupKey}.${key}`,
         logger,
-        mailboxId
+        mailboxId,
       );
     }
   }

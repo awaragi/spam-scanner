@@ -64,17 +64,17 @@ describe('MailboxController', () => {
       expect(runnerRegistry.triggerInitFolders).not.toHaveBeenCalled();
     });
 
-    test('translates the registry\'s async Unknown mailbox rejection to NotFoundException', async () => {
+    test("translates the registry's async Unknown mailbox rejection to NotFoundException", async () => {
       const { controller, runnerRegistry } = build();
       runnerRegistry.triggerNow.mockRejectedValue(UNKNOWN_MAILBOX_ERROR);
 
-      await expect(
-        controller.triggerJob(MAILBOX_ID, 'scan'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(controller.triggerJob(MAILBOX_ID, 'scan')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
-  test('translates the registry\'s sync Unknown mailbox throw to NotFoundException', () => {
+  test("translates the registry's sync Unknown mailbox throw to NotFoundException", () => {
     const { controller, runnerRegistry } = build();
     runnerRegistry.getMailboxStatus.mockImplementation(() => {
       throw UNKNOWN_MAILBOX_ERROR;
@@ -86,9 +86,9 @@ describe('MailboxController', () => {
   test('an unknown list :kind is rejected as BadRequestException before any collaborator is called', async () => {
     const { controller, mailboxAdminService } = build();
 
-    await expect(
-      controller.readList(MAILBOX_ID, 'greylist'),
-    ).rejects.toThrow(BadRequestException);
+    await expect(controller.readList(MAILBOX_ID, 'greylist')).rejects.toThrow(
+      BadRequestException,
+    );
     expect(mailboxAdminService.readList).not.toHaveBeenCalled();
   });
 
@@ -113,9 +113,7 @@ describe('MailboxController', () => {
       expect(() => pipe.transform(['valid@example.com', ''])).toThrow(
         BadRequestException,
       );
-      expect(() => pipe.transform('not-an-array')).toThrow(
-        BadRequestException,
-      );
+      expect(() => pipe.transform('not-an-array')).toThrow(BadRequestException);
     });
 
     test('a valid list body parses unchanged', () => {

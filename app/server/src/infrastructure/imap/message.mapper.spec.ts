@@ -6,7 +6,7 @@ vi.mock('../../domain/utils/email-parser.js', () => ({
     const str = buffer.toString('latin1');
     const lines = str.split('\n');
     const filtered = lines.filter(
-      line => !line.toLowerCase().startsWith('x-spam-')
+      (line) => !line.toLowerCase().startsWith('x-spam-'),
     );
     return Buffer.from(filtered.join('\n'), 'latin1');
   }),
@@ -31,17 +31,14 @@ vi.mock('../../domain/utils/email-parser.js', () => ({
   }),
 }));
 
-import {
-  processMessage,
-  processMessageHeaders,
-} from './message.mapper.js';
+import { processMessage, processMessageHeaders } from './message.mapper.js';
 import * as emailParser from '../../domain/utils/email-parser.js';
 
 describe('processMessage', () => {
   test('returns raw as a Buffer with X-Spam headers stripped', () => {
     const source = Buffer.from(
       'From: a@example.com\nX-Spam-Flag: YES\n\nBody',
-      'latin1'
+      'latin1',
     );
     const message = {
       uid: 5,
@@ -97,7 +94,7 @@ describe('processMessageHeaders', () => {
       }),
     });
     expect(emailParser.parseEmail).toHaveBeenCalledWith(
-      'From: a@example.com\r\nSubject: hi\r\n\r\n\r\n\r\n'
+      'From: a@example.com\r\nSubject: hi\r\n\r\n\r\n\r\n',
     );
   });
 
@@ -119,7 +116,7 @@ describe('processMessageHeaders', () => {
       }),
     });
     expect(emailParser.parseEmail).toHaveBeenCalledWith(
-      'From: b@example.com\r\nSubject: bye\r\n\r\n'
+      'From: b@example.com\r\nSubject: bye\r\n\r\n',
     );
   });
 });

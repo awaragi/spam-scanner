@@ -21,10 +21,9 @@ export interface MailboxFolders extends MailboxFolderSettings {
  * actual hierarchy delimiter (discovered via LIST), returning a new
  * `MailboxFolders` object rather than mutating anything.
  *
- * Unlike terminal's `resolveFolders`, which rewrote the single shared global
- * `config` object in place, this takes the mailbox's own folders as an
- * explicit argument and returns a fresh result every call - safe to call
- * concurrently for different mailboxes with different delimiters and
+ * Takes the mailbox's own folders as an explicit argument and returns a
+ * fresh result every call - safe to call concurrently for different
+ * mailboxes with different delimiters and
  * different folder settings, since no shared state is ever touched (see
  * design.md D6).
  *
@@ -42,12 +41,12 @@ export interface MailboxFolders extends MailboxFolderSettings {
  */
 export async function resolveMailboxFolders(
   imap: ImapFlow,
-  folders: MailboxFolders
+  folders: MailboxFolders,
 ): Promise<MailboxFolders> {
   const delimiter = await getImapDelimiter(imap);
   if (!delimiter) {
     throw new Error(
-      'Failed to resolve folder paths: could not determine IMAP server delimiter'
+      'Failed to resolve folder paths: could not determine IMAP server delimiter',
     );
   }
 

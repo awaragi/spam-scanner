@@ -5,8 +5,8 @@ import type { MailboxFolders } from '../infrastructure/imap/folder.resolver.js';
 import type { MailboxSettings } from '../config/mailbox-settings.defaults.js';
 
 /**
- * The per-mailbox data every use-case and step needs, replacing terminal's
- * `ctx` for anything that operates on a specific mailbox (see design.md D4).
+ * The per-mailbox data every use-case and step needs for anything that
+ * operates on a specific mailbox (see design.md D4).
  * Singletons (config sections, gateways, repositories, the shared
  * `AiFailureTracker`) come from Nest DI instead; a `MailboxSession` carries
  * only what varies per mailbox, and is built fresh for each job (D9).
@@ -28,10 +28,8 @@ export interface MailboxSession {
   readonly folders: MailboxFolders;
   /**
    * A logger scoped to this mailbox - every line it emits carries
-   * `{ mailboxId: mailbox.id }`. This is what replaces terminal's ambient
-   * `rootLogger.forComponent(...)` pattern for anything operating on a
-   * specific mailbox: instead of a global logger scoped per call site, each
-   * session carries its own logger, already bound.
+   * `{ mailboxId: mailbox.id }`. Instead of a global logger scoped per call
+   * site, each session carries its own logger, already bound.
    */
   readonly logger: PinoLogger;
 }
@@ -66,7 +64,9 @@ export interface MailboxSessionParts {
  * @throws If `mailbox.id` is empty, or `imap` is not a usable (connected)
  *   connection - both would silently produce a broken session otherwise.
  */
-export function createMailboxSession(parts: MailboxSessionParts): MailboxSession {
+export function createMailboxSession(
+  parts: MailboxSessionParts,
+): MailboxSession {
   const { mailbox, imap, settings, folders, logger } = parts;
 
   if (!mailbox.id) {
@@ -74,7 +74,7 @@ export function createMailboxSession(parts: MailboxSessionParts): MailboxSession
   }
   if (!imap.usable) {
     throw new Error(
-      `Cannot create a MailboxSession for mailbox "${mailbox.id}": IMAP connection is not usable (not connected)`
+      `Cannot create a MailboxSession for mailbox "${mailbox.id}": IMAP connection is not usable (not connected)`,
     );
   }
 

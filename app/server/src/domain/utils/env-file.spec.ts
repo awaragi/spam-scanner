@@ -40,7 +40,7 @@ describe('env-file-util', () => {
       ];
 
       expect(renderEnvFile(groups)).toBe(
-        '# Example Group\n# FOO does a thing.\nFOO=bar\n'
+        '# Example Group\n# FOO does a thing.\nFOO=bar\n',
       );
     });
 
@@ -58,7 +58,7 @@ describe('env-file-util', () => {
       ];
 
       expect(renderEnvFile(groups)).toBe(
-        '# Example Group\n# Line one.\n# Line two.\n#\n# Line four.\nFOO=bar\n'
+        '# Example Group\n# Line one.\n# Line two.\n#\n# Line four.\nFOO=bar\n',
       );
     });
 
@@ -78,7 +78,7 @@ describe('env-file-util', () => {
       ];
 
       expect(renderEnvFile(groups)).toBe(
-        '# Group One\nFOO=a\n\n# Group Two\nBAR=b\nBAZ=c\n'
+        '# Group One\nFOO=a\n\n# Group Two\nBAR=b\nBAZ=c\n',
       );
     });
 
@@ -103,7 +103,7 @@ describe('env-file-util', () => {
       ];
 
       expect(renderEnvFile(groups, { FOO: 'custom' })).toBe(
-        '# Example Group\nFOO=custom\n'
+        '# Example Group\nFOO=custom\n',
       );
     });
 
@@ -119,7 +119,7 @@ describe('env-file-util', () => {
       ];
 
       expect(renderEnvFile(groups, { FOO: 'custom' })).toBe(
-        '# Example Group\nFOO=custom\nBAZ=qux\n'
+        '# Example Group\nFOO=custom\nBAZ=qux\n',
       );
     });
 
@@ -132,7 +132,7 @@ describe('env-file-util', () => {
       ];
 
       expect(renderEnvFile(groups, { FOO: '' })).toBe(
-        '# Example Group\nFOO=\n'
+        '# Example Group\nFOO=\n',
       );
     });
   });
@@ -162,7 +162,7 @@ describe('env-file-util', () => {
       ];
 
       expect(
-        diffEnvValues(groups, { FOO: 'set', OLD_RENAMED_KEY: 'leftover' })
+        diffEnvValues(groups, { FOO: 'set', OLD_RENAMED_KEY: 'leftover' }),
       ).toEqual({
         defaultedKeys: [],
         unknownKeys: ['OLD_RENAMED_KEY'],

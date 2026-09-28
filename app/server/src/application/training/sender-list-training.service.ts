@@ -18,15 +18,12 @@ import { updateListState } from './list-update.step.js';
 
 /**
  * Trains a mailbox's IMAP-backed whitelist/blacklist from its
- * `train.whitelist`/`train.blacklist` folders, ported from terminal's
- * `sender-list-training.controller.ts` (workflow) plus its
- * `list-update.step.ts` (kept as a co-located step, see
- * `list-update.step.ts`).
+ * `train.whitelist`/`train.blacklist` folders. The list update itself is a
+ * co-located step - see `list-update.step.ts`.
  *
  * Unlike `RspamdTrainingService`, this workflow's own failures are NOT
  * swallowed - an error opening/reading the training folder, or updating list
- * state, is logged at `error` and rethrown, exactly as terminal's
- * `sender-list-training.controller.ts` does today.
+ * state, is logged at `error` and rethrown.
  */
 @Injectable()
 export class SenderListTrainingService {
@@ -46,7 +43,7 @@ export class SenderListTrainingService {
     folder: string,
     mapStateKey: string,
     destFolder: string,
-    type: string
+    type: string,
   ): Promise<void> {
     const { imap, logger, folders } = session;
     try {
@@ -67,7 +64,7 @@ export class SenderListTrainingService {
       // when "@example.com" is already listed. Updated as batches add new
       // entries so a later batch in the same run also sees them.
       const listedEntries = new Set(
-        await readMapState(imap, folders.state, mapStateKey, logger)
+        await readMapState(imap, folders.state, mapStateKey, logger),
       );
 
       // Search UIDs once, then fetch/extract/move batchProcessSize messages
@@ -81,13 +78,17 @@ export class SenderListTrainingService {
       // single call over every sender would.
       for (let i = 0; i < uids.length; i += batchProcessSize) {
         const batchUids = uids.slice(i, i + batchProcessSize);
-        const batchMessages = await fetchMessageHeadersByUIDs(imap, batchUids, logger);
+        const batchMessages = await fetchMessageHeadersByUIDs(
+          imap,
+          batchUids,
+          logger,
+        );
         const senders = extractSenderAddresses(batchMessages, listedEntries);
 
         if (senders.length === 0) {
           logger.info(
             { folder, type, total: batchMessages.length },
-            `No extractable senders found among ${type} training messages; moving them on unlearned`
+            `No extractable senders found among ${type} training messages; moving them on unlearned`,
           );
         } else {
           // Training always appends - it merges newly extracted senders
@@ -99,17 +100,17 @@ export class SenderListTrainingService {
             mapStateKey,
             senders,
             'append',
-            logger
+            logger,
           );
           logger.info({ folder, type, ...result }, `${type} list updated`);
-          senders.forEach(sender => listedEntries.add(sender));
+          senders.forEach((sender) => listedEntries.add(sender));
         }
 
         // Move processed messages to destination folder
         await moveMessages(imap, batchMessages, destFolder, logger);
         logger.debug(
           { folder, type, destFolder, total: batchMessages.length },
-          'Training messages moved'
+          'Training messages moved',
         );
       }
     } catch (error) {
@@ -119,7 +120,7 @@ export class SenderListTrainingService {
           type,
           error: error instanceof Error ? error.message : String(error),
         },
-        `Error in ${type} workflow`
+        `Error in ${type} workflow`,
       );
       throw error;
     }
@@ -136,7 +137,7 @@ export class SenderListTrainingService {
       session.folders.trainWhitelist,
       STATE_KEY_WHITELIST_MAP,
       session.folders.inbox,
-      'whitelist'
+      'whitelist',
     );
   }
 
@@ -151,7 +152,7 @@ export class SenderListTrainingService {
       session.folders.trainBlacklist,
       STATE_KEY_BLACKLIST_MAP,
       session.folders.spam,
-      'blacklist'
+      'blacklist',
     );
   }
 }

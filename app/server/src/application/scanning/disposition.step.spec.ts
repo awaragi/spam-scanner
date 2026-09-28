@@ -33,7 +33,7 @@ function fixtureMailbox(overrides: Partial<Mailbox> = {}): Mailbox {
 }
 
 function fixtureFolders(
-  overrides: Partial<MailboxFolders> = {}
+  overrides: Partial<MailboxFolders> = {},
 ): MailboxFolders {
   return {
     inbox: 'INBOX',
@@ -63,7 +63,7 @@ function fixtureLogger(): PinoLogger {
 }
 
 function fixtureSession(
-  overrides: Partial<MailboxSession> = {}
+  overrides: Partial<MailboxSession> = {},
 ): MailboxSession {
   return {
     mailbox: fixtureMailbox(),
@@ -94,7 +94,7 @@ describe('DispositionStep', () => {
 
       await step.applyLabels(
         { nonSpamMessages, lowSpamMessages: [], highSpamMessages: [] },
-        session
+        session,
       );
 
       expect(mockUpdateLabels).toHaveBeenCalledWith(
@@ -102,7 +102,7 @@ describe('DispositionStep', () => {
         nonSpamMessages,
         [],
         ['Spam:Low', 'Spam:High'],
-        session.logger
+        session.logger,
       );
     });
 
@@ -117,7 +117,7 @@ describe('DispositionStep', () => {
 
       await step.applyLabels(
         { nonSpamMessages: [], lowSpamMessages, highSpamMessages: [] },
-        session
+        session,
       );
 
       expect(mockUpdateLabels).toHaveBeenCalledWith(
@@ -125,7 +125,7 @@ describe('DispositionStep', () => {
         lowSpamMessages,
         ['Spam:Low'],
         ['Spam:High'],
-        session.logger
+        session.logger,
       );
     });
 
@@ -140,7 +140,7 @@ describe('DispositionStep', () => {
 
       await step.applyLabels(
         { nonSpamMessages: [], lowSpamMessages: [], highSpamMessages },
-        session
+        session,
       );
 
       expect(mockUpdateLabels).toHaveBeenCalledWith(
@@ -148,7 +148,7 @@ describe('DispositionStep', () => {
         highSpamMessages,
         ['Spam:High'],
         ['Spam:Low'],
-        session.logger
+        session.logger,
       );
     });
 
@@ -165,14 +165,14 @@ describe('DispositionStep', () => {
           lowSpamMessages: [{ uid: 1 }],
           highSpamMessages: [],
         },
-        first
+        first,
       );
       expect(mockUpdateLabels).toHaveBeenCalledWith(
         first.imap,
         [{ uid: 1 }],
         ['First:Low'],
         ['First:High'],
-        first.logger
+        first.logger,
       );
 
       vi.clearAllMocks();
@@ -189,14 +189,14 @@ describe('DispositionStep', () => {
           lowSpamMessages: [{ uid: 1 }],
           highSpamMessages: [],
         },
-        second
+        second,
       );
       expect(mockUpdateLabels).toHaveBeenCalledWith(
         second.imap,
         [{ uid: 1 }],
         ['Second:Low'],
         ['Second:High'],
-        second.logger
+        second.logger,
       );
     });
   });
@@ -211,20 +211,20 @@ describe('DispositionStep', () => {
 
       await step.moveToFolders(
         { nonSpamMessages: [], lowSpamMessages, highSpamMessages },
-        session
+        session,
       );
 
       expect(mockMoveMessages).toHaveBeenCalledWith(
         session.imap,
         lowSpamMessages,
         'spam.low',
-        session.logger
+        session.logger,
       );
       expect(mockMoveMessages).toHaveBeenCalledWith(
         session.imap,
         highSpamMessages,
         'spam.high',
-        session.logger
+        session.logger,
       );
     });
 
@@ -236,8 +236,8 @@ describe('DispositionStep', () => {
       await expect(
         step.moveToFolders(
           { nonSpamMessages: [], lowSpamMessages: [], highSpamMessages: [] },
-          session
-        )
+          session,
+        ),
       ).rejects.toThrow('FOLDER_SPAM_LOW');
     });
 
@@ -249,8 +249,8 @@ describe('DispositionStep', () => {
       await expect(
         step.moveToFolders(
           { nonSpamMessages: [], lowSpamMessages: [], highSpamMessages: [] },
-          session
-        )
+          session,
+        ),
       ).rejects.toThrow('FOLDER_SPAM_HIGH');
     });
   });
@@ -268,7 +268,7 @@ describe('DispositionStep', () => {
         session.imap,
         spamMessages,
         'INBOX.spam',
-        session.logger
+        session.logger,
       );
     });
   });

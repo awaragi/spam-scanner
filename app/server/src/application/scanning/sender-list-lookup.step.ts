@@ -12,27 +12,25 @@ import type { MailboxSession } from '../mailbox-session.js';
  * (see the `sender-lists` capability). Sequential, not `Promise.all`: each
  * read switches the connection's selected mailbox and restores it
  * afterward, which isn't safe to run concurrently on a single IMAP
- * connection. Ported from terminal's `sender-list-lookup.step.ts`
- * (`loadSenderLists`), reading the state folder from `session.folders.state`
- * instead of `ctx.config.FOLDER_STATE`.
+ * connection. The state folder comes from `session.folders.state`.
  */
 @Injectable()
 export class SenderListLookupStep {
   async load(
-    session: MailboxSession
+    session: MailboxSession,
   ): Promise<{ whitelistSet: Set<string>; blacklistSet: Set<string> }> {
     const { imap, folders, logger } = session;
     const whitelistEntries = await readMapState(
       imap,
       folders.state,
       STATE_KEY_WHITELIST_MAP,
-      logger
+      logger,
     );
     const blacklistEntries = await readMapState(
       imap,
       folders.state,
       STATE_KEY_BLACKLIST_MAP,
-      logger
+      logger,
     );
     return {
       whitelistSet: new Set(whitelistEntries),

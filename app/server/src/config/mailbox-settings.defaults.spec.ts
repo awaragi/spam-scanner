@@ -6,9 +6,9 @@ import {
 
 describe('defaultMailboxSettings', () => {
   test('aiEscalation.toLowThreshold does not exceed toHighThreshold', () => {
-    expect(defaultMailboxSettings.aiEscalation.toLowThreshold).toBeLessThanOrEqual(
-      defaultMailboxSettings.aiEscalation.toHighThreshold
-    );
+    expect(
+      defaultMailboxSettings.aiEscalation.toLowThreshold,
+    ).toBeLessThanOrEqual(defaultMailboxSettings.aiEscalation.toHighThreshold);
   });
 });
 
@@ -46,7 +46,7 @@ describe('resolveMailboxSettings', () => {
     expect(resolved.aiEnabled).toBe(false);
     expect(resolved.scanRead).toBe(defaultMailboxSettings.scanRead);
     expect(resolved.scanInitialState).toBe(
-      defaultMailboxSettings.scanInitialState
+      defaultMailboxSettings.scanInitialState,
     );
     expect(resolved.processingMode).toBe(defaultMailboxSettings.processingMode);
   });

@@ -88,7 +88,7 @@ ${content.text}`;
    * @throws {Error} on request failure or a malformed AI response
    */
   async classifyEmail(
-    content: AiContent
+    content: AiContent,
   ): Promise<{ score: number; reasoning: string }> {
     try {
       const response = await this.client.chat.completions.create({
@@ -112,7 +112,7 @@ ${content.text}`;
       const result = parseAiClassificationOutput(replyContent);
       this.logger.debug(
         { subject: content.subject, from: content.from, score: result.score },
-        'AI classification response parsed'
+        'AI classification response parsed',
       );
       return result;
     } catch (err) {
@@ -122,7 +122,7 @@ ${content.text}`;
           from: content.from,
           error: err instanceof Error ? err.message : String(err),
         },
-        'AI classification request failed'
+        'AI classification request failed',
       );
       throw err;
     }

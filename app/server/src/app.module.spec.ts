@@ -8,8 +8,7 @@ const ORIGINAL_ENV = { ...process.env };
  * `ConfigModule.forRoot()` (reading `process.env`) the moment
  * `config/config.module.ts` is imported/evaluated - not lazily at test time.
  * Each test needs a fresh import taken after the fixture env is set, via
- * `vi.resetModules()` (same pattern as `config/config.module.spec.ts` and
- * `terminal/test/unit/core/config.test.ts`).
+ * `vi.resetModules()` (same pattern as `config/config.module.spec.ts`).
  */
 async function loadAppModule() {
   vi.resetModules();

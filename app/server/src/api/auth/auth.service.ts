@@ -1,9 +1,16 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ApiAuthConfig } from '../../config/app-config.js';
 import { MailboxRepository } from '../../infrastructure/mailboxes/mailbox.repository.js';
-import type { AdminTokenPayload, MailboxTokenPayload } from '../common/token.js';
+import type {
+  AdminTokenPayload,
+  MailboxTokenPayload,
+} from '../common/token.js';
 
 /**
  * Constant-time string comparison (design.md D3): guards a login attempt
@@ -41,7 +48,7 @@ export class AuthService {
   constructor(
     private readonly config: ApiAuthConfig,
     private readonly jwtService: JwtService,
-    private readonly mailboxRepository: MailboxRepository
+    private readonly mailboxRepository: MailboxRepository,
   ) {}
 
   login(password: string): { token: string } {
@@ -60,7 +67,7 @@ export class AuthService {
   exchangeForMailboxToken(mailboxId: string): { token: string } {
     const known = this.mailboxRepository
       .findAll()
-      .some(mailbox => mailbox.id === mailboxId);
+      .some((mailbox) => mailbox.id === mailboxId);
 
     if (!known) {
       throw new NotFoundException(`Unknown mailbox: ${mailboxId}`);

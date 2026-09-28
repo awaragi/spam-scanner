@@ -29,7 +29,7 @@ export function formatAddressList(addresses: unknown = []): string {
  */
 export function truncateToTokenBudget(
   text: string | undefined,
-  maxTokens: number
+  maxTokens: number,
 ): string {
   if (!text) return '';
   const maxChars = Math.max(0, maxTokens) * CHARS_PER_TOKEN;

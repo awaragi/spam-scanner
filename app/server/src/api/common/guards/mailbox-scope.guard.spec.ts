@@ -7,7 +7,7 @@ import { MailboxScopeGuard } from './mailbox-scope.guard.js';
 
 function fixtureContext(
   authorization: string | undefined,
-  params: Record<string, string> = {}
+  params: Record<string, string> = {},
 ): ExecutionContext {
   const request = { headers: { authorization }, params } as unknown as Request;
   return {
@@ -28,8 +28,8 @@ describe('MailboxScopeGuard', () => {
 
     expect(
       guard.canActivate(
-        fixtureContext(`Bearer ${token}`, { mailboxId: 'owner@example.com' })
-      )
+        fixtureContext(`Bearer ${token}`, { mailboxId: 'owner@example.com' }),
+      ),
     ).toBe(true);
   });
 
@@ -43,8 +43,8 @@ describe('MailboxScopeGuard', () => {
 
     expect(() =>
       guard.canActivate(
-        fixtureContext(`Bearer ${token}`, { mailboxId: 'other@example.com' })
-      )
+        fixtureContext(`Bearer ${token}`, { mailboxId: 'other@example.com' }),
+      ),
     ).toThrow(ForbiddenException);
   });
 
@@ -54,8 +54,8 @@ describe('MailboxScopeGuard', () => {
 
     expect(() =>
       guard.canActivate(
-        fixtureContext(`Bearer ${token}`, { mailboxId: 'owner@example.com' })
-      )
+        fixtureContext(`Bearer ${token}`, { mailboxId: 'owner@example.com' }),
+      ),
     ).toThrow(UnauthorizedException);
   });
 });

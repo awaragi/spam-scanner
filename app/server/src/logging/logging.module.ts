@@ -20,7 +20,7 @@ export function redactAuthorizationHeaders(
 /** pino-http `req` serializer — redacts `Authorization` on every access log line. */
 export function buildReqSerializer(): pino.SerializerFn {
   const base = pino.stdSerializers.req;
-  return req => {
+  return (req) => {
     const serialized = base(req);
     if (serialized?.headers) {
       serialized.headers = redactAuthorizationHeaders(serialized.headers);
@@ -36,12 +36,11 @@ const VALID_LOG_FORMATS = ['json', 'jsonl', 'pretty'];
  * Whether `pino-pretty` can be resolved from this module - it's a
  * devDependency, so it's absent in the production Docker image
  * (`npm ci --omit=dev`). `resolveFn` is injectable so this is unit-testable
- * without needing to actually uninstall the package. Ported from
- * `terminal/src/lib/core/logger.ts`.
+ * without needing to actually uninstall the package.
  */
 export function canLoadPinoPretty(
-  resolveFn: (specifier: string) => string = specifier =>
-    import.meta.resolve(specifier)
+  resolveFn: (specifier: string) => string = (specifier) =>
+    import.meta.resolve(specifier),
 ): boolean {
   try {
     resolveFn('pino-pretty');
@@ -52,15 +51,14 @@ export function canLoadPinoPretty(
 }
 
 /**
- * Component allow/deny gate, matching `terminal/src/lib/core/logger.ts`'s
- * `shouldLogComponent`: an unset `component` binding always logs (this
+ * Component allow/deny gate: an unset `component` binding always logs (this
  * governs `LOG_FILTER_INCLUDES`/`LOG_FILTER_EXCLUDES` for component-scoped
  * child loggers only, not every log line in the process).
  */
 function shouldLogComponent(
   component: unknown,
   includes: string[],
-  excludes: string[]
+  excludes: string[],
 ): boolean {
   if (typeof component !== 'string') {
     return true;
@@ -76,9 +74,8 @@ function shouldLogComponent(
 
 /**
  * Builds the pino options `logging.module.ts` hands to `nestjs-pino`,
- * preserving terminal's exact level/format/component-filter/redaction
- * behavior (the `logging-levels` capability) - see
- * `terminal/src/lib/core/logger.ts`, which this is ported from.
+ * implementing the level/format/component-filter/redaction behavior of the
+ * `logging-levels` capability.
  *
  * Level and format stay tolerant of a bad value (case-insensitive match,
  * falling back to "info"/"json" with a `console.warn` - the logger itself
@@ -106,14 +103,14 @@ export function buildPinoOptions(logging: LoggingConfig): LoggerOptions {
   const filterIncludesComponents = logging.filterIncludes
     ? logging.filterIncludes
         .split(',')
-        .map(c => c.trim())
-        .filter(c => c.length > 0)
+        .map((c) => c.trim())
+        .filter((c) => c.length > 0)
     : [];
   const filterExcludesComponents = logging.filterExcludes
     ? logging.filterExcludes
         .split(',')
-        .map(c => c.trim())
-        .filter(c => c.length > 0)
+        .map((c) => c.trim())
+        .filter((c) => c.length > 0)
     : [];
 
   const options: LoggerOptions = {
@@ -127,8 +124,7 @@ export function buildPinoOptions(logging: LoggingConfig): LoggerOptions {
     // exactly the level users are told to use when troubleshooting and
     // pasting logs into issues/chats). Paths are relative to each log call's
     // merging object, so this covers both a top-level secret and any nested
-    // `{ headers: { Password } }`-shaped object. Ported unchanged from
-    // terminal/src/lib/core/logger.ts.
+    // `{ headers: { Password } }`-shaped object.
     redact: {
       paths: [
         'IMAP_PASSWORD',
@@ -145,19 +141,19 @@ export function buildPinoOptions(logging: LoggingConfig): LoggerOptions {
       ],
       censor: '[REDACTED]',
     },
-    // nestjs-pino has no `forComponent()`-style creation choke point the way
-    // terminal's logger.ts does - this hook runs on every log call across
+    // nestjs-pino has no `forComponent()`-style creation choke point - this
+    // hook runs on every log call across
     // the whole logger tree instead (root, `.child()`, and pino-http's
     // per-request children alike), reading the `component` binding any of
     // them may carry, and drops the call when that component is filtered
-    // out - the same semantics as terminal's `shouldLogComponent`.
+    // out.
     hooks: {
       logMethod(this: PinoLogger, inputArgs, method) {
         if (
           !shouldLogComponent(
             this.bindings().component,
             filterIncludesComponents,
-            filterExcludesComponents
+            filterExcludesComponents,
           )
         ) {
           return;
@@ -183,7 +179,7 @@ export function buildPinoOptions(logging: LoggingConfig): LoggerOptions {
       };
     } else {
       console.warn(
-        'LOG_FORMAT=pretty requested but pino-pretty is not installed (expected in the production Docker image, which only installs dependencies) - falling back to JSON'
+        'LOG_FORMAT=pretty requested but pino-pretty is not installed (expected in the production Docker image, which only installs dependencies) - falling back to JSON',
       );
     }
   }

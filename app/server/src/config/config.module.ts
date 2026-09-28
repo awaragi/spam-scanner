@@ -32,8 +32,7 @@ const sections = [
  * invalid configuration.
  *
  * `@Global()` so every other module can inject a typed section
- * (`RspamdConfig`, `AiConfig`, ...) without importing this module directly -
- * mirroring how `config.ts` is imported ambiently in `terminal/`.
+ * (`RspamdConfig`, `AiConfig`, ...) without importing this module directly.
  */
 @Global()
 @Module({
@@ -41,14 +40,13 @@ const sections = [
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
-      // The server reads only process.env, like `terminal/`'s `config.ts` -
-      // no implicit `.env` file loading, so behavior doesn't depend on
+      // The server reads only process.env - no implicit `.env` file loading, so behavior doesn't depend on
       // whichever directory the process happens to start in.
       ignoreEnvFile: true,
       validationSchema: AppConfigSchema,
     }),
   ],
-  providers: sections.map(Section => ({
+  providers: sections.map((Section) => ({
     provide: Section,
     useFactory: (config: AppConfigService) => new Section(config),
     inject: [ConfigService],

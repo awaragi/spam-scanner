@@ -57,16 +57,15 @@ interface BatchTotals {
 
 /**
  * Orchestrates a full inbox scan for one mailbox: read state, search, batch
- * process, update state. Ported from terminal's `scan.controller.ts`
- * (`runScan`/`scanBatch`), taking a `MailboxSession` instead of
- * `(imap, ctx)` - see design.md D4. `BATCH_PROCESS_SIZE` and the global
+ * process, update state, taking a `MailboxSession` (see design.md D4).
+ * `BATCH_PROCESS_SIZE` and the global
  * `AI_ENABLED` switch come from injected config sections; everything else
  * per-mailbox (folders, processing mode, thresholds, AI escalation
  * thresholds, the per-mailbox `aiEnabled` opt-out) comes from
  * `session.settings`/`session.folders` (design.md D5).
  *
- * Unlike terminal, this never posts an AI-failure alert email - that step is
- * a documented non-goal of this change (see `ai-classification.step.ts`).
+ * This never posts an AI-failure alert email - that step is a documented
+ * non-goal of this change (see `ai-classification.step.ts`).
  */
 @Injectable()
 export class ScanService {
@@ -77,7 +76,7 @@ export class ScanService {
     private readonly rspamdCheckStep: RspamdCheckStep,
     private readonly aiClassificationStep: AiClassificationStep,
     private readonly dispositionStep: DispositionStep,
-    private readonly senderListLookupStep: SenderListLookupStep
+    private readonly senderListLookupStep: SenderListLookupStep,
   ) {}
 
   /**
@@ -89,7 +88,7 @@ export class ScanService {
    */
   private async disposeCategorized(
     categorized: CategorizedMessages,
-    session: MailboxSession
+    session: MailboxSession,
   ): Promise<void> {
     switch (session.settings.processingMode) {
       case 'label':
@@ -100,7 +99,7 @@ export class ScanService {
         return;
       default:
         throw new Error(
-          `Unknown processing mode: ${String(session.settings.processingMode)}. Expected 'label' or 'folder'`
+          `Unknown processing mode: ${String(session.settings.processingMode)}. Expected 'label' or 'folder'`,
         );
     }
   }
@@ -117,14 +116,14 @@ export class ScanService {
     session: MailboxSession,
     uids: number[],
     state: ScannerState,
-    lists: { whitelistSet: Set<string>; blacklistSet: Set<string> }
+    lists: { whitelistSet: Set<string>; blacklistSet: Set<string> },
   ): Promise<BatchTotals> {
     const { imap, settings, folders, logger } = session;
     const { whitelistSet, blacklistSet } = lists;
     const messages = (await fetchMessagesByUIDs(
       imap,
       uids,
-      logger
+      logger,
     )) as unknown as ScanMessage[];
 
     // Blacklist check precedes the rspamd call entirely (see the
@@ -136,7 +135,7 @@ export class ScanService {
 
     const checkedMessages = await this.rspamdCheckStep.check(
       remainingMessages,
-      session
+      session,
     );
     const { messages: processedMessages, whitelistedTotal } =
       applyWhitelistAdjustments(checkedMessages, whitelistSet);
@@ -145,7 +144,7 @@ export class ScanService {
       processedMessages,
       settings.thresholds.clean,
       settings.thresholds.low,
-      settings.thresholds.confirmed
+      settings.thresholds.confirmed,
     );
 
     if (this.aiConfig.enabled && settings.aiEnabled) {
@@ -156,10 +155,10 @@ export class ScanService {
       // (whitelist-adjusted) score actually produced - only non-whitelisted
       // clean/low messages go to AI.
       const nonSpamPartition = partitionByWhitelistFlag(
-        categorized.nonSpamMessages
+        categorized.nonSpamMessages,
       );
       const lowSpamPartition = partitionByWhitelistFlag(
-        categorized.lowSpamMessages
+        categorized.lowSpamMessages,
       );
 
       const aiResults = await this.aiClassificationStep.classify(
@@ -167,7 +166,7 @@ export class ScanService {
           nonSpamMessages: nonSpamPartition.rest,
           lowSpamMessages: lowSpamPartition.rest,
         },
-        session
+        session,
       );
 
       const escalated = applyAiEscalation(
@@ -180,13 +179,13 @@ export class ScanService {
         {
           escalateToLowThreshold: settings.aiEscalation.toLowThreshold,
           escalateToHighThreshold: settings.aiEscalation.toHighThreshold,
-        }
+        },
       );
 
       categorized = mergeWhitelistedBack(
         escalated,
         nonSpamPartition.whitelisted,
-        lowSpamPartition.whitelisted
+        lowSpamPartition.whitelisted,
       );
     }
 
@@ -198,7 +197,7 @@ export class ScanService {
     // Process messages with the configured strategy (label/folder)
     await this.disposeCategorized(
       { nonSpamMessages, lowSpamMessages, highSpamMessages },
-      session
+      session,
     );
 
     await this.dispositionStep.moveConfirmedSpam(spamMessages, session);
@@ -216,7 +215,7 @@ export class ScanService {
           uid_validity: state.uid_validity,
         }),
       },
-      logger
+      logger,
     );
 
     state.last_uid = progress.last_uid;
@@ -233,7 +232,7 @@ export class ScanService {
         last_uid: progress.last_uid,
         last_seen_date: progress.last_seen_date,
       },
-      'Batch processing completed'
+      'Batch processing completed',
     );
 
     return {
@@ -253,13 +252,12 @@ export class ScanService {
    *   `last_uid`
    */
   async runScan(
-    session: MailboxSession
+    session: MailboxSession,
   ): Promise<{ processed: number; last_uid: number }> {
     const { folders, logger } = session;
 
     try {
-      const { state, uids } =
-        await this.pendingMessagesStep.locate(session);
+      const { state, uids } = await this.pendingMessagesStep.locate(session);
       if (uids.length === 0) {
         logger.debug({ folder: folders.inbox }, 'No new messages to process');
         return { processed: 0, last_uid: state.last_uid };
@@ -284,7 +282,7 @@ export class ScanService {
             to: Math.min(i + batchSize, uids.length),
             total: uids.length,
           },
-          'Scanning batch'
+          'Scanning batch',
         );
         const batchUids = uids.slice(i, i + batchSize);
         const counts = await this.scanBatch(session, batchUids, state, lists);
@@ -293,7 +291,7 @@ export class ScanService {
 
       logger.info(
         { folder: folders.inbox, total: uids.length, ...totals },
-        'All scan operations completed'
+        'All scan operations completed',
       );
 
       return { processed: uids.length, last_uid: state.last_uid };
@@ -303,7 +301,7 @@ export class ScanService {
           folder: folders.inbox,
           error: error instanceof Error ? error.message : String(error),
         },
-        'Error in scan workflow'
+        'Error in scan workflow',
       );
       throw error;
     }

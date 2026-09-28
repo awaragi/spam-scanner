@@ -2,13 +2,13 @@
   "name": "spam-scanner-monorepo",
   "private": true,
   "workspaces": [
-    "terminal",
     "app/*"
   ],
   "scripts": {
-    "test": "npm test --workspace=terminal",
-    "lint": "npm run lint --workspace=terminal",
-    "format:check": "npm run format:check --workspace=terminal",
+    "test": "npm test --workspace=app/server",
+    "lint": "npm run lint --workspaces --if-present",
+    "format": "npm run format --workspaces --if-present",
+    "format:check": "npm run format:check --workspaces --if-present",
     "mock-rspamd": "node bin/local/mock-rspamd.mjs",
     "front:start": "npm start --workspace=front"
   },

@@ -1,5 +1,8 @@
 import { describe, test, expect, vi } from 'vitest';
-import { overridableSchema, validateOverrides } from './mailbox-settings.schema.js';
+import {
+  overridableSchema,
+  validateOverrides,
+} from './mailbox-settings.schema.js';
 
 describe('overridableSchema', () => {
   test('a message overriding only thresholds.clean parses without requiring low/confirmed', () => {
@@ -10,7 +13,7 @@ describe('overridableSchema', () => {
 
   test('thresholds.clean with the wrong type fails validation', () => {
     expect(() =>
-      overridableSchema.parse({ thresholds: { clean: 'thirty' } })
+      overridableSchema.parse({ thresholds: { clean: 'thirty' } }),
     ).toThrow();
   });
 
@@ -35,19 +38,19 @@ describe('validateOverrides', () => {
     const result = validateOverrides(
       { thresholds: { clean: 40 }, scanInterval: 600 },
       { warn } as any,
-      'mailbox@example.com'
+      'mailbox@example.com',
     );
 
     expect(result).toEqual({ thresholds: { clean: 40 } });
     expect(warn).toHaveBeenCalledWith(
       { mailboxId: 'mailbox@example.com', key: 'scanInterval' },
-      'Ignoring unrecognized or global-only settings key'
+      'Ignoring unrecognized or global-only settings key',
     );
   });
 
   test('a type error on a recognized key throws', () => {
     expect(() =>
-      validateOverrides({ thresholds: { clean: 'thirty' } })
+      validateOverrides({ thresholds: { clean: 'thirty' } }),
     ).toThrow();
   });
 
@@ -55,15 +58,20 @@ describe('validateOverrides', () => {
     const warn = vi.fn();
 
     const result = validateOverrides(
-      { thresholds: { clean: 40, rspamdUser: 'nope' } as Record<string, unknown> },
+      {
+        thresholds: { clean: 40, rspamdUser: 'nope' } as Record<
+          string,
+          unknown
+        >,
+      },
       { warn } as any,
-      'mailbox@example.com'
+      'mailbox@example.com',
     );
 
     expect(result).toEqual({ thresholds: { clean: 40 } });
     expect(warn).toHaveBeenCalledWith(
       { mailboxId: 'mailbox@example.com', key: 'thresholds.rspamdUser' },
-      'Ignoring unrecognized or global-only settings key'
+      'Ignoring unrecognized or global-only settings key',
     );
   });
 
@@ -82,8 +90,6 @@ describe('validateOverrides', () => {
   });
 
   test('works with no logger passed at all', () => {
-    expect(() =>
-      validateOverrides({ scanInterval: 600 })
-    ).not.toThrow();
+    expect(() => validateOverrides({ scanInterval: 600 })).not.toThrow();
   });
 });

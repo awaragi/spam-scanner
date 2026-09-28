@@ -102,7 +102,12 @@ describe('search', () => {
 describe('fetchMessagesByUIDs', () => {
   test('fetches messages by UIDs and maps through processMessage', async () => {
     async function* fakeFetch() {
-      yield { uid: 1, flags: ['\\Seen'], envelope: {}, source: Buffer.from('msg1') };
+      yield {
+        uid: 1,
+        flags: ['\\Seen'],
+        envelope: {},
+        source: Buffer.from('msg1'),
+      };
       yield { uid: 2, flags: [], envelope: {}, source: Buffer.from('msg2') };
     }
 
@@ -112,7 +117,7 @@ describe('fetchMessagesByUIDs', () => {
 
     const result = await gateway.fetchMessagesByUIDs(
       asImapFlow(mockImap),
-      [1, 2]
+      [1, 2],
     );
 
     expect(result).toHaveLength(2);
@@ -124,7 +129,7 @@ describe('fetchMessagesByUIDs', () => {
         envelope: true,
         flags: true,
       }),
-      { uid: true }
+      { uid: true },
     );
     expect(mapper.processMessage).toHaveBeenCalledTimes(2);
   });
@@ -143,14 +148,14 @@ describe('fetchMessageHeadersByUIDs', () => {
 
     const result = await gateway.fetchMessageHeadersByUIDs(
       asImapFlow(mockImap),
-      [1, 2]
+      [1, 2],
     );
 
     expect(result).toHaveLength(2);
     expect(mockImap.fetch).toHaveBeenCalledWith(
       { uid: '1,2' },
       { uid: true, headers: true },
-      { uid: true }
+      { uid: true },
     );
     expect(mapper.processMessageHeaders).toHaveBeenCalledTimes(2);
   });
@@ -179,11 +184,9 @@ describe('moveMessages', () => {
 
     await gateway.moveMessages(asImapFlow(mockImap), messages, 'Spam');
 
-    expect(mockImap.messageMove).toHaveBeenCalledWith(
-      [1, 2, 3],
-      'Spam',
-      { uid: true }
-    );
+    expect(mockImap.messageMove).toHaveBeenCalledWith([1, 2, 3], 'Spam', {
+      uid: true,
+    });
   });
 
   test('returns early if messages array is empty', async () => {
@@ -204,18 +207,11 @@ describe('appendMessage', () => {
     };
     const raw = Buffer.from('test message');
 
-    await gateway.appendMessage(
-      asImapFlow(mockImap),
-      'Drafts',
-      raw,
-      ['\\Seen']
-    );
+    await gateway.appendMessage(asImapFlow(mockImap), 'Drafts', raw, [
+      '\\Seen',
+    ]);
 
-    expect(mockImap.append).toHaveBeenCalledWith(
-      'Drafts',
-      raw,
-      ['\\Seen']
-    );
+    expect(mockImap.append).toHaveBeenCalledWith('Drafts', raw, ['\\Seen']);
   });
 
   test('appends message without flags by default', async () => {
@@ -242,18 +238,18 @@ describe('updateLabels', () => {
       asImapFlow(mockImap),
       messages,
       ['\\Flagged'],
-      ['\\Seen']
+      ['\\Seen'],
     );
 
     expect(mockImap.messageFlagsAdd).toHaveBeenCalledWith(
       expect.objectContaining({ uid: [1, 2] }),
       ['\\Flagged'],
-      { uid: true }
+      { uid: true },
     );
     expect(mockImap.messageFlagsRemove).toHaveBeenCalledWith(
       expect.objectContaining({ uid: [1, 2] }),
       ['\\Seen'],
-      { uid: true }
+      { uid: true },
     );
   });
 
@@ -286,11 +282,13 @@ describe('updateLabels', () => {
 describe('getImapDelimiter', () => {
   test('returns the folder delimiter from list response', async () => {
     const mockImap = {
-      list: vi.fn().mockResolvedValue([
-        { delimiter: null },
-        { delimiter: '/' },
-        { delimiter: '.' },
-      ]),
+      list: vi
+        .fn()
+        .mockResolvedValue([
+          { delimiter: null },
+          { delimiter: '/' },
+          { delimiter: '.' },
+        ]),
     };
 
     const result = await gateway.getImapDelimiter(asImapFlow(mockImap));
@@ -300,10 +298,9 @@ describe('getImapDelimiter', () => {
 
   test('returns null if no delimiter found', async () => {
     const mockImap = {
-      list: vi.fn().mockResolvedValue([
-        { delimiter: null },
-        { delimiter: undefined },
-      ]),
+      list: vi
+        .fn()
+        .mockResolvedValue([{ delimiter: null }, { delimiter: undefined }]),
     };
 
     const result = await gateway.getImapDelimiter(asImapFlow(mockImap));
@@ -334,9 +331,7 @@ describe('createAppFolders', () => {
         .mockResolvedValueOnce({ created: true }), // Second is new
     };
 
-    await gateway.createAppFolders(asImapFlow(mockImap), [
-      'INBOX/scanner',
-    ]);
+    await gateway.createAppFolders(asImapFlow(mockImap), ['INBOX/scanner']);
 
     expect(mockImap.mailboxCreate).toHaveBeenCalled();
   });
@@ -347,7 +342,7 @@ describe('createAppFolders', () => {
     };
 
     await expect(
-      gateway.createAppFolders(asImapFlow(mockImap), ['INBOX/scanner'])
+      gateway.createAppFolders(asImapFlow(mockImap), ['INBOX/scanner']),
     ).rejects.toThrow('Failed to get folder separator');
   });
 });
@@ -369,7 +364,7 @@ describe('findFirstUIDOnDate', () => {
     const result = await gateway.findFirstUIDOnDate(
       asImapFlow(mockImap),
       'INBOX',
-      '2024-01-15'
+      '2024-01-15',
     );
 
     expect(result).toEqual({
@@ -378,7 +373,7 @@ describe('findFirstUIDOnDate', () => {
       last_checked: expect.any(String),
     });
     expect(mockImap.search).toHaveBeenCalledWith(
-      expect.objectContaining({ since: expect.any(Date) })
+      expect.objectContaining({ since: expect.any(Date) }),
     );
   });
 
@@ -393,11 +388,7 @@ describe('findFirstUIDOnDate', () => {
       fetchOne: vi.fn().mockResolvedValue(mockMessage),
     };
 
-    await gateway.findFirstUIDOnDate(
-      asImapFlow(mockImap),
-      'INBOX',
-      undefined
-    );
+    await gateway.findFirstUIDOnDate(asImapFlow(mockImap), 'INBOX', undefined);
 
     expect(mockImap.search).toHaveBeenCalledWith({});
   });
@@ -411,7 +402,7 @@ describe('findFirstUIDOnDate', () => {
     const result = await gateway.findFirstUIDOnDate(
       asImapFlow(mockImap),
       'INBOX',
-      '2024-01-15'
+      '2024-01-15',
     );
 
     expect(result).toBeNull();

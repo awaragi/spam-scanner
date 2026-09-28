@@ -4,7 +4,7 @@ import { dateToString } from './email.js';
 describe('dateToString', () => {
   test('converts a Date to an ISO string', () => {
     expect(dateToString(new Date('2024-01-01T00:00:00Z'))).toBe(
-      '2024-01-01T00:00:00.000Z'
+      '2024-01-01T00:00:00.000Z',
     );
   });
 
@@ -19,7 +19,7 @@ describe('dateToString', () => {
         toISOString: () => {
           throw new Error('bad');
         },
-      })
+      }),
     ).toBe('');
   });
 });

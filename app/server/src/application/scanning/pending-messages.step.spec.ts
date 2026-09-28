@@ -43,7 +43,7 @@ function fixtureMailbox(overrides: Partial<Mailbox> = {}): Mailbox {
 }
 
 function fixtureFolders(
-  overrides: Partial<MailboxFolders> = {}
+  overrides: Partial<MailboxFolders> = {},
 ): MailboxFolders {
   return {
     inbox: 'INBOX',
@@ -72,7 +72,9 @@ function fixtureLogger(): PinoLogger {
   return logger as unknown as PinoLogger;
 }
 
-function fixtureSession(overrides: Partial<MailboxSession> = {}): MailboxSession {
+function fixtureSession(
+  overrides: Partial<MailboxSession> = {},
+): MailboxSession {
   return {
     mailbox: fixtureMailbox(),
     imap: {} as ImapFlow,
@@ -195,7 +197,7 @@ describe('PendingMessagesStep', () => {
       session.imap,
       session.folders.state,
       expect.objectContaining({ last_uid: 5, uid_validity: '222' }),
-      session.logger
+      session.logger,
     );
   });
 

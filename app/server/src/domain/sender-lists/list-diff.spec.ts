@@ -6,7 +6,7 @@ describe('diffListUpdate', () => {
     const result = diffListUpdate(
       ['a@b.com'],
       ['C@D.com', 'a@b.com'],
-      'append'
+      'append',
     );
 
     expect(result.list).toEqual(['a@b.com', 'c@d.com']);
@@ -20,7 +20,7 @@ describe('diffListUpdate', () => {
     const result = diffListUpdate(
       ['old@example.com'],
       ['new@example.com'],
-      'override'
+      'override',
     );
 
     expect(result.list).toEqual(['new@example.com']);

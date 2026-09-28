@@ -26,9 +26,9 @@ interface DatedMessage {
 export function computeScanProgress(
   state: UidState,
   messages: DatedMessage[],
-  now: () => string = () => new Date().toISOString()
+  now: () => string = () => new Date().toISOString(),
 ): { last_uid: number; last_seen_date: string; last_checked: string } {
-  const last_uid = Math.max(state.last_uid, ...messages.map(msg => msg.uid));
+  const last_uid = Math.max(state.last_uid, ...messages.map((msg) => msg.uid));
 
   const last_seen_date = messages.reduce((maxDate, message) => {
     const date = dateToString(message.envelope.date);
@@ -61,7 +61,7 @@ interface MailboxValidity {
 
 export function computeUidValidityReset(
   state: ValidityState,
-  mailbox: MailboxValidity
+  mailbox: MailboxValidity,
 ): {
   state: ValidityState;
   changed: boolean;
@@ -102,7 +102,7 @@ export function computeUidValidityReset(
  */
 export function buildScanQuery(
   state: UidState,
-  scanRead: boolean
+  scanRead: boolean,
 ): { uid: string; seen?: false } {
   const query: { uid: string; seen?: false } = {
     uid: `${state.last_uid + 1}:*`,
@@ -129,7 +129,7 @@ interface BatchTotals {
 
 export function sumBatchTotals(
   totals: BatchTotals,
-  counts: BatchTotals
+  counts: BatchTotals,
 ): BatchTotals {
   return {
     lowSpamTotal: totals.lowSpamTotal + counts.lowSpamTotal,

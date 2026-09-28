@@ -27,9 +27,9 @@ describe('categorizeMessages', () => {
 
     const result = categorizeMessages(messages, 30, 60, 200);
 
-    expect(result.nonSpamMessages.map(m => m.uid)).toEqual([1]);
-    expect(result.lowSpamMessages.map(m => m.uid)).toEqual([2]);
-    expect(result.highSpamMessages.map(m => m.uid)).toEqual([3]);
+    expect(result.nonSpamMessages.map((m) => m.uid)).toEqual([1]);
+    expect(result.lowSpamMessages.map((m) => m.uid)).toEqual([2]);
+    expect(result.highSpamMessages.map((m) => m.uid)).toEqual([3]);
     expect(result.spamMessages).toEqual([]);
   });
 
@@ -47,7 +47,7 @@ describe('categorizeMessages', () => {
 
     const result = categorizeMessages(messages, 30, 60, 200);
 
-    expect(result.spamMessages.map(m => m.uid)).toEqual([1, 2]);
+    expect(result.spamMessages.map((m) => m.uid)).toEqual([1, 2]);
     expect(result.highSpamMessages).toEqual([]);
   });
 
@@ -66,7 +66,7 @@ describe('categorizeMessages', () => {
 
     const result = categorizeMessages(messages, 30, 60, 200);
 
-    expect(result.nonSpamMessages.map(m => m.uid)).toEqual([1, 2, 3]);
+    expect(result.nonSpamMessages.map((m) => m.uid)).toEqual([1, 2, 3]);
     expect(result.lowSpamMessages).toEqual([]);
     expect(result.highSpamMessages).toEqual([]);
     expect(result.spamMessages).toEqual([]);
@@ -88,10 +88,10 @@ describe('categorizeMessages', () => {
 
     const result = categorizeMessages(messages, 20, 40, 80);
 
-    expect(result.nonSpamMessages.map(m => m.uid)).toEqual([1]);
-    expect(result.lowSpamMessages.map(m => m.uid)).toEqual([2]);
-    expect(result.highSpamMessages.map(m => m.uid)).toEqual([3]);
-    expect(result.spamMessages.map(m => m.uid)).toEqual([4]);
+    expect(result.nonSpamMessages.map((m) => m.uid)).toEqual([1]);
+    expect(result.lowSpamMessages.map((m) => m.uid)).toEqual([2]);
+    expect(result.highSpamMessages.map((m) => m.uid)).toEqual([3]);
+    expect(result.spamMessages.map((m) => m.uid)).toEqual([4]);
   });
 
   test('isWhitelisted has no effect on tier assignment - a low-scoring whitelisted message is just clean', () => {
@@ -109,7 +109,7 @@ describe('categorizeMessages', () => {
 
     const result = categorizeMessages(messages, 30, 60, 200);
 
-    expect(result.nonSpamMessages.map(m => m.uid)).toEqual([1]);
+    expect(result.nonSpamMessages.map((m) => m.uid)).toEqual([1]);
   });
 
   test('a whitelisted message scoring in the high band is classified high, not silently treated as clean', () => {
@@ -127,7 +127,7 @@ describe('categorizeMessages', () => {
 
     const result = categorizeMessages(messages, 30, 60, 200);
 
-    expect(result.highSpamMessages.map(m => m.uid)).toEqual([1]);
+    expect(result.highSpamMessages.map((m) => m.uid)).toEqual([1]);
     expect(result.nonSpamMessages).toEqual([]);
   });
 
@@ -146,7 +146,7 @@ describe('categorizeMessages', () => {
 
     const result = categorizeMessages(messages, 30, 60, 200);
 
-    expect(result.spamMessages.map(m => m.uid)).toEqual([1]);
+    expect(result.spamMessages.map((m) => m.uid)).toEqual([1]);
   });
 
   test('should treat isWhitelisted as false when absent', () => {
@@ -163,7 +163,7 @@ describe('categorizeMessages', () => {
 
     const result = categorizeMessages(messages, 30, 60, 200);
 
-    expect(result.nonSpamMessages.map(m => m.uid)).toEqual([1]);
+    expect(result.nonSpamMessages.map((m) => m.uid)).toEqual([1]);
   });
 
   test('should partition a mixed batch into nonSpam, lowSpam, highSpam, and spam purely by score, ignoring isWhitelisted', () => {
@@ -217,10 +217,10 @@ describe('categorizeMessages', () => {
 
     const result = categorizeMessages(messages, 30, 60, 200);
 
-    expect(result.nonSpamMessages.map(m => m.uid)).toEqual([1, 2]);
-    expect(result.lowSpamMessages.map(m => m.uid)).toEqual([3]);
-    expect(result.highSpamMessages.map(m => m.uid)).toEqual([4]);
-    expect(result.spamMessages.map(m => m.uid)).toEqual([5]);
+    expect(result.nonSpamMessages.map((m) => m.uid)).toEqual([1, 2]);
+    expect(result.lowSpamMessages.map((m) => m.uid)).toEqual([3]);
+    expect(result.highSpamMessages.map((m) => m.uid)).toEqual([4]);
+    expect(result.spamMessages.map((m) => m.uid)).toEqual([5]);
   });
 });
 
@@ -228,7 +228,7 @@ describe('applyAiEscalation', () => {
   function withAiScore(
     uid: number,
     score: number | null,
-    error: string | null = null
+    error: string | null = null,
   ) {
     return {
       uid,
@@ -271,7 +271,7 @@ describe('applyAiEscalation', () => {
       escalateToHighThreshold: 80,
     });
 
-    expect(result.nonSpamMessages.map(m => m.uid)).toEqual([1]);
+    expect(result.nonSpamMessages.map((m) => m.uid)).toEqual([1]);
     expect(result.lowSpamMessages).toEqual([]);
     expect(result.highSpamMessages).toEqual([]);
   });
@@ -289,7 +289,7 @@ describe('applyAiEscalation', () => {
     });
 
     expect(result.nonSpamMessages).toEqual([]);
-    expect(result.lowSpamMessages.map(m => m.uid)).toEqual([1]);
+    expect(result.lowSpamMessages.map((m) => m.uid)).toEqual([1]);
     expect(result.highSpamMessages).toEqual([]);
   });
 
@@ -307,7 +307,7 @@ describe('applyAiEscalation', () => {
 
     expect(result.nonSpamMessages).toEqual([]);
     expect(result.lowSpamMessages).toEqual([]);
-    expect(result.highSpamMessages.map(m => m.uid)).toEqual([1]);
+    expect(result.highSpamMessages.map((m) => m.uid)).toEqual([1]);
   });
 
   test('lowSpam message below the low threshold stays lowSpam (no de-escalation to nonSpam)', () => {
@@ -323,7 +323,7 @@ describe('applyAiEscalation', () => {
     });
 
     expect(result.nonSpamMessages).toEqual([]);
-    expect(result.lowSpamMessages.map(m => m.uid)).toEqual([1]);
+    expect(result.lowSpamMessages.map((m) => m.uid)).toEqual([1]);
   });
 
   test('lowSpam message above the high threshold escalates to highSpam', () => {
@@ -339,7 +339,7 @@ describe('applyAiEscalation', () => {
     });
 
     expect(result.lowSpamMessages).toEqual([]);
-    expect(result.highSpamMessages.map(m => m.uid)).toEqual([1]);
+    expect(result.highSpamMessages.map((m) => m.uid)).toEqual([1]);
   });
 
   test('failed AI classification (aiInfo.error set, score null) leaves message in its original bucket', () => {
@@ -354,8 +354,8 @@ describe('applyAiEscalation', () => {
       escalateToHighThreshold: 80,
     });
 
-    expect(result.nonSpamMessages.map(m => m.uid)).toEqual([1]);
-    expect(result.lowSpamMessages.map(m => m.uid)).toEqual([2]);
+    expect(result.nonSpamMessages.map((m) => m.uid)).toEqual([1]);
+    expect(result.lowSpamMessages.map((m) => m.uid)).toEqual([2]);
   });
 
   test('boundary values are inclusive (score === threshold escalates)', () => {
@@ -370,8 +370,8 @@ describe('applyAiEscalation', () => {
       escalateToHighThreshold: 80,
     });
 
-    expect(result.lowSpamMessages.map(m => m.uid)).toEqual([1]);
-    expect(result.highSpamMessages.map(m => m.uid)).toEqual([2]);
+    expect(result.lowSpamMessages.map((m) => m.uid)).toEqual([1]);
+    expect(result.highSpamMessages.map((m) => m.uid)).toEqual([2]);
   });
 
   test('custom thresholds override the defaults', () => {
@@ -386,7 +386,7 @@ describe('applyAiEscalation', () => {
       escalateToHighThreshold: 60,
     });
 
-    expect(result.lowSpamMessages.map(m => m.uid)).toEqual([1]);
+    expect(result.lowSpamMessages.map((m) => m.uid)).toEqual([1]);
   });
 
   test('original highSpamMessages and spamMessages pass through unmodified', () => {
@@ -414,7 +414,7 @@ describe('applyAiEscalation', () => {
     });
 
     expect(result.spamMessages).toEqual([]);
-    expect(result.highSpamMessages.map(m => m.uid).sort()).toEqual([1, 2]);
+    expect(result.highSpamMessages.map((m) => m.uid).sort()).toEqual([1, 2]);
   });
 });
 
@@ -443,7 +443,7 @@ describe('applyWhitelistAdjustments', () => {
     address: string,
     score = 30,
     required = 15,
-    senderAuthenticated = false
+    senderAuthenticated = false,
   ) {
     return {
       uid,
@@ -457,7 +457,7 @@ describe('applyWhitelistAdjustments', () => {
 
     const { messages: result, whitelistedTotal } = applyWhitelistAdjustments(
       messages,
-      new Set(['trusted@example.com'])
+      new Set(['trusted@example.com']),
     );
 
     expect(result[0].spamInfo).toMatchObject({
@@ -473,7 +473,7 @@ describe('applyWhitelistAdjustments', () => {
 
     const { messages: result, whitelistedTotal } = applyWhitelistAdjustments(
       messages,
-      new Set(['trusted@example.com'])
+      new Set(['trusted@example.com']),
     );
 
     expect(result[0].spamInfo).toMatchObject({
@@ -489,7 +489,7 @@ describe('applyWhitelistAdjustments', () => {
 
     const { messages: result, whitelistedTotal } = applyWhitelistAdjustments(
       messages,
-      new Set(['trusted@example.com'])
+      new Set(['trusted@example.com']),
     );
 
     expect(result[0].spamInfo).toMatchObject({
@@ -508,10 +508,10 @@ describe('applyWhitelistAdjustments', () => {
 
     const { messages: result, whitelistedTotal } = applyWhitelistAdjustments(
       messages,
-      new Set(['trusted@example.com'])
+      new Set(['trusted@example.com']),
     );
 
-    expect(result.map(m => m.spamInfo.score)).toEqual([10, 30, 45]);
+    expect(result.map((m) => m.spamInfo.score)).toEqual([10, 30, 45]);
     expect(whitelistedTotal).toBe(2);
   });
 
@@ -523,7 +523,7 @@ describe('applyWhitelistAdjustments', () => {
 
     const { messages: result, whitelistedTotal } = applyWhitelistAdjustments(
       messages,
-      new Set(['@example.com'])
+      new Set(['@example.com']),
     );
 
     expect(result[0].spamInfo).toMatchObject({
@@ -557,8 +557,8 @@ describe('partitionByWhitelistFlag', () => {
 
     const { whitelisted, rest } = partitionByWhitelistFlag(messages);
 
-    expect(whitelisted.map(m => m.uid)).toEqual([1, 3]);
-    expect(rest.map(m => m.uid)).toEqual([2]);
+    expect(whitelisted.map((m) => m.uid)).toEqual([1, 3]);
+    expect(rest.map((m) => m.uid)).toEqual([2]);
   });
 
   test('an unauthenticated whitelist match is NOT held back from AI', () => {
@@ -572,13 +572,13 @@ describe('partitionByWhitelistFlag', () => {
     const { whitelisted, rest } = partitionByWhitelistFlag(messages);
 
     expect(whitelisted).toEqual([]);
-    expect(rest.map(m => m.uid)).toEqual([1]);
+    expect(rest.map((m) => m.uid)).toEqual([1]);
   });
 
   test('treats a missing spamInfo as not whitelisted', () => {
     const { whitelisted, rest } = partitionByWhitelistFlag([{ uid: 1 }]);
     expect(whitelisted).toEqual([]);
-    expect(rest.map(m => m.uid)).toEqual([1]);
+    expect(rest.map((m) => m.uid)).toEqual([1]);
   });
 });
 
@@ -594,11 +594,11 @@ describe('mergeWhitelistedBack', () => {
     const result = mergeWhitelistedBack(
       categorized,
       [{ uid: 10 }],
-      [{ uid: 20 }]
+      [{ uid: 20 }],
     );
 
-    expect(result.nonSpamMessages.map(m => m.uid)).toEqual([1, 10]);
-    expect(result.lowSpamMessages.map(m => m.uid)).toEqual([2, 20]);
+    expect(result.nonSpamMessages.map((m) => m.uid)).toEqual([1, 10]);
+    expect(result.lowSpamMessages.map((m) => m.uid)).toEqual([2, 20]);
     expect(result.highSpamMessages).toBe(categorized.highSpamMessages);
     expect(result.spamMessages).toBe(categorized.spamMessages);
   });

@@ -63,10 +63,10 @@ describe('waitForNewMail', () => {
     await waitForNewMail(asImapFlow(mockImap), 'INBOX');
 
     expect(callOrder.indexOf('once:exists')).toBeLessThan(
-      callOrder.indexOf('getMailboxLock')
+      callOrder.indexOf('getMailboxLock'),
     );
     expect(callOrder.indexOf('once:error')).toBeLessThan(
-      callOrder.indexOf('getMailboxLock')
+      callOrder.indexOf('getMailboxLock'),
     );
   });
 
@@ -89,7 +89,7 @@ describe('waitForNewMail', () => {
     mockImap.getMailboxLock.mockRejectedValue(new Error('connection lost'));
 
     await expect(waitForNewMail(asImapFlow(mockImap), 'INBOX')).rejects.toThrow(
-      'connection lost'
+      'connection lost',
     );
 
     expect(mockImap.off).toHaveBeenCalledWith('exists', expect.any(Function));
@@ -103,7 +103,7 @@ describe('waitForNewMail', () => {
     });
 
     await expect(waitForNewMail(asImapFlow(mockImap), 'INBOX')).rejects.toThrow(
-      'socket closed'
+      'socket closed',
     );
 
     expect(mockLock.release).toHaveBeenCalledOnce();
@@ -115,7 +115,7 @@ describe('waitForNewMail', () => {
     });
 
     await expect(waitForNewMail(asImapFlow(mockImap), 'INBOX')).rejects.toThrow(
-      'IMAP connection closed while waiting for EXISTS'
+      'IMAP connection closed while waiting for EXISTS',
     );
 
     expect(mockLock.release).toHaveBeenCalledOnce();

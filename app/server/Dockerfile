@@ -2,9 +2,7 @@
 #
 # Built from the REPO ROOT as context (`docker build -f app/server/Dockerfile .`),
 # not from app/server alone, because this is an npm-workspaces monorepo and the
-# lockfile lives only at the repo root. This deliberately avoids the gap
-# `terminal/`'s Dockerfile hit in `1-monorepo-restructure` (its `npm ci` fails
-# because it can no longer find the lockfile inside `terminal/`).
+# lockfile lives only at the repo root.
 
 # Stage 1: Builder - install all workspace deps (incl. devDependencies, needed
 # for `nest build`) and compile TypeScript to dist/.

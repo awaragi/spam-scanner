@@ -104,7 +104,7 @@ describe('AiGateway', () => {
     createCompletionMock.mockResolvedValueOnce({ choices: [] });
 
     await expect(gateway.classifyEmail(sampleContent)).rejects.toThrow(
-      'Empty response from AI provider'
+      'Empty response from AI provider',
     );
   });
 
@@ -112,7 +112,7 @@ describe('AiGateway', () => {
     mockReply('   ');
 
     await expect(gateway.classifyEmail(sampleContent)).rejects.toThrow(
-      'Empty response from AI provider'
+      'Empty response from AI provider',
     );
   });
 
@@ -121,7 +121,7 @@ describe('AiGateway', () => {
     createCompletionMock.mockRejectedValueOnce(sdkError);
 
     await expect(gateway.classifyEmail(sampleContent)).rejects.toThrow(
-      'Rate limit exceeded'
+      'Rate limit exceeded',
     );
   });
 

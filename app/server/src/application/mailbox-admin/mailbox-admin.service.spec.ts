@@ -10,15 +10,21 @@ import {
   STATE_KEY_BLACKLIST_MAP,
 } from '../../domain/state/state-format.js';
 
-const { mockNewClient, mockSafeLogout, mockReadScannerState, mockDeleteScannerState, mockReadMapState, mockWriteMapState } =
-  vi.hoisted(() => ({
-    mockNewClient: vi.fn(),
-    mockSafeLogout: vi.fn(),
-    mockReadScannerState: vi.fn(),
-    mockDeleteScannerState: vi.fn(),
-    mockReadMapState: vi.fn(),
-    mockWriteMapState: vi.fn(),
-  }));
+const {
+  mockNewClient,
+  mockSafeLogout,
+  mockReadScannerState,
+  mockDeleteScannerState,
+  mockReadMapState,
+  mockWriteMapState,
+} = vi.hoisted(() => ({
+  mockNewClient: vi.fn(),
+  mockSafeLogout: vi.fn(),
+  mockReadScannerState: vi.fn(),
+  mockDeleteScannerState: vi.fn(),
+  mockReadMapState: vi.fn(),
+  mockWriteMapState: vi.fn(),
+}));
 
 vi.mock('../../infrastructure/imap/imap-connection.factory.js', () => ({
   newClient: mockNewClient,

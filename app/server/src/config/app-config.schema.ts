@@ -6,8 +6,7 @@ const DEFAULT_AI_BASE_URL = 'https://api.openai.com/v1';
  * Explicit, hand-written authoritative type for the merged runtime config -
  * not derived via `z.infer<typeof AppConfigSchema>`. `configGroups.reduce((acc, g)
  * => acc.merge(g.schema), z.object({}))` collapses precise field inference and, worse,
- * makes `z.infer` on the result excessively deep for tsc to resolve (see the same
- * TypeScript gotcha called out in `terminal/src/lib/core/config.ts`). This interface
+ * makes `z.infer` on the result excessively deep for tsc to resolve. This interface
  * is the single source of truth for the merged shape instead.
  */
 export interface AppConfig {
@@ -55,14 +54,14 @@ export interface AppConfig {
  * `parseInt()` alone would silently truncate trailing garbage (e.g.
  * `parseInt('5m', 10) === 5`) instead of catching the typo, so an invalid
  * string is passed through unchanged and rejected by zod's own number type
- * check rather than becoming `NaN`. Ported from `terminal/src/lib/core/config.ts`.
+ * check rather than becoming `NaN`.
  */
 export function intField(defaultValue: number) {
   return z
     .preprocess(
       (raw: unknown) =>
         /^-?\d+$/.test(String(raw).trim()) ? parseInt(String(raw), 10) : raw,
-      z.number().int()
+      z.number().int(),
     )
     .default(defaultValue);
 }
@@ -71,22 +70,20 @@ export function intField(defaultValue: number) {
  * A boolean field whose parsing depends on its own default: when the
  * default is `true`, only an explicit "false" opts out (e.g.
  * `MAILBOX_IMAP_TLS`); when `false`, only an explicit "true" opts in (e.g.
- * `AI_ENABLED`). Ported from `terminal/src/lib/core/config.ts`.
+ * `AI_ENABLED`).
  */
 export function boolField(defaultValue: boolean) {
   return z
     .preprocess(
-      raw => (defaultValue ? raw !== 'false' : raw === 'true'),
-      z.boolean()
+      (raw) => (defaultValue ? raw !== 'false' : raw === 'true'),
+      z.boolean(),
     )
     .default(defaultValue);
 }
 
 /**
- * Structural type for a config group, mirroring
- * `terminal/src/lib/core/config.ts`'s `ConfigGroupDef` so a future generator
- * (task 3.1) can render `.env.example` from `configGroups` the same way
- * `src/cli/generate-env.ts` does today.
+ * Structural type for a config group, so `bin/generate-env.ts`
+ * can render `.env.example` from `configGroups`.
  */
 export interface ConfigGroupDef {
   title: string;
@@ -96,7 +93,7 @@ export interface ConfigGroupDef {
 
 /**
  * Rspamd connection - shared by every mailbox (rspamd itself has no mailbox
- * awareness, see the module doc comment in `terminal/src/lib/core/config.ts`).
+ * awareness).
  */
 const rspamdGroup: ConfigGroupDef = {
   title: 'Rspamd Configuration',
@@ -106,7 +103,7 @@ const rspamdGroup: ConfigGroupDef = {
       .default('http://localhost:11334')
       .describe(
         `For Docker deployment: RSPAMD_URL is automatically set to http://rspamd:11334
-For local development: Use http://localhost:11334 (when running via bin/local/docker-compose.yml)`
+For local development: Use http://localhost:11334 (when running via bin/local/docker-compose.yml)`,
       ),
     RSPAMD_PASSWORD: z
       .string()
@@ -122,10 +119,10 @@ Docker Compose interpolates .env values wherever they're used (including
 env_file), so an unescaped "$" starts what looks like a variable
 reference (e.g. "$foo") and gets silently dropped, truncating the
 password inside the container. hash-rspamd-password.sh already accounts
-for this when hashing, but only if you escape it here first.`
+for this when hashing, but only if you escape it here first.`,
       ),
     RSPAMD_TIMEOUT_MS: intField(30000).describe(
-      'RSPAMD_TIMEOUT_MS: Abort a stalled rspamd HTTP call (check/learn) after this many ms'
+      'RSPAMD_TIMEOUT_MS: Abort a stalled rspamd HTTP call (check/learn) after this many ms',
     ),
     RSPAMD_ENVELOPE_TRUSTED_HOPS: intField(0).describe(
       `RSPAMD_ENVELOPE_TRUSTED_HOPS: number of Received: headers (counted from the
@@ -133,7 +130,7 @@ top/most recent) added by your mailbox provider's own internal
 infrastructure after accepting the message - skipped when resolving the
 connecting IP/HELO passed to rspamd for SPF/DNSBL checks. 0 fits most
 single-MX setups; increase it if an inbound relay sits in front of the
-final IMAP store.`
+final IMAP store.`,
     ),
   }),
 };
@@ -152,14 +149,14 @@ const aiGroup: ConfigGroupDef = {
       `AI_ENABLED: Re-check rspamd's nonSpam/lowSpam buckets with an LLM to catch false negatives.
 When false (default), AI is fully skipped - zero behavior change from rspamd-only scanning.
 Per-mailbox opt-out lives in code (mailbox-settings.defaults.ts) - a mailbox only ever uses
-AI when this app-wide flag AND its own setting both allow it.`
+AI when this app-wide flag AND its own setting both allow it.`,
     ),
     AI_BASE_URL: z
       .string()
       .default(DEFAULT_AI_BASE_URL)
       .describe(
         `AI_BASE_URL: OpenAI-compatible chat-completions base URL.
-Works with OpenAI, Ollama (e.g. http://localhost:11434/v1), LM Studio, or any compatible gateway.`
+Works with OpenAI, Ollama (e.g. http://localhost:11434/v1), LM Studio, or any compatible gateway.`,
       ),
     AI_API_KEY: z.string().default(''),
     AI_MODEL: z
@@ -167,26 +164,26 @@ Works with OpenAI, Ollama (e.g. http://localhost:11434/v1), LM Studio, or any co
       .default('')
       .describe(
         `AI_MODEL: required when AI_ENABLED=true - there is no code default. gpt-5-nano is an
-example value.`
+example value.`,
       ),
     AI_TIMEOUT_MS: intField(15000).describe(
-      'AI_TIMEOUT_MS: per-request timeout (ms) before the SDK aborts the call.'
+      'AI_TIMEOUT_MS: per-request timeout (ms) before the SDK aborts the call.',
     ),
     AI_MAX_RETRIES: intField(1).describe(
-      'AI_MAX_RETRIES: SDK-level retries on transient failures (timeout, network error, 429/5xx).'
+      'AI_MAX_RETRIES: SDK-level retries on transient failures (timeout, network error, 429/5xx).',
     ),
     AI_CONCURRENCY: intField(5).describe(
-      'AI_CONCURRENCY: max concurrent AI requests per scan batch (avoid hammering the provider).'
+      'AI_CONCURRENCY: max concurrent AI requests per scan batch (avoid hammering the provider).',
     ),
     AI_MAX_INPUT_TOKENS: intField(6000).describe(
       `AI_MAX_INPUT_TOKENS: budget for the email body sent to the AI (heuristic: chars = tokens * 4).
-Default is generous enough to cover the plain-text body of most spam emails without truncation.`
+Default is generous enough to cover the plain-text body of most spam emails without truncation.`,
     ),
     AI_MAX_OUTPUT_TOKENS: intField(2000).describe(
       `AI_MAX_OUTPUT_TOKENS: max_completion_tokens on the completion request. For reasoning-family
 models (o-series, GPT-5, etc.) this budget covers hidden "reasoning tokens" as well as the
 visible {"score":.., "reasoning":".."} reply, so keep it generous - a too-small value can
-leave zero budget for visible output and cause "Empty response from AI provider" errors.`
+leave zero budget for visible output and cause "Empty response from AI provider" errors.`,
     ),
     AI_FAILURE_ALERT_THRESHOLD: intField(3).describe(
       `AI_FAILURE_ALERT_THRESHOLD: after this many CONSECUTIVE AI classification failures with the
@@ -194,7 +191,7 @@ same normalized reason (e.g. repeated auth errors, repeated timeouts), an alert 
 so the operator notices - then stay quiet about that same ongoing issue until it recovers (a
 success resets the count, so a later recurrence can alert again). Set to -1 to disable alerting
 entirely. Note: the alert-email delivery mechanism itself is not part of this change (see
-design.md's Non-Goals) - only the threshold is configured here.`
+design.md's Non-Goals) - only the threshold is configured here.`,
     ),
   }),
 };
@@ -210,41 +207,40 @@ const scanGroup: ConfigGroupDef = {
   title: 'Scan/Train Configuration',
   schema: z.object({
     SCAN_INTERVAL: intField(300)
-      .refine(value => value > 0, {
+      .refine((value) => value > 0, {
         message:
           'SCAN_INTERVAL must be a positive integer (single-run and IDLE mode are no longer supported - the minimal run loop always polls on a fixed interval, see design.md D9)',
       })
       .describe(
         `SCAN_INTERVAL: seconds between run-loop ticks. Each tick trains
 (train-spam/train-ham/train-whitelist/train-blacklist) then scans repeatedly until a pass
-processes 0 messages. Must be a positive whole number of seconds. Default: 300`
+processes 0 messages. Must be a positive whole number of seconds. Default: 300`,
       ),
     BATCH_SCAN_SIZE: intField(200).describe(
       `BATCH_SCAN_SIZE: max UIDs fetched from a single mailbox SEARCH per scan cycle - how
 many pending messages one cycle considers at all, before any of them are downloaded.
 Distinct from BATCH_PROCESS_SIZE below, which then subdivides that set into smaller
-batches for fetching/processing. Default: 200`
+batches for fetching/processing. Default: 200`,
     ),
     BATCH_PROCESS_SIZE: intField(10).describe(
       `BATCH_PROCESS_SIZE: max messages fetched/processed together per batch within
 a single scan or train run. Distinct from BATCH_SCAN_SIZE above, which caps how many UIDs a
-scan cycle considers in total before this smaller per-batch limit subdivides them. Default: 10`
+scan cycle considers in total before this smaller per-batch limit subdivides them. Default: 10`,
     ),
     MAX_RETRIES: intField(5).describe(
       `MAX_RETRIES: Maximum consecutive failures before backing off. Reserved for
 3-mailbox-runners - the minimal run loop in this change logs a failed job and continues to
-the next tick rather than exiting or backing off.`
+the next tick rather than exiting or backing off.`,
     ),
   }),
 };
 
 /**
  * Logging is global. Kept permissive (plain strings with defaults) rather
- * than a rejecting enum, since `logging/logging.module.ts` preserves
- * terminal's tolerant fallback behavior for an invalid value (case-insensitive
- * match, falling back to "info"/"json" with a warning) rather than failing
- * startup - see the `logging-levels` capability and
- * `terminal/src/lib/core/logger.ts`.
+ * than a rejecting enum, since `logging/logging.module.ts` tolerates an
+ * invalid value (case-insensitive match, falling back to "info"/"json" with a
+ * warning) rather than failing startup - see the `logging-levels`
+ * capability.
  */
 const loggingGroup: ConfigGroupDef = {
   title: 'Logging Configuration',
@@ -253,7 +249,7 @@ const loggingGroup: ConfigGroupDef = {
       .string()
       .default('info')
       .describe(
-        'LOG_LEVEL: Verbosity of logging (trace, debug, info, warn, error, fatal)\nDefault: info'
+        'LOG_LEVEL: Verbosity of logging (trace, debug, info, warn, error, fatal)\nDefault: info',
       ),
     LOG_FORMAT: z
       .string()
@@ -262,7 +258,7 @@ const loggingGroup: ConfigGroupDef = {
         `LOG_FORMAT: Output format for logs (json, jsonl, pretty)
 Use 'pretty' for human-readable output in development
 Use 'json' or 'jsonl' (equivalent aliases) for structured logging in production
-Default: json`
+Default: json`,
       ),
     LOG_FILTER_INCLUDES: z
       .string()
@@ -270,7 +266,7 @@ Default: json`
       .describe(
         `LOG_FILTER_INCLUDES: Comma-delimited list of component names to include in logs
 If set, only these components will log. Example: imap,rspamd,scanner
-Default: empty (log all components)`
+Default: empty (log all components)`,
       ),
     LOG_FILTER_EXCLUDES: z
       .string()
@@ -278,7 +274,7 @@ Default: empty (log all components)`
       .describe(
         `LOG_FILTER_EXCLUDES: Comma-delimited list of component names to exclude from logs
 If set, these components will not log. Example: imapflow,config
-Default: empty (don't exclude any components)`
+Default: empty (don't exclude any components)`,
       ),
   }),
 };
@@ -287,7 +283,7 @@ const serverGroup: ConfigGroupDef = {
   title: 'HTTP Server Configuration',
   schema: z.object({
     PORT: intField(3000).describe(
-      'PORT: TCP port the HTTP server listens on. Default: 3000'
+      'PORT: TCP port the HTTP server listens on. Default: 3000',
     ),
   }),
 };
@@ -306,19 +302,19 @@ const apiGroup: ConfigGroupDef = {
       .string()
       .min(1)
       .describe(
-        'API_ADMIN_PASSWORD: the single admin password checked by POST /auth/login. No default - the server refuses to start without one.'
+        'API_ADMIN_PASSWORD: the single admin password checked by POST /auth/login. No default - the server refuses to start without one.',
       ),
     API_JWT_SECRET: z
       .string()
       .min(1)
       .describe(
-        'API_JWT_SECRET: HMAC signing secret shared by admin and mailbox tokens. No default - the server refuses to start without one.'
+        'API_JWT_SECRET: HMAC signing secret shared by admin and mailbox tokens. No default - the server refuses to start without one.',
       ),
     API_ADMIN_TOKEN_TTL: intField(3600).describe(
-      'API_ADMIN_TOKEN_TTL: seconds an admin token stays valid before re-login is required. Default: 3600 (1h)'
+      'API_ADMIN_TOKEN_TTL: seconds an admin token stays valid before re-login is required. Default: 3600 (1h)',
     ),
     API_MAILBOX_TOKEN_TTL: intField(3600).describe(
-      'API_MAILBOX_TOKEN_TTL: seconds a mailbox token stays valid before it must be re-exchanged. Default: 3600 (1h)'
+      'API_MAILBOX_TOKEN_TTL: seconds a mailbox token stays valid before it must be re-exchanged. Default: 3600 (1h)',
     ),
   }),
 };
@@ -326,23 +322,25 @@ const apiGroup: ConfigGroupDef = {
 /**
  * The one mailbox's connection info. The `MAILBOX_` prefix marks these keys
  * as the temporary env-backed mailbox registry, not app settings - they go
- * away once mailboxes move to real storage (see design.md D5). Unlike
- * terminal's equivalent `IMAP_*` keys, these have no `assertRequiredConfig`
- * escape hatch: validation now runs once at Nest bootstrap (not at module
- * import), so a field with no safe default can simply be required here.
+ * away once mailboxes move to real storage (see design.md D5). Validation
+ * runs once at Nest bootstrap (not at module import), so a field with no safe
+ * default can simply be required here.
  */
 const mailboxGroup: ConfigGroupDef = {
   title: "The Server's Mailbox Connection",
   schema: z.object({
-    MAILBOX_ID: z
-      .email()
-      .describe(
-        `MAILBOX_ID: the mailbox owner's email address. Used as the mailbox's id and as its
+    MAILBOX_ID: z.email().describe(
+      `MAILBOX_ID: the mailbox owner's email address. Used as the mailbox's id and as its
 rspamd user (see the server/mailbox-registry capability) - distinct from MAILBOX_IMAP_USER,
-which may be a bare username on some providers.`
-      ),
-    MAILBOX_IMAP_HOST: z.string().min(1).describe('MAILBOX_IMAP_HOST: IMAP server hostname'),
-    MAILBOX_IMAP_PORT: intField(993).describe('MAILBOX_IMAP_PORT: IMAP server port'),
+which may be a bare username on some providers.`,
+    ),
+    MAILBOX_IMAP_HOST: z
+      .string()
+      .min(1)
+      .describe('MAILBOX_IMAP_HOST: IMAP server hostname'),
+    MAILBOX_IMAP_PORT: intField(993).describe(
+      'MAILBOX_IMAP_PORT: IMAP server port',
+    ),
     MAILBOX_IMAP_USER: z
       .string()
       .min(1)
@@ -354,29 +352,29 @@ which may be a bare username on some providers.`
     MAILBOX_IMAP_TLS: boolField(true).describe(
       `MAILBOX_IMAP_TLS: use TLS for the IMAP connection.
 The code's default when this variable is absent is "true". Set it explicitly
-to "false" only for a server/port that doesn't support TLS.`
+to "false" only for a server/port that doesn't support TLS.`,
     ),
     // Disabling direct TLS also requires this explicit second opt-in - see
     // the `imap-transport-security` capability.
     MAILBOX_IMAP_ALLOW_INSECURE: boolField(false).describe(
       `MAILBOX_IMAP_ALLOW_INSECURE: required alongside MAILBOX_IMAP_TLS=false as an explicit,
 deliberate second opt-in. Even with both set, STARTTLS is still enforced (the connection fails
-rather than silently falling back to plaintext if the server doesn't support it).`
+rather than silently falling back to plaintext if the server doesn't support it).`,
     ),
     MAILBOX_STATE_FOLDER: z
       .string()
       .default('INBOX.scanner.state')
       .describe(
         `MAILBOX_STATE_FOLDER: IMAP folder holding this mailbox's JSON state messages
-(scanner progress, whitelist, blacklist) - see the state-manager capability.`
+(scanner progress, whitelist, blacklist) - see the state-manager capability.`,
       ),
   }),
 };
 
 /**
- * Every config group, in `.env.example` file order. Exported so a future
- * generator (task 3.1) can render `.env.example` directly from it, the same
- * way `terminal/src/cli/generate-env.ts` does for `configGroups` there.
+ * Every config group, in `.env.example` file order. Exported so
+ * `bin/generate-env.ts` can render `.env.example` directly from
+ * it.
  */
 export const configGroups: ConfigGroupDef[] = [
   rspamdGroup,
@@ -399,9 +397,7 @@ export const AppConfigSchema = configGroups
   .superRefine((rawData, ctx) => {
     // The `.reduce`/`.merge` chain above collapses zod's own field
     // inference (see the `AppConfig` doc comment above) - `AppConfig` is the
-    // authoritative hand-written type for the merged shape. Ported from the
-    // matching subset of terminal's `ConfigSchema.superRefine`
-    // (`terminal/src/lib/core/config.ts`).
+    // authoritative hand-written type for the merged shape.
     const data = rawData as unknown as AppConfig;
     // No default that makes sense on its own - fail fast at load time
     // rather than let every AI classification call fail individually once

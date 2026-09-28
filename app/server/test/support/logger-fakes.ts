@@ -24,7 +24,7 @@ export interface NoOpLogger {
  * lifetime.
  */
 export function createNoOpLogger(
-  overrides: Partial<NoOpLogger> = {}
+  overrides: Partial<NoOpLogger> = {},
 ): NoOpLogger {
   const logger: NoOpLogger = {
     trace: vi.fn(),
@@ -44,9 +44,7 @@ export function createNoOpLogger(
  * Builds a `{ forComponent: () => NoOpLogger }` root logger, the shape
  * `logger` is mocked as everywhere in this codebase's tests.
  */
-export function createNoOpRootLogger(
-  overrides: Partial<NoOpLogger> = {}
-): {
+export function createNoOpRootLogger(overrides: Partial<NoOpLogger> = {}): {
   forComponent: () => NoOpLogger;
 } {
   return { forComponent: () => createNoOpLogger(overrides) };

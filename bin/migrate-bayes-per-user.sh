@@ -12,8 +12,8 @@ set -euo pipefail
 # per-user key is the corresponding global key with the mailbox id appended.
 # This script therefore COPYs each global key `RS...` to `RS...<MAILBOX_ID>`
 # and leaves the original in place: rspamd falls back to the global corpus
-# for any request that sends no user (e.g. terminal/, until it is retired),
-# so the source MUST be preserved, never moved or deleted.
+# for any request that sends no user, so the source MUST be preserved, never
+# moved or deleted.
 #
 # ============================================================================
 # BEFORE RUNNING: back up Redis

@@ -39,14 +39,14 @@ export async function waitForNewMail(
   {
     signal,
     lastUid,
-    watchdogMs = 1200000, // 20 minutes, matching terminal's default IDLE_WATCHDOG_MS
+    watchdogMs = 1200000, // 20 minutes
     logger,
   }: {
     signal?: AbortSignal;
     lastUid?: number;
     watchdogMs?: number;
     logger?: PinoLogger;
-  } = {}
+  } = {},
 ): Promise<void> {
   let onExists: (data: ExistsEvent) => void;
   let onError: (err: Error) => void;
@@ -56,14 +56,14 @@ export async function waitForNewMail(
   // Register listeners before acquiring the lock so no notification is missed
   // between the lock being granted and the listener being attached.
   const existsPromise = new Promise<void>((resolve, reject) => {
-    onExists = data => {
+    onExists = (data) => {
       logger?.debug({ folder, data }, 'EXISTS notification received');
       resolve();
     };
-    onError = err => {
+    onError = (err) => {
       logger?.debug(
         { folder, error: err.message },
-        'Connection error while waiting for EXISTS'
+        'Connection error while waiting for EXISTS',
       );
       reject(err);
     };
@@ -129,24 +129,24 @@ export async function waitForNewMail(
     ) {
       logger?.debug(
         { folder, lastUid, uidNext: mailbox.uidNext },
-        'New mail already present before IDLE - skipping wait'
+        'New mail already present before IDLE - skipping wait',
       );
       return;
     }
 
     logger?.debug(
       { folder, exists: mailbox.exists },
-      'Watching for new messages'
+      'Watching for new messages',
     );
     // Immediately enter IDLE without waiting for the 15-second autoidle delay.
     // Errors here are expected when IDLE is interrupted (e.g. lock released).
     imap
       .idle()
-      .catch(err =>
+      .catch((err) =>
         logger?.debug(
           { folder, error: err instanceof Error ? err.message : String(err) },
-          'IDLE ended'
-        )
+          'IDLE ended',
+        ),
       );
 
     const racers: Promise<void>[] = [existsPromise];
@@ -156,12 +156,12 @@ export async function waitForNewMail(
           .then(() =>
             logger?.debug(
               { folder, watchdogMs },
-              'IDLE watchdog elapsed - recycling'
-            )
+              'IDLE watchdog elapsed - recycling',
+            ),
           )
           .catch((err: Error) => {
             if (err.name !== 'AbortError') throw err;
-          })
+          }),
       );
     }
     // Wait here until the server sends an EXISTS notification, the connection

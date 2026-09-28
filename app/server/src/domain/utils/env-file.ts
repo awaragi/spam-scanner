@@ -38,7 +38,7 @@ interface SchemaGroup {
  */
 export function renderEnvFile(
   groups: TitledSchemaGroup[],
-  values: Record<string, string> = {}
+  values: Record<string, string> = {},
 ): string {
   const lines: string[] = [];
   groups.forEach((group, index) => {
@@ -73,14 +73,16 @@ export function renderEnvFile(
  */
 export function diffEnvValues(
   groups: SchemaGroup[],
-  values: Record<string, string>
+  values: Record<string, string>,
 ): { defaultedKeys: string[]; unknownKeys: string[] } {
-  const knownKeys = groups.flatMap(group => Object.keys(group.schema.shape));
+  const knownKeys = groups.flatMap((group) => Object.keys(group.schema.shape));
   const knownKeySet = new Set(knownKeys);
   const defaultedKeys = knownKeys.filter(
-    key => !Object.prototype.hasOwnProperty.call(values, key)
+    (key) => !Object.prototype.hasOwnProperty.call(values, key),
   );
-  const unknownKeys = Object.keys(values).filter(key => !knownKeySet.has(key));
+  const unknownKeys = Object.keys(values).filter(
+    (key) => !knownKeySet.has(key),
+  );
   return { defaultedKeys, unknownKeys };
 }
 

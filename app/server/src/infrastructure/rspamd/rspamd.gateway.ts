@@ -30,15 +30,15 @@ export class RspamdGateway {
    * so callers never pass one. `user` selects the per-mailbox Bayes model via
    * the `Deliver-To` header (rspamd protocol's per-user selector, `6-per-user-bayes`
    * design D2) - it is only set when non-empty, so a caller that passes none
-   * (e.g. terminal) keeps hitting rspamd's default corpus rather than sending
-   * an empty header.
+   * keeps hitting rspamd's default corpus rather than sending an empty
+   * header.
    * @param [envelope]
    * @param [user] - Mailbox id to select a per-user Bayes model, if any
    * @returns - Headers object with optional password, envelope data, and user
    */
   private buildHeaders(
     envelope: RspamdEnvelope = {},
-    user?: string
+    user?: string,
   ): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'text/plain',
@@ -86,7 +86,7 @@ export class RspamdGateway {
     } catch (err) {
       throw new Error(
         `Rspamd response parse failed: ${err instanceof Error ? err.message : String(err)}`,
-        { cause: err }
+        { cause: err },
       );
     }
   }
@@ -137,7 +137,7 @@ export class RspamdGateway {
   async checkEmail(
     emailContent: string | Buffer | null | undefined,
     envelope: RspamdEnvelope = {},
-    user?: string
+    user?: string,
   ): Promise<unknown> {
     if (!emailContent) {
       throw new Error('Email content is required');
@@ -154,7 +154,7 @@ export class RspamdGateway {
       if (!response.ok) {
         const error = await response.text();
         const err: ClassifiableError = new Error(
-          `Rspamd check failed with status ${response.status}: ${error}`
+          `Rspamd check failed with status ${response.status}: ${error}`,
         );
         err.status = response.status;
         throw err;
@@ -169,7 +169,7 @@ export class RspamdGateway {
           error: err instanceof Error ? err.message : String(err),
           url: `${this.config.url}/checkv2`,
         },
-        'Rspamd check request failed'
+        'Rspamd check request failed',
       );
       throw err;
     }
@@ -187,7 +187,7 @@ export class RspamdGateway {
    */
   async learnHam(
     emailContent: string | Buffer,
-    user?: string
+    user?: string,
   ): Promise<LearnResult> {
     if (!emailContent) {
       throw new Error('Email content is required');
@@ -212,12 +212,16 @@ export class RspamdGateway {
         if (response.status === 404 && this.isAlreadyLearned(parsed)) {
           this.logger.debug(
             { message: parsed?.error },
-            'Rspamd learn ham skipped (already learned, 404)'
+            'Rspamd learn ham skipped (already learned, 404)',
           );
-          return { success: true, message: parsed?.error, alreadyLearned: true };
+          return {
+            success: true,
+            message: parsed?.error,
+            alreadyLearned: true,
+          };
         }
         throw new Error(
-          `Rspamd learn ham failed with status ${response.status}: ${error}`
+          `Rspamd learn ham failed with status ${response.status}: ${error}`,
         );
       }
 
@@ -228,7 +232,7 @@ export class RspamdGateway {
         if (this.isAlreadyLearned(result)) {
           this.logger.debug(
             { message: result.error },
-            'Rspamd learn ham skipped'
+            'Rspamd learn ham skipped',
           );
           return {
             success: true,
@@ -237,7 +241,7 @@ export class RspamdGateway {
           };
         }
         throw new Error(
-          `Rspamd learn ham failed: ${JSON.stringify(result) || 'Unknown error'}`
+          `Rspamd learn ham failed: ${JSON.stringify(result) || 'Unknown error'}`,
         );
       }
 
@@ -248,7 +252,7 @@ export class RspamdGateway {
           error: err instanceof Error ? err.message : String(err),
           url: `${this.config.url}/learnham`,
         },
-        'Rspamd learn ham request failed'
+        'Rspamd learn ham request failed',
       );
       throw err;
     }
@@ -266,7 +270,7 @@ export class RspamdGateway {
    */
   async learnSpam(
     emailContent: string | Buffer,
-    user?: string
+    user?: string,
   ): Promise<LearnResult> {
     if (!emailContent) {
       throw new Error('Email content is required');
@@ -291,12 +295,16 @@ export class RspamdGateway {
         if (response.status === 404 && this.isAlreadyLearned(parsed)) {
           this.logger.debug(
             { message: parsed?.error },
-            'Rspamd learn spam skipped (already learned, 404)'
+            'Rspamd learn spam skipped (already learned, 404)',
           );
-          return { success: true, message: parsed?.error, alreadyLearned: true };
+          return {
+            success: true,
+            message: parsed?.error,
+            alreadyLearned: true,
+          };
         }
         throw new Error(
-          `Rspamd learn spam failed with status ${response.status}: ${error}`
+          `Rspamd learn spam failed with status ${response.status}: ${error}`,
         );
       }
 
@@ -307,7 +315,7 @@ export class RspamdGateway {
         if (this.isAlreadyLearned(result)) {
           this.logger.debug(
             { message: result.error },
-            'Rspamd learn spam skipped'
+            'Rspamd learn spam skipped',
           );
           return {
             success: true,
@@ -316,7 +324,7 @@ export class RspamdGateway {
           };
         }
         throw new Error(
-          `Rspamd learn spam failed: ${JSON.stringify(result) || 'Unknown error'}`
+          `Rspamd learn spam failed: ${JSON.stringify(result) || 'Unknown error'}`,
         );
       }
 
@@ -327,7 +335,7 @@ export class RspamdGateway {
           error: err instanceof Error ? err.message : String(err),
           url: `${this.config.url}/learnspam`,
         },
-        'Rspamd learn spam request failed'
+        'Rspamd learn spam request failed',
       );
       throw err;
     }

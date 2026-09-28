@@ -12,7 +12,7 @@ import { rspamdUserFor } from './mailbox.js';
  * that exercise validation itself).
  */
 function fixtureConnection(
-  overrides: Partial<MailboxConnectionConfig> = {}
+  overrides: Partial<MailboxConnectionConfig> = {},
 ): MailboxConnectionConfig {
   return {
     id: 'owner@example.com',
@@ -28,7 +28,7 @@ function fixtureConnection(
 }
 
 async function buildRepository(
-  connection: MailboxConnectionConfig
+  connection: MailboxConnectionConfig,
 ): Promise<MailboxRepository> {
   const moduleRef = await Test.createTestingModule({
     providers: [

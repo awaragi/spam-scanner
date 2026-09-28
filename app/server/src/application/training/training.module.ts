@@ -6,9 +6,7 @@ import { SenderListTrainingService } from './sender-list-training.service.js';
 /**
  * Provides `RspamdTrainingService` (trains rspamd from a mailbox's
  * `train.spam`/`train.ham` folders) and `SenderListTrainingService` (trains
- * the whitelist/blacklist from their folders), ported from terminal's
- * `train.controller.ts` and `sender-list-training.controller.ts`.
- * `ScanConfig` comes from the global `AppConfigModule`;
+ * the whitelist/blacklist from their folders). `ScanConfig` comes from the global `AppConfigModule`;
  * `RspamdTrainingService`'s `RspamdGateway` dependency comes from
  * `RspamdModule`.
  */

@@ -32,11 +32,7 @@ import { ScanService } from '../application/scanning/scan.service.js';
  * mailbox - see design.md D1.
  */
 export type JobName =
-  | 'scan'
-  | 'trainSpam'
-  | 'trainHam'
-  | 'trainWhitelist'
-  | 'trainBlacklist';
+  'scan' | 'trainSpam' | 'trainHam' | 'trainWhitelist' | 'trainBlacklist';
 
 /**
  * Per-job state a `MailboxRunner` tracks independently for each `JobName` -
@@ -186,8 +182,7 @@ export class MailboxRunner {
 
   /**
    * Highest inbox UID processed by the most recent successful `scan` job -
-   * fed into `waitForNewMail`'s pre-IDLE catch-up (same role as terminal's
-   * orchestrator `lastUid` across scan/IDLE cycles).
+   * fed into `waitForNewMail`'s pre-IDLE catch-up across scan/IDLE cycles.
    */
   private scanLastUid: number | undefined;
 

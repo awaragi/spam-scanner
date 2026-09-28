@@ -27,7 +27,7 @@ interface EnvelopedMessage {
  */
 export async function extractAiContent(
   message: EnvelopedMessage,
-  { maxInputTokens }: { maxInputTokens: number }
+  { maxInputTokens }: { maxInputTokens: number },
 ): Promise<{
   from: string;
   to: string;
@@ -40,7 +40,7 @@ export async function extractAiContent(
   const parsed = await simpleParser(raw as string | Buffer);
   const text = truncateToTokenBudget(
     (parsed.text || '').trim(),
-    maxInputTokens
+    maxInputTokens,
   );
 
   return {

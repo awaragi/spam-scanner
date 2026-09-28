@@ -25,8 +25,7 @@ const JOB_NAME_BY_KEBAB: Readonly<Record<string, JobName>> = {
 
 /** A resolved job-trigger route target - either a `JobName` for `triggerNow`, or the folder-init marker. */
 export type ResolvedJob =
-  | { kind: 'jobName'; jobName: JobName }
-  | { kind: 'initFolders' };
+  { kind: 'jobName'; jobName: JobName } | { kind: 'initFolders' };
 
 /**
  * Maps a kebab-case route segment to its runner operation (design.md D6):

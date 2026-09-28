@@ -17,9 +17,7 @@ describe('ZodValidationPipe', () => {
   test('throws BadRequestException with the flattened issues when validation fails', () => {
     const pipe = new ZodValidationPipe(schema);
 
-    expect(() => pipe.transform({ password: '' })).toThrow(
-      BadRequestException
-    );
+    expect(() => pipe.transform({ password: '' })).toThrow(BadRequestException);
     expect(() => pipe.transform({})).toThrow(BadRequestException);
   });
 });

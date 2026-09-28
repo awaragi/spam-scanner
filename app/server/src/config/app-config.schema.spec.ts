@@ -3,8 +3,7 @@ import { AppConfigSchema } from './app-config.schema.js';
 
 /**
  * The minimal environment that satisfies every field with no safe default
- * (the mailbox connection info - see design.md D5, which drops
- * terminal's `assertRequiredConfig` split now that validation runs once at
+ * (the mailbox connection info - see design.md D5; validation runs once at
  * Nest bootstrap). Every other key is left unset so its own default applies.
  */
 function requiredOnlyEnv(): Record<string, string> {
@@ -40,7 +39,7 @@ describe('AppConfigSchema', () => {
       'API_ADMIN_TOKEN_TTL',
       'API_MAILBOX_TOKEN_TTL',
       'MAILBOX_IMAP_PORT',
-    ])('rejects a non-numeric %s rather than silently producing NaN', key => {
+    ])('rejects a non-numeric %s rather than silently producing NaN', (key) => {
       const result = AppConfigSchema.safeParse({
         ...requiredOnlyEnv(),
         [key]: '5m',
@@ -48,9 +47,9 @@ describe('AppConfigSchema', () => {
 
       expect(result.success).toBe(false);
       if (result.success) return;
-      expect(result.error.issues.some(issue => issue.path.join('.') === key)).toBe(
-        true
-      );
+      expect(
+        result.error.issues.some((issue) => issue.path.join('.') === key),
+      ).toBe(true);
     });
 
     test('rejects SCAN_INTERVAL=0 now that IDLE mode is gone', () => {
@@ -62,7 +61,9 @@ describe('AppConfigSchema', () => {
       expect(result.success).toBe(false);
       if (result.success) return;
       expect(
-        result.error.issues.some(issue => issue.path.join('.') === 'SCAN_INTERVAL')
+        result.error.issues.some(
+          (issue) => issue.path.join('.') === 'SCAN_INTERVAL',
+        ),
       ).toBe(true);
     });
 
@@ -117,21 +118,23 @@ describe('AppConfigSchema', () => {
       expect(result.data.AI_ENABLED).toBe(true);
     });
 
-    test.each(['MAILBOX_ID', 'MAILBOX_IMAP_HOST', 'MAILBOX_IMAP_USER', 'MAILBOX_IMAP_PASSWORD'])(
-      'rejects a missing required field %s',
-      key => {
-        const env = requiredOnlyEnv();
-        delete (env as Record<string, string | undefined>)[key];
+    test.each([
+      'MAILBOX_ID',
+      'MAILBOX_IMAP_HOST',
+      'MAILBOX_IMAP_USER',
+      'MAILBOX_IMAP_PASSWORD',
+    ])('rejects a missing required field %s', (key) => {
+      const env = requiredOnlyEnv();
+      delete (env as Record<string, string | undefined>)[key];
 
-        const result = AppConfigSchema.safeParse(env);
+      const result = AppConfigSchema.safeParse(env);
 
-        expect(result.success).toBe(false);
-        if (result.success) return;
-        expect(
-          result.error.issues.some(issue => issue.path.join('.') === key)
-        ).toBe(true);
-      }
-    );
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(
+        result.error.issues.some((issue) => issue.path.join('.') === key),
+      ).toBe(true);
+    });
 
     test('parses a fixture env that sets all four HTTP API auth keys', () => {
       const result = AppConfigSchema.safeParse({
@@ -152,7 +155,7 @@ describe('AppConfigSchema', () => {
 
     test.each(['API_ADMIN_PASSWORD', 'API_JWT_SECRET'])(
       'rejects a missing required field %s',
-      key => {
+      (key) => {
         const env = requiredOnlyEnv();
         delete (env as Record<string, string | undefined>)[key];
 
@@ -161,9 +164,9 @@ describe('AppConfigSchema', () => {
         expect(result.success).toBe(false);
         if (result.success) return;
         expect(
-          result.error.issues.some(issue => issue.path.join('.') === key)
+          result.error.issues.some((issue) => issue.path.join('.') === key),
         ).toBe(true);
-      }
+      },
     );
 
     test('rejects a MAILBOX_ID that is not shaped like an email address', () => {
@@ -175,7 +178,9 @@ describe('AppConfigSchema', () => {
       expect(result.success).toBe(false);
       if (result.success) return;
       expect(
-        result.error.issues.some(issue => issue.path.join('.') === 'MAILBOX_ID')
+        result.error.issues.some(
+          (issue) => issue.path.join('.') === 'MAILBOX_ID',
+        ),
       ).toBe(true);
     });
   });
@@ -190,7 +195,7 @@ describe('AppConfigSchema', () => {
     expect(result.success).toBe(false);
     if (result.success) return;
 
-    const paths = result.error.issues.map(issue => issue.path.join('.'));
+    const paths = result.error.issues.map((issue) => issue.path.join('.'));
     expect(paths).toContain('SCAN_INTERVAL');
     expect(paths).toContain('RSPAMD_TIMEOUT_MS');
   });
@@ -207,7 +212,7 @@ describe('AppConfigSchema', () => {
     expect(result.success).toBe(false);
     if (result.success) return;
 
-    const paths = result.error.issues.map(issue => issue.path.join('.'));
+    const paths = result.error.issues.map((issue) => issue.path.join('.'));
     expect(paths).toContain('MAILBOX_IMAP_HOST');
     expect(paths).toContain('AI_MAX_RETRIES');
   });
@@ -222,7 +227,9 @@ describe('AppConfigSchema', () => {
       expect(result.success).toBe(false);
       if (result.success) return;
       expect(
-        result.error.issues.some(issue => issue.path.join('.') === 'AI_MODEL')
+        result.error.issues.some(
+          (issue) => issue.path.join('.') === 'AI_MODEL',
+        ),
       ).toBe(true);
     });
 
@@ -245,7 +252,9 @@ describe('AppConfigSchema', () => {
       expect(result.success).toBe(false);
       if (result.success) return;
       expect(
-        result.error.issues.some(issue => issue.path.join('.') === 'AI_API_KEY')
+        result.error.issues.some(
+          (issue) => issue.path.join('.') === 'AI_API_KEY',
+        ),
       ).toBe(true);
     });
 
@@ -276,8 +285,8 @@ describe('AppConfigSchema', () => {
       if (result.success) return;
       expect(
         result.error.issues.some(
-          issue => issue.path.join('.') === 'MAILBOX_IMAP_ALLOW_INSECURE'
-        )
+          (issue) => issue.path.join('.') === 'MAILBOX_IMAP_ALLOW_INSECURE',
+        ),
       ).toBe(true);
     });
 
@@ -313,7 +322,7 @@ describe('AppConfigSchema', () => {
       expect(result.success).toBe(false);
       if (result.success) return;
 
-      const paths = result.error.issues.map(issue => issue.path.join('.'));
+      const paths = result.error.issues.map((issue) => issue.path.join('.'));
       expect(paths).toContain('AI_MODEL');
       expect(paths).toContain('AI_API_KEY');
       expect(paths).toContain('MAILBOX_IMAP_ALLOW_INSECURE');

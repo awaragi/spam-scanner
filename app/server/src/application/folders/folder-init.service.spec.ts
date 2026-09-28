@@ -31,7 +31,9 @@ function fixtureMailbox(overrides: Partial<Mailbox> = {}): Mailbox {
   };
 }
 
-function fixtureFolders(overrides: Partial<MailboxFolders> = {}): MailboxFolders {
+function fixtureFolders(
+  overrides: Partial<MailboxFolders> = {},
+): MailboxFolders {
   return {
     inbox: 'INBOX',
     spam: 'INBOX.spam',
@@ -59,11 +61,13 @@ function fixtureLogger() {
   } as unknown as MailboxSession['logger'];
 }
 
-function fixtureSession(overrides: {
-  folders?: Partial<MailboxFolders>;
-  settings?: Partial<MailboxSettings>;
-  imap?: ImapFlow;
-} = {}): MailboxSession {
+function fixtureSession(
+  overrides: {
+    folders?: Partial<MailboxFolders>;
+    settings?: Partial<MailboxSettings>;
+    imap?: ImapFlow;
+  } = {},
+): MailboxSession {
   return {
     mailbox: fixtureMailbox(),
     imap: overrides.imap ?? fixtureImap(),
@@ -106,7 +110,7 @@ describe('FolderInitService', () => {
         'scanner.state',
         'INBOX/spam',
       ],
-      session.logger
+      session.logger,
     );
   });
 

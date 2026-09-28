@@ -33,5 +33,6 @@ jobs:
 
       - uses: docker/build-push-action@v7
         with:
-          context: ./terminal
+          context: .
+          file: app/server/Dockerfile
           push: false

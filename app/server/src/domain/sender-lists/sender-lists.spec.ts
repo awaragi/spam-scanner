@@ -79,7 +79,7 @@ describe('mergeAddresses', () => {
   test('drops unparseable entries from either side', () => {
     const result = mergeAddresses(
       ['a@b.com', 'junk'],
-      ['also junk', 'c@d.com']
+      ['also junk', 'c@d.com'],
     );
     expect(result).toEqual(['a@b.com', 'c@d.com']);
   });
@@ -128,7 +128,7 @@ describe('parseAddressList', () => {
 describe('serializeAddressList', () => {
   test('txt format joins with newlines and a trailing newline', () => {
     expect(serializeAddressList(['a@b.com', 'c@d.com'], 'txt')).toBe(
-      'a@b.com\nc@d.com\n'
+      'a@b.com\nc@d.com\n',
     );
   });
 
@@ -142,7 +142,7 @@ describe('serializeAddressList', () => {
 
   test('json format is a pretty-printed JSON array', () => {
     expect(serializeAddressList(['a@b.com'], 'json')).toBe(
-      JSON.stringify(['a@b.com'], null, 2)
+      JSON.stringify(['a@b.com'], null, 2),
     );
   });
 
@@ -153,10 +153,10 @@ describe('serializeAddressList', () => {
   test('round-trips through parseAddressList for both formats', () => {
     const addresses = ['a@b.com', 'c@d.com'];
     expect(
-      parseAddressList(serializeAddressList(addresses, 'txt'), 'txt')
+      parseAddressList(serializeAddressList(addresses, 'txt'), 'txt'),
     ).toEqual(addresses);
     expect(
-      parseAddressList(serializeAddressList(addresses, 'json'), 'json')
+      parseAddressList(serializeAddressList(addresses, 'json'), 'json'),
     ).toEqual(addresses);
   });
 });
@@ -165,7 +165,7 @@ describe('isHumanReadable', () => {
   describe('should accept legitimate corporate email addresses', () => {
     test('should accept email addresses with email subdomain', () => {
       expect(isHumanReadable('AmericanExpress@email.americanexpress.com')).toBe(
-        true
+        true,
       );
       expect(isHumanReadable('noreply@email.example.com')).toBe(true);
     });
@@ -202,19 +202,19 @@ describe('isHumanReadable', () => {
   describe('should reject tokenized addresses', () => {
     test('should reject long high-entropy addresses', () => {
       expect(
-        isHumanReadable('a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9@example.com')
+        isHumanReadable('a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9@example.com'),
       ).toBe(false);
     });
 
     test('should reject UUID patterns', () => {
       expect(
-        isHumanReadable('550e8400-e29b-41d4-a716-446655440000@example.com')
+        isHumanReadable('550e8400-e29b-41d4-a716-446655440000@example.com'),
       ).toBe(false);
     });
 
     test('should reject long hex strings', () => {
       expect(
-        isHumanReadable('a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4@example.com')
+        isHumanReadable('a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4@example.com'),
       ).toBe(false);
     });
 
@@ -359,7 +359,7 @@ describe('extractSenderAddresses', () => {
     ];
 
     expect(
-      extractSenderAddresses(messages).filter(e => e === 'john@example.com')
+      extractSenderAddresses(messages).filter((e) => e === 'john@example.com'),
     ).toHaveLength(1);
   });
 
@@ -387,7 +387,7 @@ describe('extractSenderAddresses', () => {
 describe('isSenderListed', () => {
   test('matches an exact address entry', () => {
     expect(
-      isSenderListed('bob@example.com', new Set(['bob@example.com']))
+      isSenderListed('bob@example.com', new Set(['bob@example.com'])),
     ).toBe(true);
   });
 
@@ -399,13 +399,13 @@ describe('isSenderListed', () => {
 
   test('a domain entry does not match a different domain', () => {
     expect(isSenderListed('bob@other.com', new Set(['@example.com']))).toBe(
-      false
+      false,
     );
   });
 
   test('a domain entry does not match a subdomain', () => {
     expect(
-      isSenderListed('bob@mail.example.com', new Set(['@example.com']))
+      isSenderListed('bob@mail.example.com', new Set(['@example.com'])),
     ).toBe(false);
   });
 
@@ -416,7 +416,7 @@ describe('isSenderListed', () => {
 
   test('returns false when neither the address nor its domain is listed', () => {
     expect(
-      isSenderListed('bob@example.com', new Set(['other@example.com']))
+      isSenderListed('bob@example.com', new Set(['other@example.com'])),
     ).toBe(false);
   });
 });
@@ -430,7 +430,7 @@ describe('partitionBySender', () => {
 
     const { matched, rest } = partitionBySender(
       messages,
-      new Set(['bad@evil.com'])
+      new Set(['bad@evil.com']),
     );
 
     expect(matched).toEqual([messages[0]]);
@@ -452,7 +452,7 @@ describe('partitionBySender', () => {
 
     const { matched, rest } = partitionBySender(
       messages,
-      new Set(['@evil.com'])
+      new Set(['@evil.com']),
     );
 
     expect(matched).toEqual([messages[0]]);

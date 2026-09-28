@@ -18,7 +18,7 @@ const isString = (value: string | null): value is string => value !== null;
 export function diffListUpdate(
   existing: string[],
   incoming: string[],
-  mode: 'append' | 'override' = 'append'
+  mode: 'append' | 'override' = 'append',
 ): {
   list: string[];
   added: string[];
@@ -33,15 +33,15 @@ export function diffListUpdate(
 
   const existingSet = new Set(existing.map(normalizeEmail).filter(isString));
   const listSet = new Set(list);
-  const added = list.filter(address => !existingSet.has(address));
+  const added = list.filter((address) => !existingSet.has(address));
   const skipped = incoming
     .map(normalizeEmail)
     .filter(
       (address): address is string =>
-        address !== null && existingSet.has(address)
+        address !== null && existingSet.has(address),
     );
   const removed = existing.filter(
-    address => !listSet.has(normalizeEmail(address) ?? '')
+    (address) => !listSet.has(normalizeEmail(address) ?? ''),
   );
 
   return { list, added, skipped, removed, total: list.length };

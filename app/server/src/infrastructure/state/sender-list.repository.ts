@@ -51,7 +51,7 @@ export async function readMapState(
   imap: ImapFlow,
   stateFolder: string,
   mapStateKey: string,
-  logger?: PinoLogger
+  logger?: PinoLogger,
 ): Promise<string[]> {
   // remember original mailbox
   const originalPath = currentMailboxPath(imap);
@@ -114,12 +114,11 @@ export async function writeMapState(
   stateFolder: string,
   mapStateKey: string,
   mapContent: unknown,
-  logger?: PinoLogger
+  logger?: PinoLogger,
 ): Promise<boolean> {
   // Serialize the content (mapContent can be an array or object)
-  const contentString = typeof mapContent === 'string'
-    ? mapContent
-    : JSON.stringify(mapContent);
+  const contentString =
+    typeof mapContent === 'string' ? mapContent : JSON.stringify(mapContent);
 
   const originalPath = currentMailboxPath(imap);
   const raw = formatAppStateEmail(mapStateKey, contentString, 'Map State');

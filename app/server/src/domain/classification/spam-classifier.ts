@@ -1,7 +1,10 @@
 /**
  * Domain rules for classifying spam messages. Pure, never sees `ctx`.
  */
-import { senderAddressOf, isSenderListed } from '../sender-lists/sender-lists.js';
+import {
+  senderAddressOf,
+  isSenderListed,
+} from '../sender-lists/sender-lists.js';
 
 interface ScoredMessage {
   spamInfo: { score: number | null; required: number | null };
@@ -67,14 +70,14 @@ export function categorizeMessages<M extends ScoredMessage>(
   messages: M[],
   cleanThreshold: number,
   lowThreshold: number,
-  confirmedThreshold: number
+  confirmedThreshold: number,
 ): CategorizedBuckets<M> {
   const lowSpamMessages: M[] = [];
   const highSpamMessages: M[] = [];
   const nonSpamMessages: M[] = [];
   const spamMessages: M[] = [];
 
-  messages.forEach(message => {
+  messages.forEach((message) => {
     const { score, required } = message.spamInfo;
     const scorePercentage =
       score !== null && score !== undefined && required
@@ -114,7 +117,7 @@ const BUCKET_RANK = { nonSpam: 0, lowSpam: 1, highSpam: 2, spam: 3 };
 function aiTargetRank(
   score: number | null | undefined,
   escalateToLowThreshold: number,
-  escalateToHighThreshold: number
+  escalateToHighThreshold: number,
 ): number | null {
   if (score === null || score === undefined) return null;
   if (score >= escalateToHighThreshold) return BUCKET_RANK.highSpam;
@@ -138,7 +141,7 @@ export function applyAiEscalation<M extends AiScoredMessage>(
   thresholds: {
     escalateToLowThreshold?: number;
     escalateToHighThreshold?: number;
-  } = {}
+  } = {},
 ): CategorizedBuckets<M> {
   const escalateToLowThreshold = thresholds.escalateToLowThreshold ?? 50;
   const escalateToHighThreshold = thresholds.escalateToHighThreshold ?? 80;
@@ -152,7 +155,7 @@ export function applyAiEscalation<M extends AiScoredMessage>(
     const targetRank = aiTargetRank(
       message.aiInfo?.score,
       escalateToLowThreshold,
-      escalateToHighThreshold
+      escalateToHighThreshold,
     );
     const finalRank = Math.max(originRank, targetRank ?? originRank);
 
@@ -169,11 +172,11 @@ export function applyAiEscalation<M extends AiScoredMessage>(
     }
   }
 
-  aiResults.nonSpamMessages.forEach(message =>
-    place(message, BUCKET_RANK.nonSpam)
+  aiResults.nonSpamMessages.forEach((message) =>
+    place(message, BUCKET_RANK.nonSpam),
   );
-  aiResults.lowSpamMessages.forEach(message =>
-    place(message, BUCKET_RANK.lowSpam)
+  aiResults.lowSpamMessages.forEach((message) =>
+    place(message, BUCKET_RANK.lowSpam),
   );
 
   return { nonSpamMessages, lowSpamMessages, highSpamMessages, spamMessages };
@@ -195,7 +198,7 @@ export function applyAiEscalation<M extends AiScoredMessage>(
 export function applyWhitelistAdjustment(
   rawScore: number,
   isWhitelisted: boolean,
-  senderAuthenticated = false
+  senderAuthenticated = false,
 ): number {
   if (!isWhitelisted) return rawScore;
   return senderAuthenticated ? rawScore - 20 : rawScore - 5;
@@ -215,13 +218,13 @@ export function applyWhitelistAdjustment(
  */
 export function applyWhitelistAdjustments<M extends WhitelistableMessage>(
   messages: M[],
-  whitelistSet: Set<string>
+  whitelistSet: Set<string>,
 ): { messages: M[]; whitelistedTotal: number } {
   let whitelistedTotal = 0;
-  const adjusted = messages.map(message => {
+  const adjusted = messages.map((message) => {
     const isWhitelisted = isSenderListed(
       senderAddressOf(message),
-      whitelistSet
+      whitelistSet,
     );
     const senderAuthenticated = Boolean(message.spamInfo.senderAuthenticated);
     if (isWhitelisted) whitelistedTotal++;
@@ -233,7 +236,7 @@ export function applyWhitelistAdjustments<M extends WhitelistableMessage>(
         score: applyWhitelistAdjustment(
           message.spamInfo.score,
           isWhitelisted,
-          senderAuthenticated
+          senderAuthenticated,
         ),
       },
     };
@@ -254,7 +257,7 @@ export function applyWhitelistAdjustments<M extends WhitelistableMessage>(
  * @param messages
  */
 export function partitionByWhitelistFlag<M extends WhitelistFlaggedMessage>(
-  messages: M[]
+  messages: M[],
 ): { whitelisted: M[]; rest: M[] } {
   const whitelisted: M[] = [];
   const rest: M[] = [];
@@ -279,7 +282,7 @@ export function partitionByWhitelistFlag<M extends WhitelistFlaggedMessage>(
 export function mergeWhitelistedBack<M>(
   categorized: CategorizedBuckets<M>,
   nonSpamWhitelisted: M[],
-  lowSpamWhitelisted: M[]
+  lowSpamWhitelisted: M[],
 ): CategorizedBuckets<M> {
   return {
     ...categorized,

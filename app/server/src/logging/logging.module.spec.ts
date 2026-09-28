@@ -9,7 +9,9 @@ import {
 } from './logging.module.js';
 import type { LoggingConfig } from '../config/app-config.js';
 
-function fixtureLoggingConfig(overrides: Partial<LoggingConfig> = {}): LoggingConfig {
+function fixtureLoggingConfig(
+  overrides: Partial<LoggingConfig> = {},
+): LoggingConfig {
   return {
     level: 'info',
     format: 'json',
@@ -33,8 +35,8 @@ function captureLines(): { stream: Writable; lines: () => unknown[] } {
       chunks
         .join('')
         .split('\n')
-        .filter(line => line.length > 0)
-        .map(line => JSON.parse(line)),
+        .filter((line) => line.length > 0)
+        .map((line) => JSON.parse(line)),
   };
 }
 
@@ -51,7 +53,9 @@ describe('buildPinoOptions', () => {
   });
 
   test('falls back to info for an invalid level rather than rejecting it', () => {
-    const options = buildPinoOptions(fixtureLoggingConfig({ level: 'verbose' }));
+    const options = buildPinoOptions(
+      fixtureLoggingConfig({ level: 'verbose' }),
+    );
     expect(options.level).toBe('info');
   });
 
@@ -72,7 +76,7 @@ describe('buildPinoOptions', () => {
         AI_API_KEY: 'super-secret-ai',
         SAFE_FIELD: 'not-a-secret',
       },
-      'test log with secrets'
+      'test log with secrets',
     );
 
     const [line] = lines();
@@ -120,7 +124,7 @@ describe('buildPinoOptions', () => {
           Password: 'nested-generic-password',
         },
       },
-      'nested secrets'
+      'nested secrets',
     );
 
     const [line] = lines();
@@ -145,7 +149,7 @@ describe('buildPinoOptions', () => {
 
     test('LOG_FILTER_INCLUDES only logs the listed components', () => {
       const options = buildPinoOptions(
-        fixtureLoggingConfig({ filterIncludes: 'imap,rspamd' })
+        fixtureLoggingConfig({ filterIncludes: 'imap,rspamd' }),
       );
       const { stream, lines } = captureLines();
       const logger = pino(options, stream);
@@ -160,7 +164,7 @@ describe('buildPinoOptions', () => {
 
     test('LOG_FILTER_EXCLUDES drops the listed components', () => {
       const options = buildPinoOptions(
-        fixtureLoggingConfig({ filterExcludes: 'imapflow' })
+        fixtureLoggingConfig({ filterExcludes: 'imapflow' }),
       );
       const { stream, lines } = captureLines();
       const logger = pino(options, stream);
@@ -175,7 +179,7 @@ describe('buildPinoOptions', () => {
 
     test('a log line with no component binding is never filtered out', () => {
       const options = buildPinoOptions(
-        fixtureLoggingConfig({ filterIncludes: 'imap' })
+        fixtureLoggingConfig({ filterIncludes: 'imap' }),
       );
       const { stream, lines } = captureLines();
       const logger = pino(options, stream);
@@ -217,7 +221,7 @@ describe('redactAuthorizationHeaders', () => {
 describe('canLoadPinoPretty', () => {
   test('returns true when the resolver succeeds', () => {
     expect(
-      canLoadPinoPretty(() => 'file:///node_modules/pino-pretty/index.js')
+      canLoadPinoPretty(() => 'file:///node_modules/pino-pretty/index.js'),
     ).toBe(true);
   });
 
@@ -225,7 +229,7 @@ describe('canLoadPinoPretty', () => {
     expect(
       canLoadPinoPretty(() => {
         throw new Error('Cannot find package "pino-pretty"');
-      })
+      }),
     ).toBe(false);
   });
 });

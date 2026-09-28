@@ -17,11 +17,13 @@ const BEARER_PREFIX = 'Bearer ';
  */
 export function verifyBearerToken(
   request: Request,
-  jwtService: JwtService
+  jwtService: JwtService,
 ): TokenPayload {
   const header = request.headers.authorization;
   if (!header || !header.startsWith(BEARER_PREFIX)) {
-    throw new UnauthorizedException('Missing or malformed Authorization header');
+    throw new UnauthorizedException(
+      'Missing or malformed Authorization header',
+    );
   }
 
   const token = header.slice(BEARER_PREFIX.length);

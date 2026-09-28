@@ -8,8 +8,7 @@ const ORIGINAL_ENV = { ...process.env };
  * calls `ConfigModule.forRoot()` (and therefore reads `process.env`) the
  * moment `config.module.ts` is imported/evaluated - not lazily at test time.
  * So each test needs a *fresh* import, taken after the fixture env is set,
- * via `vi.resetModules()` (same pattern as
- * `terminal/test/unit/core/config.test.ts`). `app-config.js` is imported
+ * via `vi.resetModules()`. `app-config.js` is imported
  * dynamically too, from the same reset cycle, so its `RspamdConfig` etc.
  * classes are the exact identities `config.module.ts` used as DI tokens -
  * a stale, separately-cached import would be a different class reference and
@@ -124,7 +123,7 @@ describe('AppConfigModule', () => {
     const { AppConfigModule } = await loadConfigModule();
 
     await expect(
-      Test.createTestingModule({ imports: [AppConfigModule] }).compile()
+      Test.createTestingModule({ imports: [AppConfigModule] }).compile(),
     ).rejects.toThrow(/MAILBOX_ID/);
   });
 });

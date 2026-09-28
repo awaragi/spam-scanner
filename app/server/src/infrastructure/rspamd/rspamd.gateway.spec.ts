@@ -98,10 +98,10 @@ describe('RspamdGateway', () => {
           method: 'POST',
           headers: expect.objectContaining({
             'Content-Type': 'text/plain',
-            'Password': 'test-password',
+            Password: 'test-password',
           }),
           body: emailContent,
-        })
+        }),
       );
       expect(result).toEqual(mockResponse);
     });
@@ -134,9 +134,9 @@ describe('RspamdGateway', () => {
         expect.stringContaining('/checkv2'),
         expect.objectContaining({
           headers: expect.objectContaining({
-            'Password': 'test-password',
+            Password: 'test-password',
           }),
-        })
+        }),
       );
     });
 
@@ -150,7 +150,7 @@ describe('RspamdGateway', () => {
       } as Response);
 
       await expect(gateway.checkEmail(emailContent)).rejects.toThrow(
-        'Rspamd check failed with status 400'
+        'Rspamd check failed with status 400',
       );
     });
 
@@ -170,25 +170,23 @@ describe('RspamdGateway', () => {
 
     test('should throw error when email content is empty', async () => {
       await expect(gateway.checkEmail('')).rejects.toThrow(
-        'Email content is required'
+        'Email content is required',
       );
     });
 
     test('should throw error when email content is null', async () => {
       await expect(gateway.checkEmail(null)).rejects.toThrow(
-        'Email content is required'
+        'Email content is required',
       );
     });
 
     test('should throw error on network failure', async () => {
       const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
 
-      vi.mocked(global.fetch).mockRejectedValueOnce(
-        new Error('Network error')
-      );
+      vi.mocked(global.fetch).mockRejectedValueOnce(new Error('Network error'));
 
       await expect(gateway.checkEmail(emailContent)).rejects.toThrow(
-        'Network error'
+        'Network error',
       );
     });
 
@@ -211,13 +209,13 @@ describe('RspamdGateway', () => {
         expect.objectContaining({
           headers: {
             'Content-Type': 'text/plain',
-            'Password': 'test-password',
+            Password: 'test-password',
             IP: '203.0.113.5',
             Helo: 'mail.example.com',
             From: 'sender@example.com',
             Rcpt: 'owner@example.com',
           },
-        })
+        }),
       );
     });
 
@@ -228,17 +226,20 @@ describe('RspamdGateway', () => {
         json: async () => ({ action: 'no action', score: 0 }),
       } as Response);
 
-      await gateway.checkEmail(emailContent, { ip: null, helo: 'mail.example.com' });
+      await gateway.checkEmail(emailContent, {
+        ip: null,
+        helo: 'mail.example.com',
+      });
 
       expect(global.fetch).toHaveBeenCalledWith(
         expect.stringContaining('/checkv2'),
         expect.objectContaining({
           headers: {
             'Content-Type': 'text/plain',
-            'Password': 'test-password',
+            Password: 'test-password',
             Helo: 'mail.example.com',
           },
-        })
+        }),
       );
     });
 
@@ -257,7 +258,7 @@ describe('RspamdGateway', () => {
           headers: expect.objectContaining({
             'Deliver-To': 'owner@example.com',
           }),
-        })
+        }),
       );
     });
 
@@ -270,10 +271,8 @@ describe('RspamdGateway', () => {
 
       await gateway.checkEmail(emailContent);
 
-      const headers = vi.mocked(global.fetch).mock.calls[0][1]?.headers as Record<
-        string,
-        string
-      >;
+      const headers = vi.mocked(global.fetch).mock.calls[0][1]
+        ?.headers as Record<string, string>;
       expect(headers).not.toHaveProperty('Deliver-To');
     });
   });
@@ -296,10 +295,10 @@ describe('RspamdGateway', () => {
           method: 'POST',
           headers: expect.objectContaining({
             'Content-Type': 'text/plain',
-            'Password': 'test-password',
+            Password: 'test-password',
           }),
           body: emailContent,
-        })
+        }),
       );
       expect(result).toEqual(mockResponse);
     });
@@ -335,13 +334,13 @@ describe('RspamdGateway', () => {
       } as Response);
 
       await expect(gateway.learnHam(emailContent)).rejects.toThrow(
-        'Rspamd learn ham failed with status 401'
+        'Rspamd learn ham failed with status 401',
       );
     });
 
     test('should throw error when email content is empty', async () => {
       await expect(gateway.learnHam('')).rejects.toThrow(
-        'Email content is required'
+        'Email content is required',
       );
     });
 
@@ -349,11 +348,11 @@ describe('RspamdGateway', () => {
       const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
 
       vi.mocked(global.fetch).mockRejectedValueOnce(
-        new Error('Connection refused')
+        new Error('Connection refused'),
       );
 
       await expect(gateway.learnHam(emailContent)).rejects.toThrow(
-        'Connection refused'
+        'Connection refused',
       );
     });
 
@@ -388,7 +387,7 @@ describe('RspamdGateway', () => {
           headers: expect.objectContaining({
             'Deliver-To': 'owner@example.com',
           }),
-        })
+        }),
       );
     });
 
@@ -401,10 +400,8 @@ describe('RspamdGateway', () => {
 
       await gateway.learnHam(emailContent);
 
-      const headers = vi.mocked(global.fetch).mock.calls[0][1]?.headers as Record<
-        string,
-        string
-      >;
+      const headers = vi.mocked(global.fetch).mock.calls[0][1]
+        ?.headers as Record<string, string>;
       expect(headers).not.toHaveProperty('Deliver-To');
     });
   });
@@ -427,10 +424,10 @@ describe('RspamdGateway', () => {
           method: 'POST',
           headers: expect.objectContaining({
             'Content-Type': 'text/plain',
-            'Password': 'test-password',
+            Password: 'test-password',
           }),
           body: emailContent,
-        })
+        }),
       );
       expect(result).toEqual(mockResponse);
     });
@@ -439,7 +436,8 @@ describe('RspamdGateway', () => {
       const emailContent = 'From: test@example.com\nSubject: Test\n\nBody';
       const mockResponse = {
         success: false,
-        error: '<msgid@example.com> has been already learned as spam, ignore it',
+        error:
+          '<msgid@example.com> has been already learned as spam, ignore it',
       };
 
       vi.mocked(global.fetch, { partial: true }).mockResolvedValueOnce({
@@ -466,13 +464,13 @@ describe('RspamdGateway', () => {
       } as Response);
 
       await expect(gateway.learnSpam(emailContent)).rejects.toThrow(
-        'Rspamd learn spam failed with status 503'
+        'Rspamd learn spam failed with status 503',
       );
     });
 
     test('should throw error when email content is empty', async () => {
       await expect(gateway.learnSpam('')).rejects.toThrow(
-        'Email content is required'
+        'Email content is required',
       );
     });
 
@@ -515,7 +513,7 @@ describe('RspamdGateway', () => {
           headers: expect.objectContaining({
             'Deliver-To': 'owner@example.com',
           }),
-        })
+        }),
       );
     });
 
@@ -528,10 +526,8 @@ describe('RspamdGateway', () => {
 
       await gateway.learnSpam(emailContent);
 
-      const headers = vi.mocked(global.fetch).mock.calls[0][1]?.headers as Record<
-        string,
-        string
-      >;
+      const headers = vi.mocked(global.fetch).mock.calls[0][1]
+        ?.headers as Record<string, string>;
       expect(headers).not.toHaveProperty('Deliver-To');
     });
   });

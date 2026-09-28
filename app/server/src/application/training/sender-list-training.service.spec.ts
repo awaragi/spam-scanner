@@ -57,7 +57,9 @@ function fixtureMailbox(overrides: Partial<Mailbox> = {}): Mailbox {
   };
 }
 
-function fixtureFolders(overrides: Partial<MailboxFolders> = {}): MailboxFolders {
+function fixtureFolders(
+  overrides: Partial<MailboxFolders> = {},
+): MailboxFolders {
   return {
     inbox: 'INBOX',
     spam: 'INBOX.spam',
@@ -81,7 +83,9 @@ function fixtureLogger(): PinoLogger {
   } as unknown as PinoLogger;
 }
 
-function fixtureSession(overrides: Partial<MailboxSession> = {}): MailboxSession {
+function fixtureSession(
+  overrides: Partial<MailboxSession> = {},
+): MailboxSession {
   return {
     mailbox: fixtureMailbox(),
     imap: mockImap,
@@ -100,20 +104,29 @@ function makeMessage(uid: number, from: string | undefined) {
 // fetchMessageHeadersByUIDs to return the corresponding fixture messages for
 // whatever sub-batch of UIDs it's called with.
 function stubUidsAndFetch(messages: ReturnType<typeof makeMessage>[]) {
-  const byUid = new Map(messages.map(m => [m.uid, m]));
-  mockSearch.mockResolvedValue(messages.map(m => m.uid));
+  const byUid = new Map(messages.map((m) => [m.uid, m]));
+  mockSearch.mockResolvedValue(messages.map((m) => m.uid));
   mockFetchHeadersByUIDs.mockImplementation(
-    async (_imap: unknown, batchUids: number[]) => batchUids.map(uid => byUid.get(uid))
+    async (_imap: unknown, batchUids: number[]) =>
+      batchUids.map((uid) => byUid.get(uid)),
   );
 }
 
-async function buildService(scanConfig: Partial<ScanConfig> = {}): Promise<SenderListTrainingService> {
+async function buildService(
+  scanConfig: Partial<ScanConfig> = {},
+): Promise<SenderListTrainingService> {
   const moduleRef = await Test.createTestingModule({
     providers: [
       SenderListTrainingService,
       {
         provide: ScanConfig,
-        useValue: { batchProcessSize: 100, scanIntervalSeconds: 300, batchScanSize: 100, maxRetries: 5, ...scanConfig },
+        useValue: {
+          batchProcessSize: 100,
+          scanIntervalSeconds: 300,
+          batchScanSize: 100,
+          maxRetries: 5,
+          ...scanConfig,
+        },
       },
     ],
   }).compile();
@@ -146,10 +159,17 @@ describe('SenderListTrainingService: messages with no extractable sender are sti
     mockReadMapState.mockResolvedValue([]);
     const service = await buildService();
 
-    await service.runWhitelist(fixtureSession({ folders: fixtureFolders({ inbox: 'INBOX' }) }));
+    await service.runWhitelist(
+      fixtureSession({ folders: fixtureFolders({ inbox: 'INBOX' }) }),
+    );
 
     expect(mockWriteMapState).not.toHaveBeenCalled();
-    expect(mockMoveMessages).toHaveBeenCalledWith(mockImap, messages, 'INBOX', expect.anything());
+    expect(mockMoveMessages).toHaveBeenCalledWith(
+      mockImap,
+      messages,
+      'INBOX',
+      expect.anything(),
+    );
   });
 
   test('extractable senders: IMAP-backed list is updated in append mode and messages are moved on', async () => {
@@ -161,8 +181,11 @@ describe('SenderListTrainingService: messages with no extractable sender are sti
 
     await service.runWhitelist(
       fixtureSession({
-        folders: fixtureFolders({ inbox: 'INBOX', state: 'INBOX.scanner.state' }),
-      })
+        folders: fixtureFolders({
+          inbox: 'INBOX',
+          state: 'INBOX.scanner.state',
+        }),
+      }),
     );
 
     expect(mockWriteMapState).toHaveBeenCalledWith(
@@ -170,9 +193,14 @@ describe('SenderListTrainingService: messages with no extractable sender are sti
       'INBOX.scanner.state',
       'rspamd-whitelist-map',
       JSON.stringify(['sender@example.com'], null, 2),
-      expect.anything()
+      expect.anything(),
     );
-    expect(mockMoveMessages).toHaveBeenCalledWith(mockImap, messages, 'INBOX', expect.anything());
+    expect(mockMoveMessages).toHaveBeenCalledWith(
+      mockImap,
+      messages,
+      'INBOX',
+      expect.anything(),
+    );
   });
 
   test('a sender already covered by an existing domain entry is not re-added', async () => {
@@ -182,10 +210,17 @@ describe('SenderListTrainingService: messages with no extractable sender are sti
     mockReadMapState.mockResolvedValue(['@example.com']);
     const service = await buildService();
 
-    await service.runWhitelist(fixtureSession({ folders: fixtureFolders({ inbox: 'INBOX' }) }));
+    await service.runWhitelist(
+      fixtureSession({ folders: fixtureFolders({ inbox: 'INBOX' }) }),
+    );
 
     expect(mockWriteMapState).not.toHaveBeenCalled();
-    expect(mockMoveMessages).toHaveBeenCalledWith(mockImap, messages, 'INBOX', expect.anything());
+    expect(mockMoveMessages).toHaveBeenCalledWith(
+      mockImap,
+      messages,
+      'INBOX',
+      expect.anything(),
+    );
   });
 
   test('runBlacklist moves messages to the spam folder', async () => {
@@ -196,10 +231,15 @@ describe('SenderListTrainingService: messages with no extractable sender are sti
     const service = await buildService();
 
     await service.runBlacklist(
-      fixtureSession({ folders: fixtureFolders({ spam: 'INBOX.spam' }) })
+      fixtureSession({ folders: fixtureFolders({ spam: 'INBOX.spam' }) }),
     );
 
-    expect(mockMoveMessages).toHaveBeenCalledWith(mockImap, messages, 'INBOX.spam', expect.anything());
+    expect(mockMoveMessages).toHaveBeenCalledWith(
+      mockImap,
+      messages,
+      'INBOX.spam',
+      expect.anything(),
+    );
   });
 
   test('fetches headers only, never full source/body', async () => {
@@ -211,12 +251,16 @@ describe('SenderListTrainingService: messages with no extractable sender are sti
 
     await service.runWhitelist(fixtureSession());
 
-    expect(mockFetchHeadersByUIDs).toHaveBeenCalledWith(mockImap, [1], expect.anything());
+    expect(mockFetchHeadersByUIDs).toHaveBeenCalledWith(
+      mockImap,
+      [1],
+      expect.anything(),
+    );
   });
 
   test('more than batchProcessSize UIDs are fetched in more than one bounded call', async () => {
     const messages = Array.from({ length: 25 }, (_, i) =>
-      makeMessage(i + 1, `sender${i + 1}@example.com`)
+      makeMessage(i + 1, `sender${i + 1}@example.com`),
     );
     mockCount.mockReturnValue(messages.length);
     stubUidsAndFetch(messages);
@@ -237,7 +281,9 @@ describe('SenderListTrainingService: messages with no extractable sender are sti
     const service = await buildService();
     const session = fixtureSession();
 
-    await expect(service.runWhitelist(session)).rejects.toThrow('connection dropped');
+    await expect(service.runWhitelist(session)).rejects.toThrow(
+      'connection dropped',
+    );
 
     expect(session.logger.error).toHaveBeenCalled();
     expect(mockMoveMessages).not.toHaveBeenCalled();

@@ -42,7 +42,7 @@ describe('computeScanProgress', () => {
     ];
 
     expect(computeScanProgress(state, messages).last_seen_date).toBe(
-      '2024-03-01T00:00:00.000Z'
+      '2024-03-01T00:00:00.000Z',
     );
   });
 
@@ -54,7 +54,7 @@ describe('computeScanProgress', () => {
     ];
 
     expect(computeScanProgress(state, messages).last_seen_date).toBe(
-      '2024-01-01T00:00:00.000Z'
+      '2024-01-01T00:00:00.000Z',
     );
   });
 });

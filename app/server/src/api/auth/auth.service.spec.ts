@@ -36,7 +36,9 @@ describe('AuthService', () => {
 
   beforeEach(() => {
     jwtService = { sign: vi.fn().mockReturnValue('signed-token') };
-    mailboxRepository = { findAll: vi.fn().mockReturnValue([fixtureMailbox()]) };
+    mailboxRepository = {
+      findAll: vi.fn().mockReturnValue([fixtureMailbox()]),
+    };
     config = fixtureConfig();
   });
 
@@ -44,7 +46,7 @@ describe('AuthService', () => {
     return new AuthService(
       config,
       jwtService as never,
-      mailboxRepository as unknown as MailboxRepository
+      mailboxRepository as unknown as MailboxRepository,
     );
   }
 
@@ -57,7 +59,7 @@ describe('AuthService', () => {
       expect(result).toEqual({ token: 'signed-token' });
       expect(jwtService.sign).toHaveBeenCalledWith(
         { sub: 'admin', scope: 'admin' },
-        { expiresIn: 3600 }
+        { expiresIn: 3600 },
       );
     });
 
@@ -65,7 +67,7 @@ describe('AuthService', () => {
       const service = build();
 
       expect(() => service.login('wrong-password')).toThrow(
-        UnauthorizedException
+        UnauthorizedException,
       );
       expect(jwtService.sign).not.toHaveBeenCalled();
     });
@@ -91,7 +93,7 @@ describe('AuthService', () => {
           scope: 'mailbox',
           mailboxId: 'owner@example.com',
         },
-        { expiresIn: 1800 }
+        { expiresIn: 1800 },
       );
     });
 
@@ -99,7 +101,7 @@ describe('AuthService', () => {
       const service = build();
 
       expect(() =>
-        service.exchangeForMailboxToken('unknown@example.com')
+        service.exchangeForMailboxToken('unknown@example.com'),
       ).toThrow(NotFoundException);
       expect(jwtService.sign).not.toHaveBeenCalled();
     });

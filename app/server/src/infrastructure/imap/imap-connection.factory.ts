@@ -30,7 +30,7 @@ export interface NewClientOptions {
 /**
  * Creates and returns a configured ImapFlow instance.
  *
- * Preserves the TLS/STARTTLS logic from terminal's `imap-transport-security`
+ * Implements the TLS/STARTTLS logic of the `imap-transport-security`
  * capability: when `imapTls` is false (insecure mode), `doSTARTTLS` is set to
  * true, enforcing STARTTLS before authentication and preventing silent plaintext
  * fallback. When `imapTls` is true, STARTTLS is left unset (library default),
@@ -44,7 +44,7 @@ export interface NewClientOptions {
 export function newClient(
   connection: ImapConnectionConfig,
   logger?: PinoLogger,
-  options?: NewClientOptions
+  options?: NewClientOptions,
 ): ImapFlow {
   // Create a pino logger for ImapFlow that redirects to the optional logger.
   // If no logger is provided, create no-op functions to avoid null checks.
@@ -93,7 +93,7 @@ export function newClient(
  */
 export async function safeLogout(
   imap: ImapFlow,
-  logger?: PinoLogger
+  logger?: PinoLogger,
 ): Promise<void> {
   try {
     await imap.logout();
@@ -101,7 +101,7 @@ export async function safeLogout(
     if (logger) {
       logger.debug(
         { error: err instanceof Error ? err.message : String(err) },
-        'Logout failed (connection likely never established)'
+        'Logout failed (connection likely never established)',
       );
     }
   }
@@ -123,7 +123,7 @@ export async function safeLogout(
 export async function withSession<T>(
   connection: ImapConnectionConfig,
   fn: (imap: ImapFlow) => Promise<T>,
-  logger?: PinoLogger
+  logger?: PinoLogger,
 ): Promise<T> {
   const imap = newClient(connection, logger);
   try {

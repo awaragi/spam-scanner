@@ -9,13 +9,14 @@ import { defaultMailboxSettings } from '../../config/mailbox-settings.defaults.j
 import { ScanConfig } from '../../config/app-config.js';
 import { RspamdGateway } from '../../infrastructure/rspamd/rspamd.gateway.js';
 
-const { mockOpen, mockCount, mockSearch, mockFetchByUIDs, mockMoveMessages } = vi.hoisted(() => ({
-  mockOpen: vi.fn(),
-  mockCount: vi.fn(),
-  mockSearch: vi.fn(),
-  mockFetchByUIDs: vi.fn(),
-  mockMoveMessages: vi.fn(),
-}));
+const { mockOpen, mockCount, mockSearch, mockFetchByUIDs, mockMoveMessages } =
+  vi.hoisted(() => ({
+    mockOpen: vi.fn(),
+    mockCount: vi.fn(),
+    mockSearch: vi.fn(),
+    mockFetchByUIDs: vi.fn(),
+    mockMoveMessages: vi.fn(),
+  }));
 
 vi.mock('../../infrastructure/imap/mailbox.gateway.js', () => ({
   open: mockOpen,
@@ -43,7 +44,9 @@ function fixtureMailbox(overrides: Partial<Mailbox> = {}): Mailbox {
   };
 }
 
-function fixtureFolders(overrides: Partial<MailboxFolders> = {}): MailboxFolders {
+function fixtureFolders(
+  overrides: Partial<MailboxFolders> = {},
+): MailboxFolders {
   return {
     inbox: 'INBOX',
     spam: 'INBOX.spam',
@@ -67,7 +70,9 @@ function fixtureLogger(): PinoLogger {
   } as unknown as PinoLogger;
 }
 
-function fixtureSession(overrides: Partial<MailboxSession> = {}): MailboxSession {
+function fixtureSession(
+  overrides: Partial<MailboxSession> = {},
+): MailboxSession {
   return {
     mailbox: fixtureMailbox(),
     imap: mockImap,
@@ -86,17 +91,18 @@ function makeMessage(uid: number) {
 // corresponding fixture messages for whatever sub-batch of UIDs it's called
 // with - mirrors the real gateway's search-then-batch-fetch shape.
 function stubUidsAndFetch(uids: number[]) {
-  const byUid = new Map(uids.map(uid => [uid, makeMessage(uid)]));
+  const byUid = new Map(uids.map((uid) => [uid, makeMessage(uid)]));
   mockSearch.mockResolvedValue(uids);
-  mockFetchByUIDs.mockImplementation(async (_imap: unknown, batchUids: number[]) =>
-    batchUids.map(uid => byUid.get(uid))
+  mockFetchByUIDs.mockImplementation(
+    async (_imap: unknown, batchUids: number[]) =>
+      batchUids.map((uid) => byUid.get(uid)),
   );
   return byUid;
 }
 
 async function buildService(
   rspamd: Partial<RspamdGateway>,
-  scanConfig: Partial<ScanConfig> = {}
+  scanConfig: Partial<ScanConfig> = {},
 ): Promise<RspamdTrainingService> {
   const moduleRef = await Test.createTestingModule({
     providers: [
@@ -104,7 +110,13 @@ async function buildService(
       { provide: RspamdGateway, useValue: rspamd },
       {
         provide: ScanConfig,
-        useValue: { batchProcessSize: 100, scanIntervalSeconds: 300, batchScanSize: 100, maxRetries: 5, ...scanConfig },
+        useValue: {
+          batchProcessSize: 100,
+          scanIntervalSeconds: 300,
+          batchScanSize: 100,
+          maxRetries: 5,
+          ...scanConfig,
+        },
       },
     ],
   }).compile();
@@ -139,7 +151,11 @@ describe('RspamdTrainingService: per-message failure isolation', () => {
 
     await service.runSpam(fixtureSession());
 
-    expect(mockSearch).toHaveBeenCalledWith(mockImap, { all: true }, expect.anything());
+    expect(mockSearch).toHaveBeenCalledWith(
+      mockImap,
+      { all: true },
+      expect.anything(),
+    );
   });
 
   test('more than batchProcessSize UIDs are fetched in more than one bounded call', async () => {
@@ -169,7 +185,9 @@ describe('RspamdTrainingService: per-message failure isolation', () => {
     const service = await buildService({ learnSpam }, { batchProcessSize: 1 });
 
     await expect(
-      service.runSpam(fixtureSession({ folders: fixtureFolders({ spam: 'INBOX.spam' }) }))
+      service.runSpam(
+        fixtureSession({ folders: fixtureFolders({ spam: 'INBOX.spam' }) }),
+      ),
     ).resolves.toBeUndefined();
 
     // First batch's message was still moved despite the second batch's fetch failing.
@@ -178,14 +196,14 @@ describe('RspamdTrainingService: per-message failure isolation', () => {
       mockImap,
       [makeMessage(1)],
       'INBOX.spam',
-      expect.anything()
+      expect.anything(),
     );
   });
 
   test('a permanently-failing message in a batch is still moved, alongside the learned ones', async () => {
     mockCount.mockReturnValue(3);
     stubUidsAndFetch([1, 2, 3]);
-    const learnSpam = vi.fn().mockImplementation(async raw => {
+    const learnSpam = vi.fn().mockImplementation(async (raw) => {
       if (raw === 'raw-2') {
         const err: Error & { status?: number } = new Error('bad request');
         err.status = 400;
@@ -195,13 +213,15 @@ describe('RspamdTrainingService: per-message failure isolation', () => {
     });
     const service = await buildService({ learnSpam });
 
-    await service.runSpam(fixtureSession({ folders: fixtureFolders({ spam: 'INBOX.spam' }) }));
+    await service.runSpam(
+      fixtureSession({ folders: fixtureFolders({ spam: 'INBOX.spam' }) }),
+    );
 
     expect(mockMoveMessages).toHaveBeenCalledWith(
       mockImap,
       [makeMessage(1), makeMessage(3), makeMessage(2)],
       'INBOX.spam',
-      expect.anything()
+      expect.anything(),
     );
   });
 
@@ -225,7 +245,7 @@ describe('RspamdTrainingService: per-message failure isolation', () => {
     const service = await buildService({ learnSpam });
 
     await service.runSpam(
-      fixtureSession({ mailbox: fixtureMailbox({ id: 'owner@example.com' }) })
+      fixtureSession({ mailbox: fixtureMailbox({ id: 'owner@example.com' }) }),
     );
 
     expect(learnSpam).toHaveBeenCalledWith('raw-1', 'owner@example.com');
@@ -238,7 +258,7 @@ describe('RspamdTrainingService: per-message failure isolation', () => {
     const service = await buildService({ learnHam });
 
     await service.runHam(
-      fixtureSession({ mailbox: fixtureMailbox({ id: 'owner@example.com' }) })
+      fixtureSession({ mailbox: fixtureMailbox({ id: 'owner@example.com' }) }),
     );
 
     expect(learnHam).toHaveBeenCalledWith('raw-1', 'owner@example.com');

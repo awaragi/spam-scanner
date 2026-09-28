@@ -158,7 +158,7 @@ describe('extractAiContent', () => {
     await expect(
       extractAiContent(buildMessage({ raw: undefined }), {
         maxInputTokens: 6000,
-      })
+      }),
     ).rejects.toThrow();
   });
 });

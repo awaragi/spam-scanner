@@ -12,20 +12,17 @@ interface CategorizedMessages {
 }
 
 /**
- * Disposes of a categorized batch of messages, merging terminal's
- * `label-apply.step.ts`, `folder-move.step.ts` and `spam-move.step.ts` into
- * one file, per design.md D1 ("disposition.step.ts merging
- * label-apply/folder-move/spam-move").
+ * Disposes of a categorized batch of messages: label-apply, folder-move and
+ * spam-move in one file, per design.md D1.
  *
  * Kept as three separate exported methods on one injectable, rather than
- * one combined `dispose()` method, so `scan.service.ts` keeps the same
- * mode-resolution responsibility terminal's `scan.controller.ts` had -
- * terminal's own comment on `resolveProcessFn` called that "ordinary
- * controller-level wiring, not a hidden business rule", and moving it here
- * instead would turn a wiring decision into a second, harder-to-see
- * business rule buried inside this step. `moveConfirmedSpam` stays
- * unconditional and separate from the label/folder strategies, exactly as
- * in terminal - every processing mode moves confirmed spam the same way.
+ * one combined `dispose()` method, so `scan.service.ts` keeps the
+ * processing-mode resolution - that is ordinary orchestration wiring, not a
+ * hidden business rule, and moving it here instead would turn a wiring
+ * decision into a second, harder-to-see business rule buried inside this
+ * step. `moveConfirmedSpam` stays unconditional and separate from the
+ * label/folder strategies - every processing mode moves confirmed spam the
+ * same way.
  */
 @Injectable()
 export class DispositionStep {
@@ -34,12 +31,8 @@ export class DispositionStep {
    * current default processing mode.
    */
   async applyLabels(
-    {
-      nonSpamMessages,
-      lowSpamMessages,
-      highSpamMessages,
-    }: CategorizedMessages,
-    session: MailboxSession
+    { nonSpamMessages, lowSpamMessages, highSpamMessages }: CategorizedMessages,
+    session: MailboxSession,
   ): Promise<void> {
     const { imap, settings, logger } = session;
     const { spamLow, spamHigh } = settings.labels;
@@ -48,7 +41,7 @@ export class DispositionStep {
     // Reset spam labels on non-spam messages
     logger.debug(
       { count: nonSpamMessages.length },
-      'Resetting spam labels on clean messages'
+      'Resetting spam labels on clean messages',
     );
     await updateLabels(imap, nonSpamMessages, [], [spamLow, spamHigh], logger);
 
@@ -59,7 +52,7 @@ export class DispositionStep {
     // Apply Spam:High label
     logger.debug(
       { count: highSpamMessages.length },
-      'Applying Spam:High label'
+      'Applying Spam:High label',
     );
     await updateLabels(imap, highSpamMessages, [spamHigh], [spamLow], logger);
 
@@ -70,45 +63,41 @@ export class DispositionStep {
    * Moves messages to spam-likelihood folders based on their spam tier.
    */
   async moveToFolders(
-    {
-      nonSpamMessages,
-      lowSpamMessages,
-      highSpamMessages,
-    }: CategorizedMessages,
-    session: MailboxSession
+    { nonSpamMessages, lowSpamMessages, highSpamMessages }: CategorizedMessages,
+    session: MailboxSession,
   ): Promise<void> {
     const { imap, folders, logger } = session;
     logger.debug(
       { mode: 'folder' },
-      'Processing messages with folder strategy'
+      'Processing messages with folder strategy',
     );
 
     if (!folders.spamLow) {
       throw new Error(
-        'FOLDER_SPAM_LOW configuration is required for folder processing mode'
+        'FOLDER_SPAM_LOW configuration is required for folder processing mode',
       );
     }
 
     if (!folders.spamHigh) {
       throw new Error(
-        'FOLDER_SPAM_HIGH configuration is required for folder processing mode'
+        'FOLDER_SPAM_HIGH configuration is required for folder processing mode',
       );
     }
 
     logger.debug(
       { count: nonSpamMessages.length, folder: folders.inbox },
-      'Not touching non-spam messages'
+      'Not touching non-spam messages',
     );
 
     logger.debug(
       { count: lowSpamMessages.length, folder: folders.spamLow },
-      'Moving low spam messages'
+      'Moving low spam messages',
     );
     await moveMessages(imap, lowSpamMessages, folders.spamLow, logger);
 
     logger.debug(
       { count: highSpamMessages.length, folder: folders.spamHigh },
-      'Moving high spam messages'
+      'Moving high spam messages',
     );
     await moveMessages(imap, highSpamMessages, folders.spamHigh, logger);
 
@@ -123,12 +112,12 @@ export class DispositionStep {
    */
   async moveConfirmedSpam(
     spamMessages: Array<{ uid: number }>,
-    session: MailboxSession
+    session: MailboxSession,
   ): Promise<void> {
     const { imap, folders, logger } = session;
     logger.debug(
       { count: spamMessages.length },
-      'Moving spam messages to spam folder'
+      'Moving spam messages to spam folder',
     );
     await moveMessages(imap, spamMessages, folders.spam, logger);
   }

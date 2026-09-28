@@ -56,7 +56,7 @@ describe('resolveMailboxFolders', () => {
     mockGetImapDelimiter.mockResolvedValue(null);
 
     await expect(
-      resolveMailboxFolders(fakeImap, fixtureFolders())
+      resolveMailboxFolders(fakeImap, fixtureFolders()),
     ).rejects.toThrow(/could not determine IMAP server delimiter/);
   });
 
@@ -81,11 +81,10 @@ describe('resolveMailboxFolders', () => {
   });
 
   test('two mailboxes with different delimiters and different folder settings resolve independently, with no shared state', async () => {
-    // Terminal's resolveFolders mutated a single shared `config` object in
-    // place, so two mailboxes could never be resolved safely in the same
-    // process - a second call would clobber the first mailbox's paths.
-    // resolveMailboxFolders returns a fresh object per call, so both results
-    // remain correct and independent no matter the call order.
+    // resolveMailboxFolders must return a fresh object per call - mutating
+    // shared state would let a second call clobber the first mailbox's
+    // paths. Both results must remain correct and independent no matter the
+    // call order.
     mockGetImapDelimiter.mockResolvedValueOnce('.');
     const mailboxAFolders: MailboxFolders = {
       inbox: 'INBOX',

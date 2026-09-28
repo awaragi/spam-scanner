@@ -3,7 +3,7 @@ import { isPermanentError } from '../../domain/classification/error-classifier.j
 
 /**
  * The minimal shape `trainMessages` needs from a message fetched via
- * `fetchMessagesByUIDs` - ported from terminal's `rspamd-training.step.ts`.
+ * `fetchMessagesByUIDs`.
  */
 export interface TrainableMessage {
   uid: number;
@@ -41,7 +41,7 @@ async function processWithRspamdLearn<M extends TrainableMessage>(
   message: M,
   learnFn: LearnFn,
   type: string,
-  logger?: PinoLogger
+  logger?: PinoLogger,
 ): Promise<M | null> {
   const { uid, raw } = message;
   const subject = message.envelope.subject;
@@ -51,7 +51,7 @@ async function processWithRspamdLearn<M extends TrainableMessage>(
     const result = await learnFn(raw as string | Buffer);
     logger?.debug(
       { uid, type, subject, result },
-      'Message processed with rspamd learn'
+      'Message processed with rspamd learn',
     );
     return message;
   } catch (err) {
@@ -59,14 +59,14 @@ async function processWithRspamdLearn<M extends TrainableMessage>(
     if (isPermanentError(err)) {
       logger?.warn(
         { uid, type, subject, error: errorMessage },
-        'rspamd learn failed permanently for this message - leaving it in the training folder, batch continues'
+        'rspamd learn failed permanently for this message - leaving it in the training folder, batch continues',
       );
       return null;
     }
 
     logger?.error(
       { uid, type, subject, error: errorMessage },
-      'rspamd learn process error'
+      'rspamd learn process error',
     );
     throw err;
   }
@@ -90,14 +90,16 @@ export async function trainMessages<M extends TrainableMessage>(
   messages: M[],
   learnFn: LearnFn,
   type: string,
-  logger?: PinoLogger
+  logger?: PinoLogger,
 ): Promise<{ learned: M[]; skipped: M[] }> {
   if (messages.length === 0) {
     return { learned: [], skipped: [] };
   }
 
   const settled = await Promise.allSettled(
-    messages.map(message => processWithRspamdLearn(message, learnFn, type, logger))
+    messages.map((message) =>
+      processWithRspamdLearn(message, learnFn, type, logger),
+    ),
   );
 
   const learned: M[] = [];
@@ -118,13 +120,13 @@ export async function trainMessages<M extends TrainableMessage>(
 
   if (failedUids.length > 0) {
     throw new Error(
-      `rspamd learn (${type}) failed transiently for ${failedUids.length} message(s): ${failedUids.join(', ')}`
+      `rspamd learn (${type}) failed transiently for ${failedUids.length} message(s): ${failedUids.join(', ')}`,
     );
   }
 
   logger?.info(
     { type, learnedCount: learned.length, skippedCount: skipped.length },
-    'All messages processed with rspamd learn'
+    'All messages processed with rspamd learn',
   );
   return { learned, skipped };
 }

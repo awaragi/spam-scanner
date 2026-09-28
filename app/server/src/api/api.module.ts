@@ -36,7 +36,13 @@ import { AiModule } from '../infrastructure/ai/ai.module.js';
  * as everywhere else in the app.
  */
 @Module({
-  imports: [AuthModule, RuntimeModule, MailboxAdminModule, RspamdModule, AiModule],
+  imports: [
+    AuthModule,
+    RuntimeModule,
+    MailboxAdminModule,
+    RspamdModule,
+    AiModule,
+  ],
   controllers: [AdminController, MailboxController, HealthController],
   providers: [HealthService],
 })

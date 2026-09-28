@@ -9,18 +9,21 @@ import {
   fetchMessagesByUIDs,
   moveMessages,
 } from '../../infrastructure/imap/mailbox.gateway.js';
-import { trainMessages, type LearnFn, type TrainableMessage } from './rspamd-training.step.js';
+import {
+  trainMessages,
+  type LearnFn,
+  type TrainableMessage,
+} from './rspamd-training.step.js';
 
 type TrainFn = (
   messages: TrainableMessage[],
-  logger: MailboxSession['logger']
+  logger: MailboxSession['logger'],
 ) => Promise<{ learned: TrainableMessage[]; skipped: TrainableMessage[] }>;
 
 /**
- * Trains rspamd from a mailbox's `train.spam`/`train.ham` folders, ported
- * from terminal's `train.controller.ts` (workflow) plus its
- * `rspamd-training.step.ts` (per-batch learn/skip logic, kept as a
- * co-located pure step - see `rspamd-training.step.ts`).
+ * Trains rspamd from a mailbox's `train.spam`/`train.ham` folders. The
+ * per-batch learn/skip logic is a co-located pure step - see
+ * `rspamd-training.step.ts`.
  *
  * Training is best-effort and never fails the caller: unlike scanning (the
  * core function, where a systemic rspamd/IMAP outage should eventually
@@ -36,7 +39,7 @@ type TrainFn = (
 export class RspamdTrainingService {
   constructor(
     private readonly rspamd: RspamdGateway,
-    private readonly scanConfig: ScanConfig
+    private readonly scanConfig: ScanConfig,
   ) {}
 
   /**
@@ -52,7 +55,7 @@ export class RspamdTrainingService {
     folder: string,
     destFolder: string,
     trainFn: TrainFn,
-    type: string
+    type: string,
   ): Promise<void> {
     const { imap, logger } = session;
     try {
@@ -79,19 +82,19 @@ export class RspamdTrainingService {
             total: uids.length,
             type,
           },
-          'Learn batch'
+          'Learn batch',
         );
         const batchUids = uids.slice(i, i + batchProcessSize);
         const batchMessages = (await fetchMessagesByUIDs(
           imap,
           batchUids,
-          logger
+          logger,
         )) as unknown as TrainableMessage[];
         const { learned, skipped } = await trainFn(batchMessages, logger);
         if (skipped.length > 0) {
           logger.warn(
             { folder, type, count: skipped.length },
-            'Some messages permanently failed to learn - moving them to the destination folder unlearned rather than leaving them stuck in the training folder'
+            'Some messages permanently failed to learn - moving them to the destination folder unlearned rather than leaving them stuck in the training folder',
           );
         }
         // Move every message this batch finished with (learned or
@@ -103,7 +106,7 @@ export class RspamdTrainingService {
 
       logger.info(
         { folder, type, total: uids.length },
-        'All operations completed'
+        'All operations completed',
       );
     } catch (error) {
       logger.error(
@@ -112,7 +115,7 @@ export class RspamdTrainingService {
           type,
           error: error instanceof Error ? error.message : String(error),
         },
-        `Error in ${type} training workflow - skipping this training step for this cycle, will retry next cycle`
+        `Error in ${type} training workflow - skipping this training step for this cycle, will retry next cycle`,
       );
     }
   }
@@ -125,14 +128,14 @@ export class RspamdTrainingService {
    * @param session - The mailbox session to train
    */
   async runSpam(session: MailboxSession): Promise<void> {
-    const trainSpam: LearnFn = raw =>
+    const trainSpam: LearnFn = (raw) =>
       this.rspamd.learnSpam(raw, session.mailbox.id);
     await this.runTraining(
       session,
       session.folders.trainSpam,
       session.folders.spam,
       (messages, logger) => trainMessages(messages, trainSpam, 'spam', logger),
-      'spam'
+      'spam',
     );
   }
 
@@ -142,14 +145,14 @@ export class RspamdTrainingService {
    * @param session - The mailbox session to train
    */
   async runHam(session: MailboxSession): Promise<void> {
-    const trainHam: LearnFn = raw =>
+    const trainHam: LearnFn = (raw) =>
       this.rspamd.learnHam(raw, session.mailbox.id);
     await this.runTraining(
       session,
       session.folders.trainHam,
       session.folders.inbox,
       (messages, logger) => trainMessages(messages, trainHam, 'ham', logger),
-      'ham'
+      'ham',
     );
   }
 }

@@ -27,15 +27,14 @@ interface AiInfo {
 /**
  * Runs AI classification on rspamd's nonSpam/lowSpam candidate buckets only.
  * Never throws - per-message failures are caught and fail open (no
- * escalation). Ported from terminal's `ai-classification.step.ts`
- * (`classifyWithAi`): `AI_CONCURRENCY`/`AI_MAX_INPUT_TOKENS`/
+ * escalation). `AI_CONCURRENCY`/`AI_MAX_INPUT_TOKENS`/
  * `AI_FAILURE_ALERT_THRESHOLD` come from the injected global `AiConfig`
  * (the AI provider is shared by every mailbox - see design.md D5); the
  * shared `AiFailureTracker` is injected as a singleton per design.md D4,
  * since AI failures are tracked process-wide, not per mailbox.
  *
- * Unlike terminal, this step does not compute or return an
- * `aiFailureAlert` - the alert-email step is a documented non-goal of this
+ * This step does not compute or return an `aiFailureAlert` - the
+ * alert-email step is a documented non-goal of this
  * change (AI failures become status-only in a later change), so nothing
  * ever consumes it. `AiFailureTracker.recordFailure`/`recordSuccess` are
  * still called on every classification, so the tracker's process-wide
@@ -46,7 +45,7 @@ export class AiClassificationStep {
   constructor(
     private readonly ai: AiGateway,
     private readonly aiConfig: AiConfig,
-    private readonly aiFailureTracker: AiFailureTracker
+    private readonly aiFailureTracker: AiFailureTracker,
   ) {}
 
   /**
@@ -72,7 +71,7 @@ export class AiClassificationStep {
    */
   private async classifyOne<M extends ClassifiableMessage>(
     message: M,
-    session: MailboxSession
+    session: MailboxSession,
   ): Promise<M & { aiInfo: AiInfo }> {
     const identity = this.logIdentity(message);
     try {
@@ -82,7 +81,7 @@ export class AiClassificationStep {
       const { score, reasoning } = await this.ai.classifyEmail(content);
       session.logger.info(
         { uid: message.uid, ...identity, score, reasoning },
-        'AI classification completed'
+        'AI classification completed',
       );
       this.aiFailureTracker.recordSuccess();
       return { ...message, aiInfo: { score, reasoning, error: null } };
@@ -90,11 +89,11 @@ export class AiClassificationStep {
       const errorMessage = err instanceof Error ? err.message : String(err);
       session.logger.error(
         { uid: message.uid, ...identity, error: errorMessage },
-        'AI classification failed - message stays in original bucket (fail-open)'
+        'AI classification failed - message stays in original bucket (fail-open)',
       );
       this.aiFailureTracker.recordFailure(
         err,
-        this.aiConfig.failureAlertThreshold
+        this.aiConfig.failureAlertThreshold,
       );
       return {
         ...message,
@@ -108,7 +107,7 @@ export class AiClassificationStep {
       nonSpamMessages,
       lowSpamMessages,
     }: { nonSpamMessages: M[]; lowSpamMessages: M[] },
-    session: MailboxSession
+    session: MailboxSession,
   ): Promise<{
     nonSpamMessages: (M & { aiInfo: AiInfo })[];
     lowSpamMessages: (M & { aiInfo: AiInfo })[];
@@ -121,15 +120,15 @@ export class AiClassificationStep {
     const results = await mapWithConcurrency(
       all,
       this.aiConfig.concurrency,
-      item => this.classifyOne(item, session)
+      (item) => this.classifyOne(item, session),
     );
 
     session.logger.info(
       {
         total: results.length,
-        failed: results.filter(m => m.aiInfo.error).length,
+        failed: results.filter((m) => m.aiInfo.error).length,
       },
-      'AI classification batch completed'
+      'AI classification batch completed',
     );
 
     return {

@@ -5,11 +5,6 @@
  * is read from the environment: until a mailbox has a stored override (see
  * `4-mailbox-settings-email`), every mailbox runs on exactly these values.
  * camelCase throughout, since these are no longer env vars.
- *
- * Values are ported 1:1 from `terminal/src/lib/core/config.ts`'s
- * `foldersGroup`, `scanGroup`, `spamProcessingGroup`, `labelGroup`,
- * `thresholdsGroup` and `aiGroup` defaults - cross-check any change against
- * that file until `terminal/` is retired.
  */
 import type { OverridableSettings } from './mailbox-settings.schema.js';
 
@@ -33,7 +28,7 @@ export interface MailboxLabelSettings {
 
 /**
  * Score-percentage boundaries deciding a message's tier - clean, low, high,
- * or confirmed (see `thresholdsGroup` in `terminal/src/lib/core/config.ts`).
+ * or confirmed.
  */
 export interface MailboxThresholdSettings {
   clean: number;
@@ -117,7 +112,7 @@ export const defaultMailboxSettings: MailboxSettings = {
  * existing `settings.aiEnabled && globalAiConfig.enabled` check).
  */
 export function resolveMailboxSettings(
-  overrides: OverridableSettings | undefined
+  overrides: OverridableSettings | undefined,
 ): MailboxSettings {
   if (overrides === undefined) {
     return defaultMailboxSettings;

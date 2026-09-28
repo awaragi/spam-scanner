@@ -6,7 +6,10 @@ import type { Request } from 'express';
 import { AdminGuard } from './admin.guard.js';
 
 function fixtureContext(authorization?: string): ExecutionContext {
-  const request = { headers: { authorization }, params: {} } as unknown as Request;
+  const request = {
+    headers: { authorization },
+    params: {},
+  } as unknown as Request;
   return {
     switchToHttp: () => ({ getRequest: () => request }),
   } as unknown as ExecutionContext;
@@ -31,7 +34,7 @@ describe('AdminGuard', () => {
     });
 
     expect(() => guard.canActivate(fixtureContext(`Bearer ${token}`))).toThrow(
-      UnauthorizedException
+      UnauthorizedException,
     );
   });
 
@@ -39,7 +42,7 @@ describe('AdminGuard', () => {
     const guard = new AdminGuard(jwtService);
 
     expect(() => guard.canActivate(fixtureContext(undefined))).toThrow(
-      UnauthorizedException
+      UnauthorizedException,
     );
   });
 
@@ -47,11 +50,11 @@ describe('AdminGuard', () => {
     const guard = new AdminGuard(jwtService);
     const token = jwtService.sign(
       { sub: 'admin', scope: 'admin' },
-      { expiresIn: -1 }
+      { expiresIn: -1 },
     );
 
     expect(() => guard.canActivate(fixtureContext(`Bearer ${token}`))).toThrow(
-      UnauthorizedException
+      UnauthorizedException,
     );
   });
 });

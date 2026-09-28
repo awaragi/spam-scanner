@@ -127,7 +127,11 @@ describe('AdminController', () => {
     const settings = controller.getSettings();
 
     expect(settings).toEqual({
-      rspamd: { url: 'http://rspamd:11333', timeoutMs: 5000, envelopeTrustedHops: 1 },
+      rspamd: {
+        url: 'http://rspamd:11333',
+        timeoutMs: 5000,
+        envelopeTrustedHops: 1,
+      },
       ai: {
         enabled: true,
         baseUrl: 'https://api.openai.com',
@@ -145,7 +149,12 @@ describe('AdminController', () => {
         batchProcessSize: 10,
         maxRetries: 3,
       },
-      logging: { level: 'info', format: 'json', filterIncludes: '', filterExcludes: '' },
+      logging: {
+        level: 'info',
+        format: 'json',
+        filterIncludes: '',
+        filterExcludes: '',
+      },
       server: { port: 3000 },
       apiAuth: { adminTokenTtlSeconds: 3600, mailboxTokenTtlSeconds: 3600 },
       mailbox: {

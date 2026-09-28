@@ -161,7 +161,7 @@ This is a test email.`;
     const parsed = parseEmail(rawEmail);
 
     expect(parsed.headers['x-custom-header']).toBe(
-      'This is a long header that spans multiple lines with indentation'
+      'This is a long header that spans multiple lines with indentation',
     );
   });
 
@@ -240,7 +240,7 @@ describe('resolveConnectingHop', () => {
 
   test('defaults trustedHops to 0 when omitted', () => {
     expect(resolveConnectingHop(receivedHeaders)).toEqual(
-      resolveConnectingHop(receivedHeaders, 0)
+      resolveConnectingHop(receivedHeaders, 0),
     );
   });
 
@@ -342,7 +342,7 @@ describe('parseRspamdOutput', () => {
 
   test('should throw error for non-object response', () => {
     expect(() => parseRspamdOutput('invalid')).toThrow(
-      'Invalid Rspamd response format'
+      'Invalid Rspamd response format',
     );
   });
 
@@ -357,7 +357,7 @@ describe('parseRspamdOutput', () => {
 
   test('should throw error for null response', () => {
     expect(() => parseRspamdOutput(null)).toThrow(
-      'Invalid Rspamd response format'
+      'Invalid Rspamd response format',
     );
   });
 });
@@ -365,7 +365,7 @@ describe('parseRspamdOutput', () => {
 describe('parseAiClassificationOutput', () => {
   test('should parse a valid JSON response', () => {
     const result = parseAiClassificationOutput(
-      '{"score": 42, "reasoning": "Looks borderline"}'
+      '{"score": 42, "reasoning": "Looks borderline"}',
     );
     expect(result).toEqual({ score: 42, reasoning: 'Looks borderline' });
   });
@@ -388,27 +388,27 @@ describe('parseAiClassificationOutput', () => {
 
   test('should clamp a score above 100', () => {
     const result = parseAiClassificationOutput(
-      '{"score": 150, "reasoning": "Very spammy"}'
+      '{"score": 150, "reasoning": "Very spammy"}',
     );
     expect(result.score).toBe(100);
   });
 
   test('should clamp a score below 0', () => {
     const result = parseAiClassificationOutput(
-      '{"score": -20, "reasoning": "Negative"}'
+      '{"score": -20, "reasoning": "Negative"}',
     );
     expect(result.score).toBe(0);
   });
 
   test('should throw when score is missing', () => {
     expect(() =>
-      parseAiClassificationOutput('{"reasoning": "No score here"}')
+      parseAiClassificationOutput('{"reasoning": "No score here"}'),
     ).toThrow(/missing numeric "score"/);
   });
 
   test('should throw when score is not a number', () => {
     expect(() =>
-      parseAiClassificationOutput('{"score": "high", "reasoning": "bad type"}')
+      parseAiClassificationOutput('{"score": "high", "reasoning": "bad type"}'),
     ).toThrow(/missing numeric "score"/);
   });
 
@@ -419,19 +419,19 @@ describe('parseAiClassificationOutput', () => {
 
   test('should throw on non-JSON garbage input', () => {
     expect(() => parseAiClassificationOutput('not json at all')).toThrow(
-      /not valid JSON/
+      /not valid JSON/,
     );
   });
 
   test('should throw on empty content', () => {
     expect(() => parseAiClassificationOutput('')).toThrow(
-      'AI response content is empty'
+      'AI response content is empty',
     );
   });
 
   test('should throw on null content', () => {
     expect(() => parseAiClassificationOutput(null)).toThrow(
-      'AI response content is empty'
+      'AI response content is empty',
     );
   });
 });

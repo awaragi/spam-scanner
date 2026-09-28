@@ -1,4 +1,7 @@
-import { stripSpamHeadersBuffer, parseEmail } from '../../domain/utils/email-parser.js';
+import {
+  stripSpamHeadersBuffer,
+  parseEmail,
+} from '../../domain/utils/email-parser.js';
 
 /**
  * Helper function to handle message fetching common code. Keeps `raw` as a

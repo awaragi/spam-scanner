@@ -5,8 +5,8 @@
 /**
  * State-message keys within per-mailbox state folder identifying each piece of
  * JSON state (scanner progress, whitelist, blacklist, settings overrides).
- * The first three must remain unchanged for compatibility with terminal's
- * state format; `STATE_KEY_MAILBOX_SETTINGS` is server-only and additive.
+ * The first three must remain unchanged for compatibility with state already
+ * stored in existing mailboxes; `STATE_KEY_MAILBOX_SETTINGS` is additive.
  */
 export const STATE_KEY_SCANNER = 'scanner';
 export const STATE_KEY_WHITELIST_MAP = 'rspamd-whitelist-map';
@@ -46,7 +46,7 @@ export function validateState(state: unknown): state is ScannerState {
 
   // Check for missing required properties
   const missingProperties = REQUIRED_STATE_PROPERTIES.filter(
-    prop => !(prop in state)
+    (prop) => !(prop in state),
   );
   if (missingProperties.length > 0) {
     throw new Error('Invalid state: missing required properties');
@@ -58,7 +58,7 @@ export function validateState(state: unknown): state is ScannerState {
     ...OPTIONAL_STATE_PROPERTIES,
   ];
   const invalidProperties = stateKeys.filter(
-    key => !allowedProperties.includes(key)
+    (key) => !allowedProperties.includes(key),
   );
   if (invalidProperties.length > 0) {
     throw new Error('Invalid state: invalid property names');
@@ -100,7 +100,7 @@ export function validateState(state: unknown): state is ScannerState {
 export function formatAppStateEmail(
   stateKey: string,
   body: string,
-  displayName = 'App State'
+  displayName = 'App State',
 ): string {
   return `From: ${displayName} <scanner@localhost>
 To: ${displayName} <scanner@localhost>

@@ -10,7 +10,11 @@ vi.mock('imapflow', () => ({
   ImapFlow: mockImapFlowConstructor,
 }));
 
-import { newClient, safeLogout, withSession } from './imap-connection.factory.js';
+import {
+  newClient,
+  safeLogout,
+  withSession,
+} from './imap-connection.factory.js';
 
 describe('newClient', () => {
   beforeEach(() => {
@@ -34,7 +38,7 @@ describe('newClient', () => {
       expect.objectContaining({
         secure: true,
         doSTARTTLS: undefined,
-      })
+      }),
     );
   });
 
@@ -52,7 +56,7 @@ describe('newClient', () => {
       expect.objectContaining({
         secure: false,
         doSTARTTLS: true,
-      })
+      }),
     );
   });
 
@@ -76,7 +80,7 @@ describe('newClient', () => {
         },
         emitLogs: false,
         maxIdleTime: 29 * 60 * 1000,
-      })
+      }),
     );
   });
 
@@ -117,7 +121,7 @@ describe('newClient', () => {
         imapTls: true,
         imapAllowInsecure: false,
       },
-      mockLogger as any
+      mockLogger as any,
     );
 
     const config = mockImapFlowConstructor.mock.calls[0][0];
@@ -140,9 +144,7 @@ describe('safeLogout', () => {
   });
 
   test('resolves (not rejects) when logout fails', async () => {
-    const mockLogout = vi
-      .fn()
-      .mockRejectedValue(new Error('connection lost'));
+    const mockLogout = vi.fn().mockRejectedValue(new Error('connection lost'));
     const mockImap = { logout: mockLogout } as any;
 
     await expect(safeLogout(mockImap)).resolves.toBeUndefined();
@@ -158,14 +160,12 @@ describe('safeLogout', () => {
 
     expect(mockLogger.debug).toHaveBeenCalledWith(
       expect.objectContaining({ error: 'connection lost' }),
-      'Logout failed (connection likely never established)'
+      'Logout failed (connection likely never established)',
     );
   });
 
   test('does not throw when logout fails and no logger is provided', async () => {
-    const mockLogout = vi
-      .fn()
-      .mockRejectedValue(new Error('connection lost'));
+    const mockLogout = vi.fn().mockRejectedValue(new Error('connection lost'));
     const mockImap = { logout: mockLogout } as any;
 
     await expect(safeLogout(mockImap)).resolves.toBeUndefined();
@@ -196,7 +196,7 @@ describe('withSession', () => {
         imapTls: true,
         imapAllowInsecure: false,
       },
-      mockCallback
+      mockCallback,
     );
 
     expect(mockConnect).toHaveBeenCalledOnce();
@@ -208,7 +208,9 @@ describe('withSession', () => {
   test('logout is called even when the callback throws', async () => {
     const mockConnect = vi.fn().mockResolvedValue(undefined);
     const mockLogout = vi.fn().mockResolvedValue(undefined);
-    const mockCallback = vi.fn().mockRejectedValue(new Error('callback failed'));
+    const mockCallback = vi
+      .fn()
+      .mockRejectedValue(new Error('callback failed'));
 
     const mockImap = {
       connect: mockConnect,
@@ -229,17 +231,15 @@ describe('withSession', () => {
           imapTls: true,
           imapAllowInsecure: false,
         },
-        mockCallback
-      )
+        mockCallback,
+      ),
     ).rejects.toThrow('callback failed');
 
     expect(mockLogout).toHaveBeenCalledOnce();
   });
 
   test('logout is called even when connect fails', async () => {
-    const mockConnect = vi
-      .fn()
-      .mockRejectedValue(new Error('connect failed'));
+    const mockConnect = vi.fn().mockRejectedValue(new Error('connect failed'));
     const mockLogout = vi.fn().mockResolvedValue(undefined);
     const mockCallback = vi.fn();
 
@@ -262,8 +262,8 @@ describe('withSession', () => {
           imapTls: true,
           imapAllowInsecure: false,
         },
-        mockCallback
-      )
+        mockCallback,
+      ),
     ).rejects.toThrow('connect failed');
 
     expect(mockCallback).not.toHaveBeenCalled();
@@ -273,9 +273,7 @@ describe('withSession', () => {
   test('returns the callback result on success', async () => {
     const mockConnect = vi.fn().mockResolvedValue(undefined);
     const mockLogout = vi.fn().mockResolvedValue(undefined);
-    const mockCallback = vi
-      .fn()
-      .mockResolvedValue({ messageCount: 42 });
+    const mockCallback = vi.fn().mockResolvedValue({ messageCount: 42 });
 
     const mockImap = {
       connect: mockConnect,
@@ -295,7 +293,7 @@ describe('withSession', () => {
         imapTls: true,
         imapAllowInsecure: false,
       },
-      mockCallback
+      mockCallback,
     );
 
     expect(result).toEqual({ messageCount: 42 });

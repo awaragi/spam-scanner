@@ -57,7 +57,7 @@ export async function readScannerState(
   defaultState?: ScannerState,
   mailboxPath?: string,
   scanInitialState: 'new' | 'all' = 'new',
-  logger?: PinoLogger
+  logger?: PinoLogger,
 ): Promise<ScannerState> {
   // remember original mailbox
   const originalPath = currentMailboxPath(imap);
@@ -86,7 +86,7 @@ export async function readScannerState(
 
       logger?.warn(
         { mailboxPath, last_uid, initialState: scanInitialState },
-        'No scanner state found, using default state'
+        'No scanner state found, using default state',
       );
 
       const initialState = { ...defaultState, last_uid };
@@ -160,7 +160,7 @@ export async function writeScannerState(
   imap: ImapFlow,
   stateFolder: string,
   state: unknown,
-  logger?: PinoLogger
+  logger?: PinoLogger,
 ): Promise<boolean> {
   // remember original mailbox
   const originalPath = currentMailboxPath(imap);
@@ -206,7 +206,7 @@ export async function writeScannerState(
 export async function deleteScannerState(
   imap: ImapFlow,
   stateFolder: string,
-  logger?: PinoLogger
+  logger?: PinoLogger,
 ): Promise<boolean> {
   // Open the state folder
   await imap.mailboxOpen(stateFolder, { readOnly: false });

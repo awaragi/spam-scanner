@@ -25,7 +25,10 @@ import {
   settingsUpdateSchema,
   type SettingsUpdateBody,
 } from './settings-update.schema.js';
-import { listReplaceSchema, type ListReplaceBody } from './list-replace.schema.js';
+import {
+  listReplaceSchema,
+  type ListReplaceBody,
+} from './list-replace.schema.js';
 
 const LIST_KINDS: readonly SenderListKind[] = ['whitelist', 'blacklist'];
 
@@ -47,7 +50,10 @@ function withUnknownMailboxAsNotFound<T>(fn: () => T): T {
   try {
     return fn();
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith('Unknown mailbox:')) {
+    if (
+      error instanceof Error &&
+      error.message.startsWith('Unknown mailbox:')
+    ) {
       throw new NotFoundException(error.message);
     }
     throw error;
@@ -65,7 +71,10 @@ async function withUnknownMailboxAsNotFoundAsync<T>(
   try {
     return await fn();
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith('Unknown mailbox:')) {
+    if (
+      error instanceof Error &&
+      error.message.startsWith('Unknown mailbox:')
+    ) {
       throw new NotFoundException(error.message);
     }
     throw error;

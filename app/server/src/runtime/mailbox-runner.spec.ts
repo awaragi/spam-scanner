@@ -141,7 +141,8 @@ function buildRunner(
   const runScan =
     options.runScan ?? vi.fn().mockResolvedValue({ processed: 0, last_uid: 0 });
 
-  const initFolders = options.initFolders ?? vi.fn().mockResolvedValue(undefined);
+  const initFolders =
+    options.initFolders ?? vi.fn().mockResolvedValue(undefined);
   const folderInitService = { initFolders } as unknown as FolderInitService;
   const rspamdTrainingService = {
     runSpam,
@@ -716,7 +717,7 @@ describe('MailboxRunner', () => {
       runner.stop();
     });
 
-    test("stop() called while retrying exits the loop promptly, without a further bootstrap attempt", async () => {
+    test('stop() called while retrying exits the loop promptly, without a further bootstrap attempt', async () => {
       vi.useFakeTimers();
       const connect = vi.fn().mockRejectedValue(new Error('connect refused'));
       mockNewClient.mockImplementation(() =>
@@ -990,7 +991,9 @@ describe('MailboxRunner', () => {
       const settings = runner.getSettings();
 
       expect(settings.thresholds.clean).toBe(10);
-      expect(settings.thresholds.low).toBe(defaultMailboxSettings.thresholds.low);
+      expect(settings.thresholds.low).toBe(
+        defaultMailboxSettings.thresholds.low,
+      );
     });
   });
 

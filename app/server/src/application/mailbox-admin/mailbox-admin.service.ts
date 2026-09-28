@@ -25,7 +25,9 @@ import {
 export type SenderListKind = 'whitelist' | 'blacklist';
 
 function stateKeyForKind(kind: SenderListKind): string {
-  return kind === 'whitelist' ? STATE_KEY_WHITELIST_MAP : STATE_KEY_BLACKLIST_MAP;
+  return kind === 'whitelist'
+    ? STATE_KEY_WHITELIST_MAP
+    : STATE_KEY_BLACKLIST_MAP;
 }
 
 /**
@@ -83,7 +85,10 @@ export class MailboxAdminService {
       try {
         return await readScannerState(imap, mailbox.stateFolder);
       } catch (error) {
-        if (error instanceof Error && error.message === 'Scanner state not found') {
+        if (
+          error instanceof Error &&
+          error.message === 'Scanner state not found'
+        ) {
           return null;
         }
         throw error;

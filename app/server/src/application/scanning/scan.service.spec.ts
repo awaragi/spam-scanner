@@ -70,7 +70,7 @@ function fixtureMailbox(overrides: Partial<Mailbox> = {}): Mailbox {
 }
 
 function fixtureFolders(
-  overrides: Partial<MailboxFolders> = {}
+  overrides: Partial<MailboxFolders> = {},
 ): MailboxFolders {
   return {
     inbox: 'INBOX',
@@ -100,7 +100,7 @@ function fixtureLogger(): PinoLogger {
 }
 
 function fixtureSession(
-  overrides: Partial<MailboxSession> = {}
+  overrides: Partial<MailboxSession> = {},
 ): MailboxSession {
   return {
     mailbox: fixtureMailbox(),
@@ -174,7 +174,11 @@ async function buildScanService(options: BuildOptions = {}): Promise<{
       AiFailureTracker,
       {
         provide: ScanConfig,
-        useValue: { batchScanSize: 200, batchProcessSize: 10, ...options.scanConfig },
+        useValue: {
+          batchScanSize: 200,
+          batchProcessSize: 10,
+          ...options.scanConfig,
+        },
       },
       {
         provide: AiConfig,
@@ -229,7 +233,7 @@ describe('ScanService', () => {
     const session = fixtureSession();
 
     mockReadMapState.mockImplementation((imap, stateFolder, key) =>
-      Promise.resolve(key === 'rspamd-blacklist-map' ? ['bad@evil.com'] : [])
+      Promise.resolve(key === 'rspamd-blacklist-map' ? ['bad@evil.com'] : []),
     );
     mockSearch.mockResolvedValue([101, 102]);
     mockFetchMessagesByUIDs.mockResolvedValue([
@@ -248,7 +252,7 @@ describe('ScanService', () => {
       session.imap,
       expect.arrayContaining([expect.objectContaining({ uid: 101 })]),
       session.folders.spam,
-      session.logger
+      session.logger,
     );
   });
 
@@ -301,7 +305,7 @@ describe('ScanService', () => {
         session.imap,
         session.folders.state,
         expect.objectContaining({ last_uid: 102 }),
-        session.logger
+        session.logger,
       );
     });
   });
@@ -341,7 +345,7 @@ describe('ScanService', () => {
       expect(fakeAiGateway.classifyEmail).not.toHaveBeenCalled();
     });
 
-    test("per-mailbox settings.aiEnabled=false: AI is never called even though the app-wide AiConfig is enabled", async () => {
+    test('per-mailbox settings.aiEnabled=false: AI is never called even though the app-wide AiConfig is enabled', async () => {
       const { scanService, fakeRspamdGateway, fakeAiGateway } =
         await buildScanService({ aiConfig: { enabled: true } });
       const session = fixtureSession({
@@ -386,7 +390,7 @@ describe('ScanService', () => {
         session.imap,
         expect.arrayContaining([expect.objectContaining({ uid: 101 })]),
         session.folders.spamHigh,
-        session.logger
+        session.logger,
       );
     });
 
@@ -398,15 +402,15 @@ describe('ScanService', () => {
       });
       mockReadMapState.mockImplementation((imap, stateFolder, key) =>
         Promise.resolve(
-          key === 'rspamd-whitelist-map' ? ['trusted@example.com'] : []
-        )
+          key === 'rspamd-whitelist-map' ? ['trusted@example.com'] : [],
+        ),
       );
       mockSearch.mockResolvedValue([101]);
       mockFetchMessagesByUIDs.mockResolvedValue([
         fixtureMessage({ uid: 101, from: 'trusted@example.com' }),
       ]);
       fakeRspamdGateway.checkEmail.mockResolvedValue(
-        fixtureRspamdCheck({ score: 1, required: 15, authenticated: true })
+        fixtureRspamdCheck({ score: 1, required: 15, authenticated: true }),
       );
 
       await scanService.runScan(session);
@@ -414,7 +418,7 @@ describe('ScanService', () => {
       expect(fakeAiGateway.classifyEmail).not.toHaveBeenCalled();
       // Stays in a clean-tier outcome: never appears in the low-spam-folder move call.
       const lowSpamCall = mockMoveMessages.mock.calls.find(
-        call => call[2] === session.folders.spamLow
+        (call) => call[2] === session.folders.spamLow,
       );
       expect(lowSpamCall?.[1]).toEqual([]);
     });
@@ -427,8 +431,8 @@ describe('ScanService', () => {
       });
       mockReadMapState.mockImplementation((imap, stateFolder, key) =>
         Promise.resolve(
-          key === 'rspamd-whitelist-map' ? ['trusted@example.com'] : []
-        )
+          key === 'rspamd-whitelist-map' ? ['trusted@example.com'] : [],
+        ),
       );
       mockSearch.mockResolvedValue([101]);
       mockFetchMessagesByUIDs.mockResolvedValue([
@@ -437,7 +441,7 @@ describe('ScanService', () => {
       // No `symbols` - rspamd found no passing DKIM/DMARC, so the whitelist
       // match is untrusted and must not exempt this message from AI.
       fakeRspamdGateway.checkEmail.mockResolvedValue(
-        fixtureRspamdCheck({ score: 1, required: 15 })
+        fixtureRspamdCheck({ score: 1, required: 15 }),
       );
       fakeAiGateway.classifyEmail.mockResolvedValue({
         score: 1,
@@ -467,7 +471,7 @@ describe('ScanService', () => {
       });
 
       await expect(scanService.runScan(session)).rejects.toThrow(
-        'Unknown processing mode'
+        'Unknown processing mode',
       );
     });
   });
@@ -481,7 +485,7 @@ describe('ScanService', () => {
       const newUIDs = [101, 102, 103, 104, 105];
       mockSearch.mockResolvedValue(newUIDs);
       mockFetchMessagesByUIDs.mockImplementation((imap, uids) =>
-        Promise.resolve(uids.map((uid: number) => fixtureMessage({ uid })))
+        Promise.resolve(uids.map((uid: number) => fixtureMessage({ uid }))),
       );
       fakeRspamdGateway.checkEmail.mockResolvedValue({
         score: 1,

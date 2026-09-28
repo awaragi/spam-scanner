@@ -43,7 +43,7 @@ export function nextFailureStreak(
   streak: FailureStreak,
   err: unknown,
   threshold: number,
-  now: () => string = () => new Date().toISOString()
+  now: () => string = () => new Date().toISOString(),
 ): FailureStreakResult {
   const reason = categorizeAiError(err);
   const lastAt = now();
@@ -80,7 +80,7 @@ export class AiFailureTracker {
     const { streak: next, shouldAlert } = nextFailureStreak(
       this.#streak,
       err,
-      threshold
+      threshold,
     );
     this.#streak = next;
     return {

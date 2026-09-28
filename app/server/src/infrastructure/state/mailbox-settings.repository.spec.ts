@@ -21,10 +21,7 @@ vi.mock('../imap/mailbox.gateway.js', () => ({
   fetchMessagesByUIDs: mockFetchByUIDs,
 }));
 
-import {
-  search,
-  fetchMessagesByUIDs,
-} from '../imap/mailbox.gateway.js';
+import { search, fetchMessagesByUIDs } from '../imap/mailbox.gateway.js';
 
 const mockedSearch = vi.mocked(search);
 const mockedFetchByUIDs = vi.mocked(fetchMessagesByUIDs);
@@ -45,7 +42,7 @@ function makeImap(overrides = {}) {
  */
 function fakeMessage(
   raw: string,
-  uid = 1
+  uid = 1,
 ): Awaited<ReturnType<typeof fetchMessagesByUIDs>> {
   return [
     { uid, flags: new Set(), envelope: {}, raw: Buffer.from(raw) },
@@ -53,7 +50,11 @@ function fakeMessage(
 }
 
 function settingsMessage(body: string): string {
-  return formatAppStateEmail(STATE_KEY_MAILBOX_SETTINGS, body, 'Mailbox Settings');
+  return formatAppStateEmail(
+    STATE_KEY_MAILBOX_SETTINGS,
+    body,
+    'Mailbox Settings',
+  );
 }
 
 describe('readSettingsOverrides', () => {
@@ -70,7 +71,7 @@ describe('readSettingsOverrides', () => {
     const result = await readSettingsOverrides(
       asImapFlow(imap),
       'INBOX.state',
-      { warn } as any
+      { warn } as any,
     );
 
     expect(result).toBeUndefined();
@@ -83,14 +84,14 @@ describe('readSettingsOverrides', () => {
     imap.mailboxOpen = vi.fn().mockRejectedValue(
       Object.assign(new Error('Mailbox does not exist'), {
         serverResponseCode: 'NONEXISTENT',
-      })
+      }),
     );
     const warn = vi.fn();
 
     const result = await readSettingsOverrides(
       asImapFlow(imap),
       'INBOX.state',
-      { warn } as any
+      { warn } as any,
     );
 
     expect(result).toBeUndefined();
@@ -103,11 +104,11 @@ describe('readSettingsOverrides', () => {
     imap.mailboxOpen = vi.fn().mockRejectedValue(
       Object.assign(new Error('Authentication failed'), {
         serverResponseCode: 'AUTHENTICATIONFAILED',
-      })
+      }),
     );
 
     await expect(
-      readSettingsOverrides(asImapFlow(imap), 'INBOX.state')
+      readSettingsOverrides(asImapFlow(imap), 'INBOX.state'),
     ).rejects.toThrow('Authentication failed');
   });
 
@@ -116,7 +117,7 @@ describe('readSettingsOverrides', () => {
     const overrides = { thresholds: { clean: 10 }, aiEnabled: false };
     mockedSearch.mockResolvedValue([9]);
     mockedFetchByUIDs.mockResolvedValue(
-      fakeMessage(settingsMessage(JSON.stringify(overrides)), 9)
+      fakeMessage(settingsMessage(JSON.stringify(overrides)), 9),
     );
 
     const result = await readSettingsOverrides(asImapFlow(imap), 'INBOX.state');
@@ -128,14 +129,14 @@ describe('readSettingsOverrides', () => {
     const imap = makeImap();
     mockedSearch.mockResolvedValue([9]);
     mockedFetchByUIDs.mockResolvedValue(
-      fakeMessage(settingsMessage('not json'), 9)
+      fakeMessage(settingsMessage('not json'), 9),
     );
     const warn = vi.fn();
 
     const result = await readSettingsOverrides(
       asImapFlow(imap),
       'INBOX.state',
-      { warn } as any
+      { warn } as any,
     );
 
     expect(result).toBeUndefined();
@@ -146,14 +147,14 @@ describe('readSettingsOverrides', () => {
     const imap = makeImap();
     mockedSearch.mockResolvedValue([9]);
     mockedFetchByUIDs.mockResolvedValue(
-      fakeMessage(settingsMessage(JSON.stringify([1, 2, 3])), 9)
+      fakeMessage(settingsMessage(JSON.stringify([1, 2, 3])), 9),
     );
     const warn = vi.fn();
 
     const result = await readSettingsOverrides(
       asImapFlow(imap),
       'INBOX.state',
-      { warn } as any
+      { warn } as any,
     );
 
     expect(result).toBeUndefined();
@@ -164,14 +165,14 @@ describe('readSettingsOverrides', () => {
     const imap = makeImap();
     mockedSearch.mockResolvedValue([9]);
     mockedFetchByUIDs.mockResolvedValue(
-      fakeMessage(settingsMessage(JSON.stringify(5)), 9)
+      fakeMessage(settingsMessage(JSON.stringify(5)), 9),
     );
     const warn = vi.fn();
 
     const result = await readSettingsOverrides(
       asImapFlow(imap),
       'INBOX.state',
-      { warn } as any
+      { warn } as any,
     );
 
     expect(result).toBeUndefined();
@@ -182,14 +183,14 @@ describe('readSettingsOverrides', () => {
     const imap = makeImap();
     mockedSearch.mockResolvedValue([9]);
     mockedFetchByUIDs.mockResolvedValue(
-      fakeMessage(settingsMessage(JSON.stringify(null)), 9)
+      fakeMessage(settingsMessage(JSON.stringify(null)), 9),
     );
     const warn = vi.fn();
 
     const result = await readSettingsOverrides(
       asImapFlow(imap),
       'INBOX.state',
-      { warn } as any
+      { warn } as any,
     );
 
     expect(result).toBeUndefined();
@@ -201,8 +202,7 @@ describe('readSettingsOverrides', () => {
     mockedSearch.mockResolvedValue([5, 12, 8]);
     mockedFetchByUIDs.mockImplementation(async (_imap, uids) => {
       const uid = uids[0];
-      const body =
-        uid === 12 ? { later: true } : { earlier: true, wrong: uid };
+      const body = uid === 12 ? { later: true } : { earlier: true, wrong: uid };
       return fakeMessage(settingsMessage(JSON.stringify(body)), uid);
     });
 
@@ -211,7 +211,7 @@ describe('readSettingsOverrides', () => {
     expect(mockedFetchByUIDs).toHaveBeenCalledWith(
       asImapFlow(imap),
       [12],
-      undefined
+      undefined,
     );
     expect(result).toEqual({ later: true });
   });
@@ -262,7 +262,7 @@ describe('writeSettingsOverrides', () => {
     await expect(
       writeSettingsOverrides(asImapFlow(imap), 'INBOX.state', {
         aiEnabled: false,
-      })
+      }),
     ).rejects.toThrow('connection dropped');
 
     expect(imap.messageDelete).not.toHaveBeenCalled();
@@ -280,7 +280,11 @@ describe('write then read round-trip', () => {
 
     const writeImap = makeImap();
     mockedSearch.mockResolvedValueOnce([]);
-    await writeSettingsOverrides(asImapFlow(writeImap), 'INBOX.state', overrides);
+    await writeSettingsOverrides(
+      asImapFlow(writeImap),
+      'INBOX.state',
+      overrides,
+    );
 
     const appendedRaw = writeImap.append.mock.calls[0][1] as string;
 
@@ -288,7 +292,10 @@ describe('write then read round-trip', () => {
     mockedSearch.mockResolvedValueOnce([1]);
     mockedFetchByUIDs.mockResolvedValueOnce(fakeMessage(appendedRaw, 1));
 
-    const result = await readSettingsOverrides(asImapFlow(readImap), 'INBOX.state');
+    const result = await readSettingsOverrides(
+      asImapFlow(readImap),
+      'INBOX.state',
+    );
 
     expect(result).toEqual(overrides);
   });

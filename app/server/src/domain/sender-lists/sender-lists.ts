@@ -93,7 +93,7 @@ export function overrideAddresses(incoming: string[]): string[] {
  */
 export function parseAddressList(
   raw: string,
-  format: 'txt' | 'json' = 'txt'
+  format: 'txt' | 'json' = 'txt',
 ): string[] {
   const rawAddresses: unknown[] =
     format === 'json' ? JSON.parse(raw) : raw.split('\n');
@@ -109,7 +109,7 @@ export function parseAddressList(
  */
 export function serializeAddressList(
   addresses: string[],
-  format: 'txt' | 'json' = 'txt'
+  format: 'txt' | 'json' = 'txt',
 ): string {
   if (format === 'json') {
     return JSON.stringify(addresses, null, 2);
@@ -153,7 +153,7 @@ export function isHumanReadable(email: unknown): boolean {
   // 5. UUID-like patterns (8-4-4-4-12 hex format with dashes or without)
   if (
     /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(
-      local
+      local,
     )
   )
     return false;
@@ -182,7 +182,7 @@ export function isHumanReadable(email: unknown): boolean {
  */
 export function extractSenders(
   headers: Record<string, string>,
-  listedEntries: Set<string> = new Set()
+  listedEntries: Set<string> = new Set(),
 ): string[] {
   const candidates: string[] = [];
   const priorityFields = ['from', 'reply-to', 'return-path', 'sender'];
@@ -221,7 +221,7 @@ interface HeaderedMessage {
 
 export function extractSenderAddresses(
   messages: HeaderedMessage[],
-  listedEntries: Set<string> = new Set()
+  listedEntries: Set<string> = new Set(),
 ): string[] {
   const senders: string[] = [];
 
@@ -249,7 +249,7 @@ export function extractSenderAddresses(
  */
 export function isSenderListed(
   address: string | null,
-  entrySet: Set<string>
+  entrySet: Set<string>,
 ): boolean {
   if (!address) return false;
   if (entrySet.has(address)) return true;
@@ -267,7 +267,7 @@ export function isSenderListed(
  */
 export function partitionBySender<M extends EnvelopeAddressed>(
   messages: M[],
-  addressSet: Set<string>
+  addressSet: Set<string>,
 ): { matched: M[]; rest: M[] } {
   const matched: M[] = [];
   const rest: M[] = [];

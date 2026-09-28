@@ -74,7 +74,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 export async function readSettingsOverrides(
   imap: ImapFlow,
   stateFolder: string,
-  logger?: PinoLogger
+  logger?: PinoLogger,
 ): Promise<Record<string, unknown> | undefined> {
   // remember original mailbox
   const originalPath = currentMailboxPath(imap);
@@ -128,7 +128,7 @@ export async function readSettingsOverrides(
   if (!isPlainObject(parsed)) {
     logger?.warn(
       { stateFolder, uid: latestUid },
-      'Settings message exists but failed to parse as a JSON object; running on defaults'
+      'Settings message exists but failed to parse as a JSON object; running on defaults',
     );
     return undefined;
   }
@@ -155,7 +155,7 @@ export async function writeSettingsOverrides(
   imap: ImapFlow,
   stateFolder: string,
   overrides: Record<string, unknown>,
-  logger?: PinoLogger
+  logger?: PinoLogger,
 ): Promise<void> {
   // remember original mailbox
   const originalPath = currentMailboxPath(imap);
@@ -163,7 +163,7 @@ export async function writeSettingsOverrides(
   const raw = formatAppStateEmail(
     STATE_KEY_MAILBOX_SETTINGS,
     JSON.stringify(overrides),
-    'Mailbox Settings'
+    'Mailbox Settings',
   );
 
   // Open the state folder read-write

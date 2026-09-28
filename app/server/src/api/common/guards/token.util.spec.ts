@@ -13,14 +13,14 @@ describe('verifyBearerToken', () => {
   const jwtService = new JwtService({ secret: 'correct-secret' });
 
   test('throws UnauthorizedException when the Authorization header is missing', () => {
-    expect(() => verifyBearerToken(fixtureRequest(undefined), jwtService)).toThrow(
-      UnauthorizedException
-    );
+    expect(() =>
+      verifyBearerToken(fixtureRequest(undefined), jwtService),
+    ).toThrow(UnauthorizedException);
   });
 
   test('throws UnauthorizedException when the header is not a Bearer token', () => {
     expect(() =>
-      verifyBearerToken(fixtureRequest('Basic dXNlcjpwYXNz'), jwtService)
+      verifyBearerToken(fixtureRequest('Basic dXNlcjpwYXNz'), jwtService),
     ).toThrow(UnauthorizedException);
   });
 
@@ -29,7 +29,7 @@ describe('verifyBearerToken', () => {
     const token = otherJwtService.sign({ sub: 'admin', scope: 'admin' });
 
     expect(() =>
-      verifyBearerToken(fixtureRequest(`Bearer ${token}`), jwtService)
+      verifyBearerToken(fixtureRequest(`Bearer ${token}`), jwtService),
     ).toThrow(UnauthorizedException);
   });
 
@@ -37,7 +37,10 @@ describe('verifyBearerToken', () => {
     const payload: AdminTokenPayload = { sub: 'admin', scope: 'admin' };
     const token = jwtService.sign(payload);
 
-    const decoded = verifyBearerToken(fixtureRequest(`Bearer ${token}`), jwtService);
+    const decoded = verifyBearerToken(
+      fixtureRequest(`Bearer ${token}`),
+      jwtService,
+    );
 
     expect(decoded.sub).toBe('admin');
     expect(decoded.scope).toBe('admin');

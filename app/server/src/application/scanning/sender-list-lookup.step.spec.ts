@@ -31,7 +31,7 @@ function fixtureMailbox(overrides: Partial<Mailbox> = {}): Mailbox {
 }
 
 function fixtureFolders(
-  overrides: Partial<MailboxFolders> = {}
+  overrides: Partial<MailboxFolders> = {},
 ): MailboxFolders {
   return {
     inbox: 'INBOX',
@@ -61,7 +61,7 @@ function fixtureLogger(): PinoLogger {
 }
 
 function fixtureSession(
-  overrides: Partial<MailboxSession> = {}
+  overrides: Partial<MailboxSession> = {},
 ): MailboxSession {
   return {
     mailbox: fixtureMailbox(),
@@ -86,8 +86,8 @@ describe('SenderListLookupStep', () => {
       Promise.resolve(
         key === 'rspamd-whitelist-map'
           ? ['trusted@example.com']
-          : ['bad@evil.com']
-      )
+          : ['bad@evil.com'],
+      ),
     );
 
     const result = await step.load(session);
@@ -131,7 +131,7 @@ describe('SenderListLookupStep', () => {
       session.imap,
       'INBOX.custom.state',
       'rspamd-whitelist-map',
-      session.logger
+      session.logger,
     );
   });
 });

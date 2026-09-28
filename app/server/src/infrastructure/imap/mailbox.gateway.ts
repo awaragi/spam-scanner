@@ -1,9 +1,7 @@
 import { ImapFlow } from 'imapflow';
 import type { MailboxObject, SearchObject } from 'imapflow';
 import type { Logger as PinoLogger } from 'pino';
-import {
-  collectFoldersToCreate,
-} from '../../domain/utils/mailboxes.js';
+import { collectFoldersToCreate } from '../../domain/utils/mailboxes.js';
 import { processMessage, processMessageHeaders } from './message.mapper.js';
 
 /**
@@ -13,7 +11,7 @@ export async function open(
   imap: ImapFlow,
   folder: string,
   readOnly = false,
-  logger?: PinoLogger
+  logger?: PinoLogger,
 ): Promise<MailboxObject> {
   try {
     // Check if the client is already connected
@@ -29,7 +27,7 @@ export async function open(
   } catch (err) {
     logger?.error(
       { folder, error: err instanceof Error ? err.message : String(err) },
-      'Failed to open folder'
+      'Failed to open folder',
     );
     throw err;
   }
@@ -51,7 +49,7 @@ export function count(box: MailboxObject): number {
 export async function search(
   imap: ImapFlow,
   query: SearchObject,
-  logger?: PinoLogger
+  logger?: PinoLogger,
 ): Promise<number[]> {
   try {
     logger?.debug({ query }, 'Searching messages');
@@ -67,7 +65,7 @@ export async function search(
   } catch (err) {
     logger?.error(
       { query, error: err instanceof Error ? err.message : String(err) },
-      'Error searching messages'
+      'Error searching messages',
     );
     throw err;
   }
@@ -82,7 +80,7 @@ export async function search(
 export async function fetchMessagesByUIDs(
   imap: ImapFlow,
   uids: number[],
-  logger?: PinoLogger
+  logger?: PinoLogger,
 ): Promise<ReturnType<typeof processMessage>[]> {
   try {
     const messages: ReturnType<typeof processMessage>[] = [];
@@ -95,7 +93,7 @@ export async function fetchMessagesByUIDs(
         bodyStructure: true,
         flags: true,
       },
-      { uid: true }
+      { uid: true },
     );
 
     for await (const message of _messages) {
@@ -104,13 +102,13 @@ export async function fetchMessagesByUIDs(
 
     logger?.debug(
       { uids, messageCount: messages.length },
-      'Fetched messages by UIDs'
+      'Fetched messages by UIDs',
     );
     return messages;
   } catch (err) {
     logger?.error(
       { error: err instanceof Error ? err.message : String(err), uids },
-      'Error fetching messages by UIDs'
+      'Error fetching messages by UIDs',
     );
     throw err;
   }
@@ -126,14 +124,14 @@ export async function fetchMessagesByUIDs(
 export async function fetchMessageHeadersByUIDs(
   imap: ImapFlow,
   uids: number[],
-  logger?: PinoLogger
+  logger?: PinoLogger,
 ): Promise<ReturnType<typeof processMessageHeaders>[]> {
   try {
     const messages: ReturnType<typeof processMessageHeaders>[] = [];
     const _messages = imap.fetch(
       { uid: uids.join(',') },
       { uid: true, headers: true },
-      { uid: true }
+      { uid: true },
     );
 
     for await (const message of _messages) {
@@ -142,13 +140,13 @@ export async function fetchMessageHeadersByUIDs(
 
     logger?.debug(
       { uids, messageCount: messages.length },
-      'Fetched message headers by UIDs'
+      'Fetched message headers by UIDs',
     );
     return messages;
   } catch (err) {
     logger?.error(
       { error: err instanceof Error ? err.message : String(err), uids },
-      'Error fetching message headers by UIDs'
+      'Error fetching message headers by UIDs',
     );
     throw err;
   }
@@ -164,7 +162,7 @@ export async function moveMessage(
   imap: ImapFlow,
   uid: number,
   dest: string,
-  logger?: PinoLogger
+  logger?: PinoLogger,
 ): Promise<void> {
   try {
     logger?.debug({ uid, destFolder: dest }, 'Moving message by UID');
@@ -173,7 +171,7 @@ export async function moveMessage(
     await imap.messageMove({ uid }, dest);
     logger?.debug(
       { uid, destFolder: dest },
-      'Successfully moved message by UID'
+      'Successfully moved message by UID',
     );
 
     // Expunge to ensure the move is committed. Not part of ImapFlow's own
@@ -189,8 +187,12 @@ export async function moveMessage(
     logger?.debug({ uid, destFolder: dest }, 'Move completed with expunge');
   } catch (err) {
     logger?.error(
-      { uid, destFolder: dest, error: err instanceof Error ? err.message : String(err) },
-      'Failed to move message by UID'
+      {
+        uid,
+        destFolder: dest,
+        error: err instanceof Error ? err.message : String(err),
+      },
+      'Failed to move message by UID',
     );
     throw err;
   }
@@ -206,7 +208,7 @@ export async function moveMessages(
   imap: ImapFlow,
   messages: Array<{ uid: number }>,
   destFolder: string,
-  logger?: PinoLogger
+  logger?: PinoLogger,
 ): Promise<void> {
   if (messages.length === 0) {
     return;
@@ -214,7 +216,7 @@ export async function moveMessages(
 
   try {
     // Extract UIDs from messages
-    const uids = messages.map(message => message.uid);
+    const uids = messages.map((message) => message.uid);
     logger?.debug({ uids, destFolder }, 'Moving messages');
 
     // Move all messages at once
@@ -224,7 +226,7 @@ export async function moveMessages(
   } catch (err) {
     logger?.error(
       { destFolder, error: err instanceof Error ? err.message : String(err) },
-      'Failed to move messages'
+      'Failed to move messages',
     );
     throw err;
   }
@@ -242,7 +244,7 @@ export async function appendMessage(
   folder: string,
   raw: string | Buffer,
   flags: string[] = [],
-  logger?: PinoLogger
+  logger?: PinoLogger,
 ): Promise<void> {
   try {
     await imap.append(folder, raw, flags);
@@ -250,7 +252,7 @@ export async function appendMessage(
   } catch (err) {
     logger?.error(
       { folder, error: err instanceof Error ? err.message : String(err) },
-      'Failed to append message'
+      'Failed to append message',
     );
     throw err;
   }
@@ -269,7 +271,7 @@ export async function updateLabels(
   messages: Array<{ uid: number }>,
   labelsToSet: string[] = [],
   labelsToUnset: string[] = [],
-  logger?: PinoLogger
+  logger?: PinoLogger,
 ): Promise<void> {
   if (
     messages.length === 0 ||
@@ -282,7 +284,7 @@ export async function updateLabels(
 
   try {
     // Extract UIDs from messages
-    const uids = messages.map(message => message.uid);
+    const uids = messages.map((message) => message.uid);
     // imapflow's own SearchObject type declares `uid` as a single
     // SequenceString, but its actual range-resolving implementation accepts
     // (and joins) a `uid: number[]` array too - a gap in its own types, not
@@ -300,23 +302,23 @@ export async function updateLabels(
     if (labelsToUnset.length > 0) {
       logger?.debug(
         { uids, flags: labelsToUnset },
-        'Removing flags from messages'
+        'Removing flags from messages',
       );
       await imap.messageFlagsRemove(uidRange, labelsToUnset, options);
       logger?.debug(
         { uids, flags: labelsToUnset },
-        'Flags removed successfully'
+        'Flags removed successfully',
       );
     }
 
     logger?.debug(
       { updatedCount: messages.length },
-      'All message flags updated'
+      'All message flags updated',
     );
   } catch (err) {
     logger?.error(
       { error: err instanceof Error ? err.message : String(err) },
-      'Failed to update message flags'
+      'Failed to update message flags',
     );
     throw err;
   }
@@ -327,9 +329,7 @@ export async function updateLabels(
  * @param imap - An active and connected ImapFlow client instance.
  * @returns The folder delimiter (e.g., "/", "."), or null if not found.
  */
-export async function getImapDelimiter(
-  imap: ImapFlow
-): Promise<string | null> {
+export async function getImapDelimiter(imap: ImapFlow): Promise<string | null> {
   const mailboxes = await imap.list();
   for (const mailbox of mailboxes) {
     if (mailbox.delimiter) {
@@ -342,7 +342,7 @@ export async function getImapDelimiter(
 export async function createAppFolders(
   imap: ImapFlow,
   folders: string[],
-  logger?: PinoLogger
+  logger?: PinoLogger,
 ): Promise<void> {
   if (folders.length === 0) {
     return;
@@ -372,7 +372,7 @@ export async function findFirstUIDOnDate(
   imap: ImapFlow,
   folder: string,
   dateString: string | undefined,
-  logger?: PinoLogger
+  logger?: PinoLogger,
 ): Promise<{
   last_uid: number;
   last_seen_date: string;
@@ -416,7 +416,7 @@ export async function findFirstUIDOnDate(
   } catch (err) {
     logger?.error(
       { folder, error: err instanceof Error ? err.message : String(err) },
-      'Error in findFirstUIDOnDate'
+      'Error in findFirstUIDOnDate',
     );
     throw err;
   }

@@ -27,7 +27,7 @@ describe('updateListState', () => {
       'INBOX.scanner.state',
       'rspamd-whitelist-map',
       ['C@D.com', 'a@b.com'],
-      'append'
+      'append',
     );
 
     expect(writeMapState).toHaveBeenCalledWith(
@@ -35,7 +35,7 @@ describe('updateListState', () => {
       'INBOX.scanner.state',
       'rspamd-whitelist-map',
       JSON.stringify(['a@b.com', 'c@d.com'], null, 2),
-      undefined
+      undefined,
     );
     expect(result.added).toEqual(['c@d.com']);
     expect(result.skipped).toEqual(['a@b.com']);
@@ -49,7 +49,7 @@ describe('updateListState', () => {
       asImapFlow({}),
       'INBOX.scanner.state',
       'rspamd-whitelist-map',
-      ['b@c.com']
+      ['b@c.com'],
     );
 
     expect(writeMapState).toHaveBeenCalledWith(
@@ -57,7 +57,7 @@ describe('updateListState', () => {
       'INBOX.scanner.state',
       'rspamd-whitelist-map',
       JSON.stringify(['a@b.com', 'b@c.com'], null, 2),
-      undefined
+      undefined,
     );
   });
 });

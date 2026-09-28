@@ -25,7 +25,7 @@ function fixtureMailbox(overrides: Partial<Mailbox> = {}): Mailbox {
 }
 
 function fixtureFolders(
-  overrides: Partial<MailboxFolders> = {}
+  overrides: Partial<MailboxFolders> = {},
 ): MailboxFolders {
   return {
     inbox: 'INBOX',
@@ -55,7 +55,7 @@ function fixtureLogger(): PinoLogger {
 }
 
 function fixtureSession(
-  overrides: Partial<MailboxSession> = {}
+  overrides: Partial<MailboxSession> = {},
 ): MailboxSession {
   return {
     mailbox: fixtureMailbox(),
@@ -159,7 +159,9 @@ describe('RspamdCheckStep', () => {
 
     await step.check(
       [message],
-      fixtureSession({ mailbox: fixtureMailbox({ imapUser: 'owner@example.com' }) })
+      fixtureSession({
+        mailbox: fixtureMailbox({ imapUser: 'owner@example.com' }),
+      }),
     );
 
     expect(fakeRspamdGateway.checkEmail).toHaveBeenCalledWith(
@@ -170,7 +172,7 @@ describe('RspamdCheckStep', () => {
         from: 'sender@example.com',
         rcpt: 'owner@example.com',
       },
-      expect.anything()
+      expect.anything(),
     );
   });
 
@@ -183,13 +185,13 @@ describe('RspamdCheckStep', () => {
 
     await step.check(
       [message],
-      fixtureSession({ mailbox: fixtureMailbox({ id: 'owner@example.com' }) })
+      fixtureSession({ mailbox: fixtureMailbox({ id: 'owner@example.com' }) }),
     );
 
     expect(fakeRspamdGateway.checkEmail).toHaveBeenCalledWith(
       message.raw,
       expect.anything(),
-      'owner@example.com'
+      'owner@example.com',
     );
   });
 
@@ -202,13 +204,13 @@ describe('RspamdCheckStep', () => {
 
     await step.check(
       [message],
-      fixtureSession({ mailbox: fixtureMailbox({ imapUser: 'pierre' }) })
+      fixtureSession({ mailbox: fixtureMailbox({ imapUser: 'pierre' }) }),
     );
 
     expect(fakeRspamdGateway.checkEmail).toHaveBeenCalledWith(
       message.raw,
       expect.objectContaining({ rcpt: null }),
-      expect.anything()
+      expect.anything(),
     );
   });
 
@@ -249,13 +251,13 @@ describe('RspamdCheckStep', () => {
         ip: '203.0.113.9',
         helo: 'sender.attacker.example',
       }),
-      expect.anything()
+      expect.anything(),
     );
   });
 
   test('one permanent failure, one success: permanent one skipped, success kept, no throw', async () => {
     const messages = [makeMessage(1), makeMessage(2)];
-    fakeRspamdGateway.checkEmail.mockImplementation(async raw => {
+    fakeRspamdGateway.checkEmail.mockImplementation(async (raw) => {
       if (raw === 'raw-1') {
         const err: Error & { status?: number } = new Error('bad request');
         err.status = 400;
@@ -275,13 +277,13 @@ describe('RspamdCheckStep', () => {
     fakeRspamdGateway.checkEmail.mockRejectedValue(new Error('network error'));
 
     await expect(step.check(messages, fixtureSession())).rejects.toThrow(
-      /transiently/
+      /transiently/,
     );
   });
 
   test('mixed permanent and transient failures: rejects', async () => {
     const messages = [makeMessage(1), makeMessage(2)];
-    fakeRspamdGateway.checkEmail.mockImplementation(async raw => {
+    fakeRspamdGateway.checkEmail.mockImplementation(async (raw) => {
       if (raw === 'raw-1') {
         const err: Error & { status?: number } = new Error('bad request');
         err.status = 400;
@@ -291,7 +293,7 @@ describe('RspamdCheckStep', () => {
     });
 
     await expect(step.check(messages, fixtureSession())).rejects.toThrow(
-      /transiently/
+      /transiently/,
     );
   });
 });

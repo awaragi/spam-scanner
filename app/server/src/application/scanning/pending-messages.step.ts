@@ -19,7 +19,6 @@ import type { MailboxSession } from '../mailbox-session.js';
  * so the next cycle doesn't re-detect the same mismatch and re-warn
  * forever), searches, and filters/caps the result to `BATCH_SCAN_SIZE`.
  *
- * Ported from terminal's `pending-messages.step.ts` (`locatePendingMessages`):
  * `BATCH_SCAN_SIZE` comes from the injected global `ScanConfig` (it's a
  * global batching knob, not per-mailbox behavior); the inbox/state folders
  * and the `scanRead`/`scanInitialState` settings come from the session (see
@@ -33,7 +32,7 @@ export class PendingMessagesStep {
    * @returns `uids` is empty when there's nothing new.
    */
   async locate(
-    session: MailboxSession
+    session: MailboxSession,
   ): Promise<{ state: ScannerState; uids: number[] }> {
     const { imap, folders, settings, logger } = session;
     const now = new Date().toISOString();
@@ -48,7 +47,7 @@ export class PendingMessagesStep {
       defaultState,
       folders.inbox,
       settings.scanInitialState,
-      logger
+      logger,
     );
 
     const mailbox = await open(imap, folders.inbox, false, logger);
@@ -67,7 +66,7 @@ export class PendingMessagesStep {
           previousLastUid: state.last_uid,
           resetLastUid: uidReset.state.last_uid,
         },
-        'UIDVALIDITY changed - resetting to new-mail-only instead of trusting stale UIDs'
+        'UIDVALIDITY changed - resetting to new-mail-only instead of trusting stale UIDs',
       );
     }
     Object.assign(state, uidReset.state);
@@ -77,7 +76,7 @@ export class PendingMessagesStep {
     // start exceeds the mailbox max (e.g. "7385:*" becomes "7384:7385"),
     // causing the last processed email to always be re-scanned.
     const newUIDs = (await search(imap, query, logger)).filter(
-      uid => uid > state.last_uid
+      (uid) => uid > state.last_uid,
     );
 
     if (newUIDs.length === 0) {
@@ -91,7 +90,7 @@ export class PendingMessagesStep {
             last_checked: new Date().toISOString(),
             uid_validity: state.uid_validity,
           },
-          logger
+          logger,
         );
       }
       return { state, uids: [] };

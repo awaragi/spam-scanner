@@ -28,10 +28,7 @@ vi.mock('../../domain/state/state-format.js', () => ({
   validateState: vi.fn(),
 }));
 
-import {
-  search,
-  fetchMessagesByUIDs,
-} from '../imap/mailbox.gateway.js';
+import { search, fetchMessagesByUIDs } from '../imap/mailbox.gateway.js';
 import {
   parseStateFromEmail,
   validateState,
@@ -60,7 +57,7 @@ function makeImap(overrides = {}) {
  * headers blank line.
  */
 function fakeFetched(
-  body: string
+  body: string,
 ): Awaited<ReturnType<typeof fetchMessagesByUIDs>> {
   const raw = Buffer.from(`Subject: state\r\n\r\n${body}`);
   return [
@@ -119,7 +116,7 @@ describe('writeScannerState', () => {
         last_uid: 1,
         last_seen_date: 'd',
         last_checked: 'c',
-      })
+      }),
     ).rejects.toThrow('connection dropped');
 
     expect(imap.messageDelete).not.toHaveBeenCalled();
@@ -143,7 +140,11 @@ describe('readScannerState', () => {
 
     await readScannerState(asImapFlow(imap), 'INBOX.state');
 
-    expect(mockedFetchByUIDs).toHaveBeenCalledWith(asImapFlow(imap), [12], undefined);
+    expect(mockedFetchByUIDs).toHaveBeenCalledWith(
+      asImapFlow(imap),
+      [12],
+      undefined,
+    );
   });
 
   test('single matching state message: reads it', async () => {
@@ -153,7 +154,11 @@ describe('readScannerState', () => {
 
     await readScannerState(asImapFlow(imap), 'INBOX.state');
 
-    expect(mockedFetchByUIDs).toHaveBeenCalledWith(asImapFlow(imap), [7], undefined);
+    expect(mockedFetchByUIDs).toHaveBeenCalledWith(
+      asImapFlow(imap),
+      [7],
+      undefined,
+    );
   });
 
   test('extracts the JSON body from the full raw RFC822 message, not a nonexistent .body field', async () => {
@@ -165,7 +170,7 @@ describe('readScannerState', () => {
       last_checked: 'c',
     });
     const raw = Buffer.from(
-      `From: Scanner State <scanner@localhost>\r\nSubject: AppState: scanner\r\nX-App-State: scanner\r\nContent-Type: text/plain; charset=utf-8\r\nMIME-Version: 1.0\r\n\r\n${stateJson}`
+      `From: Scanner State <scanner@localhost>\r\nSubject: AppState: scanner\r\nX-App-State: scanner\r\nContent-Type: text/plain; charset=utf-8\r\nMIME-Version: 1.0\r\n\r\n${stateJson}`,
     );
     mockedFetchByUIDs.mockResolvedValue([
       { uid: 7, flags: new Set(), envelope: {}, raw },
@@ -182,9 +187,9 @@ describe('readScannerState', () => {
     mockedFetchByUIDs.mockResolvedValue(fakeFetched('not json'));
     mockedParseStateFromEmail.mockReturnValue(null);
 
-    await expect(readScannerState(asImapFlow(imap), 'INBOX.state')).rejects.toThrow(
-      'Failed to parse state from email'
-    );
+    await expect(
+      readScannerState(asImapFlow(imap), 'INBOX.state'),
+    ).rejects.toThrow('Failed to parse state from email');
     expect(mockedValidateState).not.toHaveBeenCalled();
   });
 
@@ -192,9 +197,9 @@ describe('readScannerState', () => {
     const imap = makeImap();
     mockedSearch.mockResolvedValue([]);
 
-    await expect(readScannerState(asImapFlow(imap), 'INBOX.state')).rejects.toThrow(
-      'Scanner state not found'
-    );
+    await expect(
+      readScannerState(asImapFlow(imap), 'INBOX.state'),
+    ).rejects.toThrow('Scanner state not found');
   });
 
   test('no state, default given, no mailboxPath: falls back to the caller-supplied default last_uid unchanged', async () => {
@@ -212,7 +217,7 @@ describe('readScannerState', () => {
       defaultState,
       undefined,
       'new',
-      { warn } as any
+      { warn } as any,
     );
 
     expect(result.last_uid).toBe(0);
@@ -237,7 +242,7 @@ describe('readScannerState', () => {
       defaultState,
       'INBOX',
       'new',
-      { warn } as any
+      { warn } as any,
     );
 
     expect(imap.status).toHaveBeenCalledWith('INBOX', { uidNext: true });
@@ -262,15 +267,13 @@ describe('readScannerState', () => {
       defaultState,
       'INBOX',
       'new',
-      { warn } as any
+      { warn } as any,
     );
 
     // writeScannerState was actually invoked (append with the baseline
     // that was just returned, not a stale or different value).
     expect(imap.append).toHaveBeenCalledTimes(1);
-    expect(imap.append.mock.calls[0][1]).toContain(
-      JSON.stringify(result)
-    );
+    expect(imap.append.mock.calls[0][1]).toContain(JSON.stringify(result));
     // The connection ends up back on the caller's original mailbox
     // ('INBOX', per makeImap's fixture), not left on the state folder that
     // writeScannerState itself selects internally.
@@ -294,7 +297,7 @@ describe('readScannerState', () => {
       defaultState,
       'INBOX',
       'new',
-      { warn } as any
+      { warn } as any,
     );
 
     expect(result.last_uid).toBe(0);
@@ -318,7 +321,7 @@ describe('readScannerState', () => {
       defaultState,
       'INBOX',
       'all',
-      { warn } as any
+      { warn } as any,
     );
 
     expect(result.last_uid).toBe(0);
@@ -340,7 +343,7 @@ describe('readScannerState', () => {
       'INBOX.state',
       defaultState,
       undefined,
-      'all'
+      'all',
     );
 
     expect(result.last_uid).toBe(0);

@@ -27,7 +27,7 @@ describe('validateState', () => {
     };
 
     expect(() => validateState(state)).toThrow(
-      'Invalid state: missing required properties'
+      'Invalid state: missing required properties',
     );
   });
 
@@ -39,7 +39,7 @@ describe('validateState', () => {
     };
 
     expect(() => validateState(state)).toThrow(
-      'Invalid state: invalid property types'
+      'Invalid state: invalid property types',
     );
   });
 
@@ -51,13 +51,13 @@ describe('validateState', () => {
     };
 
     expect(() => validateState(state)).toThrow(
-      'Invalid state: missing required properties'
+      'Invalid state: missing required properties',
     );
   });
 
   test('should throw error for null state', () => {
     expect(() => validateState(null)).toThrow(
-      'Invalid state: must be a non-null object'
+      'Invalid state: must be a non-null object',
     );
   });
 
@@ -81,19 +81,19 @@ describe('validateState', () => {
     };
 
     expect(() => validateState(state)).toThrow(
-      'Invalid state: invalid property types'
+      'Invalid state: invalid property types',
     );
   });
 
   test('should throw error for non-object state', () => {
     expect(() => validateState('string')).toThrow(
-      'Invalid state: must be a non-null object'
+      'Invalid state: must be a non-null object',
     );
     expect(() => validateState(123)).toThrow(
-      'Invalid state: must be a non-null object'
+      'Invalid state: must be a non-null object',
     );
     expect(() => validateState(true)).toThrow(
-      'Invalid state: must be a non-null object'
+      'Invalid state: must be a non-null object',
     );
   });
 });
@@ -123,7 +123,7 @@ describe('formatStateAsEmail', () => {
 
   test('should throw error for invalid state', () => {
     expect(() => formatStateAsEmail(null, 'scanner')).toThrow(
-      'Invalid state: must be a non-null object'
+      'Invalid state: must be a non-null object',
     );
   });
 });
@@ -143,7 +143,7 @@ describe('formatAppStateEmail', () => {
     const result = formatAppStateEmail(
       'rspamd-whitelist-map',
       'a@b.com',
-      'Map State'
+      'Map State',
     );
 
     expect(result).toContain('From: Map State <scanner@localhost>');
@@ -191,10 +191,9 @@ describe('state-key constants and byte-identical parity', () => {
 
     const output = formatStateAsEmail(state, 'scanner');
 
-    // Expected output based on terminal's exact format
+    // Exact on-disk format of state messages already stored in mailboxes
     const expectedJson = JSON.stringify(state, null, 2);
-    const expected =
-      `From: Scanner State <scanner@localhost>
+    const expected = `From: Scanner State <scanner@localhost>
 To: Scanner State <scanner@localhost>
 Subject: AppState: scanner
 X-App-State: scanner

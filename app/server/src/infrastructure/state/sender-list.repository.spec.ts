@@ -23,13 +23,8 @@ vi.mock('../../domain/state/state-format.js', () => ({
   validateState: vi.fn(),
 }));
 
-import {
-  search,
-  fetchMessagesByUIDs,
-} from '../imap/mailbox.gateway.js';
-import {
-  parseStateFromEmail,
-} from '../../domain/state/state-format.js';
+import { search, fetchMessagesByUIDs } from '../imap/mailbox.gateway.js';
+import { parseStateFromEmail } from '../../domain/state/state-format.js';
 
 const mockedSearch = vi.mocked(search);
 const mockedFetchByUIDs = vi.mocked(fetchMessagesByUIDs);
@@ -51,7 +46,7 @@ function makeImap(overrides = {}) {
  * fetchMessagesByUIDs returns.
  */
 function fakeFetched(
-  body: string
+  body: string,
 ): Awaited<ReturnType<typeof fetchMessagesByUIDs>> {
   const raw = Buffer.from(`Subject: state\r\n\r\n${body}`);
   return [
@@ -80,7 +75,7 @@ describe('writeMapState', () => {
       asImapFlow(imap),
       'INBOX.state',
       'rspamd-whitelist-map',
-      ['a@b.com']
+      ['a@b.com'],
     );
 
     expect(callOrder).toEqual(['append', 'messageDelete']);
@@ -93,12 +88,9 @@ describe('writeMapState', () => {
     imap.append.mockRejectedValue(new Error('connection dropped'));
 
     await expect(
-      writeMapState(
-        asImapFlow(imap),
-        'INBOX.state',
-        'rspamd-whitelist-map',
-        ['a@b.com']
-      )
+      writeMapState(asImapFlow(imap), 'INBOX.state', 'rspamd-whitelist-map', [
+        'a@b.com',
+      ]),
     ).rejects.toThrow('connection dropped');
 
     expect(imap.messageDelete).not.toHaveBeenCalled();
@@ -112,7 +104,7 @@ describe('writeMapState', () => {
       asImapFlow(imap),
       'INBOX.state',
       'rspamd-whitelist-map',
-      ['a@b.com']
+      ['a@b.com'],
     );
 
     expect(imap.append).toHaveBeenCalled();
@@ -134,7 +126,7 @@ describe('readMapState', () => {
     const result = await readMapState(
       asImapFlow(imap),
       'INBOX.state',
-      'rspamd-whitelist-map'
+      'rspamd-whitelist-map',
     );
 
     expect(result).toEqual(['a@b.com', 'c@d.com']);
@@ -146,13 +138,13 @@ describe('readMapState', () => {
     mockedFetchByUIDs.mockResolvedValue(fakeFetched('raw'));
     mockedParseStateFromEmail.mockReturnValue(['a@b.com']);
 
-    await readMapState(
-      asImapFlow(imap),
-      'INBOX.state',
-      'rspamd-whitelist-map'
-    );
+    await readMapState(asImapFlow(imap), 'INBOX.state', 'rspamd-whitelist-map');
 
-    expect(mockedFetchByUIDs).toHaveBeenCalledWith(asImapFlow(imap), [12], undefined);
+    expect(mockedFetchByUIDs).toHaveBeenCalledWith(
+      asImapFlow(imap),
+      [12],
+      undefined,
+    );
   });
 
   test('no matching state message: returns [] rather than throwing', async () => {
@@ -162,7 +154,7 @@ describe('readMapState', () => {
     const result = await readMapState(
       asImapFlow(imap),
       'INBOX.state',
-      'rspamd-whitelist-map'
+      'rspamd-whitelist-map',
     );
 
     expect(result).toEqual([]);
@@ -178,7 +170,7 @@ describe('readMapState', () => {
     const result = await readMapState(
       asImapFlow(imap),
       'INBOX.state',
-      'rspamd-whitelist-map'
+      'rspamd-whitelist-map',
     );
 
     expect(result).toEqual([]);
@@ -193,7 +185,7 @@ describe('readMapState', () => {
     const result = await readMapState(
       asImapFlow(imap),
       'INBOX.state',
-      'rspamd-whitelist-map'
+      'rspamd-whitelist-map',
     );
 
     expect(result).toEqual([]);

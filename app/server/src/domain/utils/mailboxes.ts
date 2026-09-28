@@ -6,7 +6,7 @@
  * @returns - Non-empty path segments, e.g. ["INBOX", "scanner", "train", "spam"]
  */
 export function splitFolderParts(folder: string): string[] {
-  return folder.split(/[/\\.]|\\+/).filter(part => part !== ''); // allow to split by . or by / or by \
+  return folder.split(/[/\\.]|\\+/).filter((part) => part !== ''); // allow to split by . or by / or by \
 }
 
 /**
@@ -16,7 +16,7 @@ export function splitFolderParts(folder: string): string[] {
  */
 export function collectFoldersToCreate(
   folders: string[],
-  separator: string
+  separator: string,
 ): Set<string> {
   const foldersToCreate = new Set<string>();
   for (const folder of folders) {

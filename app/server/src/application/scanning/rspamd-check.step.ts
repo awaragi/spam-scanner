@@ -35,7 +35,6 @@ type ScoredMessage<M> = M & { spamInfo: SpamInfo };
 
 /**
  * Checks messages against Rspamd, attaching spam information to each one.
- * Ported from terminal's `rspamd-check.step.ts` (`processWithRspamd`):
  * `RSPAMD_ENVELOPE_TRUSTED_HOPS` comes from the injected global
  * `RspamdConfig` (Rspamd's connection is shared by every mailbox); the
  * mailbox's own IMAP login (`IMAP_USER`, for the `Rcpt` envelope header)
@@ -46,7 +45,7 @@ type ScoredMessage<M> = M & { spamInfo: SpamInfo };
 export class RspamdCheckStep {
   constructor(
     private readonly rspamd: RspamdGateway,
-    private readonly rspamdConfig: RspamdConfig
+    private readonly rspamdConfig: RspamdConfig,
   ) {}
 
   /**
@@ -59,7 +58,7 @@ export class RspamdCheckStep {
   private async buildEnvelope(
     raw: unknown,
     imapUser: string,
-    session: MailboxSession
+    session: MailboxSession,
   ): Promise<RspamdEnvelope> {
     const rcpt = imapUser?.includes('@') ? imapUser : null;
 
@@ -72,16 +71,14 @@ export class RspamdCheckStep {
       // mailparser returns a bare string instead of a 1-element array when a
       // header occurs exactly once - normalize before indexing.
       const receivedHeaders = ([] as string[]).concat(
-        (parsed.headers.get('received') as string | string[] | undefined) ||
-          []
+        (parsed.headers.get('received') as string | string[] | undefined) || [],
       );
       const hop = resolveConnectingHop(
         receivedHeaders,
-        this.rspamdConfig.envelopeTrustedHops
+        this.rspamdConfig.envelopeTrustedHops,
       );
       const returnPath = parsed.headers.get('return-path') as
-        | { value?: Array<{ address?: string }> }
-        | undefined;
+        { value?: Array<{ address?: string }> } | undefined;
 
       return {
         ip: hop?.ip ?? null,
@@ -92,7 +89,7 @@ export class RspamdCheckStep {
     } catch (err) {
       session.logger.debug(
         { error: err instanceof Error ? err.message : String(err) },
-        'Could not resolve Rspamd envelope data from message headers - continuing without it'
+        'Could not resolve Rspamd envelope data from message headers - continuing without it',
       );
       return { ip: null, helo: null, from: null, rcpt };
     }
@@ -109,7 +106,7 @@ export class RspamdCheckStep {
    */
   private async processOne<M extends RspamdMessage>(
     message: M,
-    session: MailboxSession
+    session: MailboxSession,
   ): Promise<ScoredMessage<M> | null> {
     const { uid, envelope, raw } = message;
     const subject = envelope.subject;
@@ -121,16 +118,16 @@ export class RspamdCheckStep {
       const rspamdEnvelope = await this.buildEnvelope(
         raw,
         session.mailbox.imapUser,
-        session
+        session,
       );
       session.logger.debug(
         { uid, ip: rspamdEnvelope.ip, helo: rspamdEnvelope.helo },
-        'Checking email with Rspamd'
+        'Checking email with Rspamd',
       );
       const result = await this.rspamd.checkEmail(
         raw as string | Buffer,
         rspamdEnvelope,
-        session.mailbox.id
+        session.mailbox.id,
       );
 
       session.logger.debug(
@@ -140,7 +137,7 @@ export class RspamdCheckStep {
           action: (result as { action?: unknown })?.action,
           score: (result as { score?: unknown })?.score,
         },
-        'Rspamd check completed'
+        'Rspamd check completed',
       );
 
       const { score, required, senderAuthenticated } =
@@ -148,7 +145,7 @@ export class RspamdCheckStep {
 
       session.logger.debug(
         { uid, score, required, senderAuthenticated, date, subject },
-        'Rspamd scan results'
+        'Rspamd scan results',
       );
 
       return {
@@ -163,14 +160,14 @@ export class RspamdCheckStep {
             subject,
             error: err instanceof Error ? err.message : String(err),
           },
-          'Rspamd check failed permanently for this message - skipping it, batch continues'
+          'Rspamd check failed permanently for this message - skipping it, batch continues',
         );
         return null;
       }
 
       session.logger.error(
         { uid, error: err instanceof Error ? err.message : String(err) },
-        'Rspamd check process error'
+        'Rspamd check process error',
       );
       throw err;
     }
@@ -186,14 +183,14 @@ export class RspamdCheckStep {
    */
   async check<M extends RspamdMessage>(
     messages: M[],
-    session: MailboxSession
+    session: MailboxSession,
   ): Promise<ScoredMessage<M>[]> {
     if (messages.length === 0) {
       return [];
     }
 
     const settled = await Promise.allSettled(
-      messages.map(message => this.processOne(message, session))
+      messages.map((message) => this.processOne(message, session)),
     );
 
     const processedMessages: ScoredMessage<M>[] = [];
@@ -211,13 +208,13 @@ export class RspamdCheckStep {
 
     if (failedUids.length > 0) {
       throw new Error(
-        `Rspamd check failed transiently for ${failedUids.length} message(s): ${failedUids.join(', ')}`
+        `Rspamd check failed transiently for ${failedUids.length} message(s): ${failedUids.join(', ')}`,
       );
     }
 
     session.logger.info(
       { total: processedMessages.length },
-      'Messages processed with Rspamd'
+      'Messages processed with Rspamd',
     );
     return processedMessages;
   }

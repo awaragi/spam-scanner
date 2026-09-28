@@ -138,7 +138,7 @@ export function parseReceivedHeader(value: unknown): ReceivedHop | null {
  */
 export function resolveConnectingHop(
   receivedHeaders: string[] | null | undefined,
-  trustedHops = 0
+  trustedHops = 0,
 ): ReceivedHop | null {
   const boundary = receivedHeaders?.[trustedHops];
   if (!boundary) return null;
@@ -206,7 +206,7 @@ export function parseRspamdOutput(response: unknown): {
 } {
   if (!response || typeof response !== 'object') {
     const err: Error & ClassifiableError = new Error(
-      'Invalid Rspamd response format'
+      'Invalid Rspamd response format',
     );
     err.permanent = true;
     throw err;
@@ -222,7 +222,7 @@ export function parseRspamdOutput(response: unknown): {
     symbols?: Record<string, unknown>;
   };
   const senderAuthenticated = AUTHENTICATING_SYMBOLS.some(
-    symbol => symbol in symbols
+    (symbol) => symbol in symbols,
   );
 
   return {
@@ -256,7 +256,7 @@ export function parseAiClassificationOutput(content: unknown): {
   } catch (err) {
     throw new Error(
       `AI response is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
-      { cause: err }
+      { cause: err },
     );
   }
 

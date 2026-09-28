@@ -9,8 +9,7 @@ import { diffListUpdate } from '../../domain/sender-lists/list-diff.js';
 /**
  * Update a mailbox's IMAP-backed whitelist/blacklist state with sender
  * addresses, in either `append` (merge with existing entries) or `override`
- * (replace existing entries entirely) mode. Ported from terminal's
- * `list-update.step.ts`, kept as a co-located step alongside
+ * (replace existing entries entirely) mode. A co-located step alongside
  * `sender-list-training.service.ts`.
  * @param imap - Connected ImapFlow client
  * @param stateFolder - Path to the mailbox's state folder
@@ -27,7 +26,7 @@ export async function updateListState(
   mapStateKey: string,
   senders: string[],
   mode: 'append' | 'override' = 'append',
-  logger?: PinoLogger
+  logger?: PinoLogger,
 ): Promise<{
   added: string[];
   skipped: string[];
@@ -36,14 +35,14 @@ export async function updateListState(
 }> {
   logger?.debug(
     { mapStateKey, mode, count: senders.length },
-    'Updating list state'
+    'Updating list state',
   );
 
   const existing = await readMapState(imap, stateFolder, mapStateKey, logger);
   const { list, added, skipped, removed, total } = diffListUpdate(
     existing,
     senders,
-    mode
+    mode,
   );
 
   // Pretty-printed so the raw IMAP state message is human-readable without
@@ -53,7 +52,7 @@ export async function updateListState(
     stateFolder,
     mapStateKey,
     JSON.stringify(list, null, 2),
-    logger
+    logger,
   );
 
   const result = { added, skipped, removed, total };

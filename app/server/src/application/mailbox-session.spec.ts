@@ -21,7 +21,9 @@ function fixtureMailbox(overrides: Partial<Mailbox> = {}): Mailbox {
   };
 }
 
-function fixtureFolders(overrides: Partial<MailboxFolders> = {}): MailboxFolders {
+function fixtureFolders(
+  overrides: Partial<MailboxFolders> = {},
+): MailboxFolders {
   return {
     inbox: 'INBOX',
     spam: 'INBOX.spam',
@@ -46,7 +48,10 @@ function fixtureImap(overrides: Partial<ImapFlow> = {}): ImapFlow {
  * (bypassing `process.stdout.write`), so a mock logger can't observe
  * `.child()` binding behavior the way a real one, captured, can.
  */
-function captureLines(): { logger: pino.Logger; lines: () => Record<string, unknown>[] } {
+function captureLines(): {
+  logger: pino.Logger;
+  lines: () => Record<string, unknown>[];
+} {
   const chunks: string[] = [];
   const stream = new Writable({
     write(chunk, _encoding, callback) {
@@ -60,13 +65,13 @@ function captureLines(): { logger: pino.Logger; lines: () => Record<string, unkn
       chunks
         .join('')
         .split('\n')
-        .filter(line => line.length > 0)
-        .map(line => JSON.parse(line)),
+        .filter((line) => line.length > 0)
+        .map((line) => JSON.parse(line)),
   };
 }
 
 describe('createMailboxSession', () => {
-  test('the session logger is bound to this mailbox\'s id, per D4', () => {
+  test("the session logger is bound to this mailbox's id, per D4", () => {
     const mailbox = fixtureMailbox({ id: 'jane.doe@example.com' });
     const { logger, lines } = captureLines();
 
@@ -127,7 +132,7 @@ describe('createMailboxSession', () => {
         settings: defaultMailboxSettings,
         folders: fixtureFolders(),
         logger,
-      })
+      }),
     ).toThrow(/no id/);
   });
 
@@ -141,7 +146,7 @@ describe('createMailboxSession', () => {
         settings: defaultMailboxSettings,
         folders: fixtureFolders(),
         logger,
-      })
+      }),
     ).toThrow(/not usable/);
   });
 });

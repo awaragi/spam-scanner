@@ -9,8 +9,8 @@ import { DispositionStep } from './disposition.step.js';
 import { SenderListLookupStep } from './sender-list-lookup.step.js';
 
 /**
- * Provides `ScanService` (a full mailbox scan, ported from terminal's
- * `scan.controller.ts` - see design.md D1) and its steps. `ScanConfig`/
+ * Provides `ScanService` (a full mailbox scan - see design.md D1) and its
+ * steps. `ScanConfig`/
  * `AiConfig` come from the global `AppConfigModule`; `RspamdGateway` comes
  * from `RspamdModule` and `AiGateway`/`AiFailureTracker` from `AiModule`.
  * Only `ScanService` is exported - the steps are this feature's own

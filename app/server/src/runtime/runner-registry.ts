@@ -112,9 +112,7 @@ export class RunnerRegistry
    */
   getStatus(): RunnerRegistryStatus {
     return {
-      mailboxes: [...this.runners.values()].map((runner) =>
-        runner.getStatus(),
-      ),
+      mailboxes: [...this.runners.values()].map((runner) => runner.getStatus()),
       ai: this.aiFailureTracker.status(),
     };
   }

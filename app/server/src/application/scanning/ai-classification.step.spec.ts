@@ -26,7 +26,7 @@ function fixtureMailbox(overrides: Partial<Mailbox> = {}): Mailbox {
 }
 
 function fixtureFolders(
-  overrides: Partial<MailboxFolders> = {}
+  overrides: Partial<MailboxFolders> = {},
 ): MailboxFolders {
   return {
     inbox: 'INBOX',
@@ -56,7 +56,7 @@ function fixtureLogger(): PinoLogger {
 }
 
 function fixtureSession(
-  overrides: Partial<MailboxSession> = {}
+  overrides: Partial<MailboxSession> = {},
 ): MailboxSession {
   return {
     mailbox: fixtureMailbox(),
@@ -88,9 +88,7 @@ function fixtureAiConfig(overrides: Partial<AiConfig> = {}): AiConfig {
   } as AiConfig;
 }
 
-async function buildStep(
-  aiConfigOverrides: Partial<AiConfig> = {}
-): Promise<{
+async function buildStep(aiConfigOverrides: Partial<AiConfig> = {}): Promise<{
   step: AiClassificationStep;
   fakeAiGateway: { classifyEmail: ReturnType<typeof vi.fn> };
   tracker: AiFailureTracker;
@@ -120,7 +118,7 @@ describe('AiClassificationStep', () => {
 
     const result = await step.classify(
       { nonSpamMessages: [], lowSpamMessages: [] },
-      fixtureSession()
+      fixtureSession(),
     );
 
     expect(result).toEqual({ nonSpamMessages: [], lowSpamMessages: [] });
@@ -129,7 +127,7 @@ describe('AiClassificationStep', () => {
 
   test('attaches aiInfo on success and preserves bucket split/order', async () => {
     const { step, fakeAiGateway } = await buildStep();
-    fakeAiGateway.classifyEmail.mockImplementation(async content => ({
+    fakeAiGateway.classifyEmail.mockImplementation(async (content) => ({
       score: 20,
       reasoning: `reason-${content.text}`,
     }));
@@ -139,7 +137,7 @@ describe('AiClassificationStep', () => {
 
     const result = await step.classify(
       { nonSpamMessages, lowSpamMessages },
-      fixtureSession()
+      fixtureSession(),
     );
 
     expect(result.nonSpamMessages).toHaveLength(2);
@@ -167,12 +165,12 @@ describe('AiClassificationStep', () => {
 
     const result = await step.classify(
       { nonSpamMessages, lowSpamMessages: [] },
-      fixtureSession()
+      fixtureSession(),
     );
 
-    const errors = result.nonSpamMessages.map(m => m.aiInfo.error);
+    const errors = result.nonSpamMessages.map((m) => m.aiInfo.error);
     expect(errors.filter(Boolean)).toEqual(['provider timeout']);
-    expect(errors.filter(e => e === null)).toHaveLength(2);
+    expect(errors.filter((e) => e === null)).toHaveLength(2);
   });
 
   test('respects the injected AiConfig.concurrency', async () => {
@@ -183,16 +181,16 @@ describe('AiClassificationStep', () => {
     fakeAiGateway.classifyEmail.mockImplementation(async () => {
       inFlight++;
       maxInFlight = Math.max(maxInFlight, inFlight);
-      await new Promise(resolve => setTimeout(resolve, 5));
+      await new Promise((resolve) => setTimeout(resolve, 5));
       inFlight--;
       return { score: 1, reasoning: 'ok' };
     });
 
-    const nonSpamMessages = [1, 2, 3, 4, 5].map(uid => makeMessage(uid));
+    const nonSpamMessages = [1, 2, 3, 4, 5].map((uid) => makeMessage(uid));
 
     await step.classify(
       { nonSpamMessages, lowSpamMessages: [] },
-      fixtureSession()
+      fixtureSession(),
     );
 
     expect(maxInFlight).toBeLessThanOrEqual(2);
@@ -200,7 +198,10 @@ describe('AiClassificationStep', () => {
 
   test('resolves maxInputTokens from the injected AiConfig.maxInputTokens', async () => {
     const { step, fakeAiGateway } = await buildStep({ maxInputTokens: 6000 });
-    fakeAiGateway.classifyEmail.mockResolvedValue({ score: 1, reasoning: 'ok' });
+    fakeAiGateway.classifyEmail.mockResolvedValue({
+      score: 1,
+      reasoning: 'ok',
+    });
     const message = {
       uid: 1,
       envelope: {},
@@ -209,24 +210,27 @@ describe('AiClassificationStep', () => {
 
     await step.classify(
       { nonSpamMessages: [message], lowSpamMessages: [] },
-      fixtureSession()
+      fixtureSession(),
     );
 
     const [content] = fakeAiGateway.classifyEmail.mock.calls[0];
     // 6000 tokens * 4 chars/token = 24000 chars, plus the truncation marker.
     expect(content.text.length).toBeLessThanOrEqual(
-      24000 + '…[truncated]'.length
+      24000 + '…[truncated]'.length,
     );
   });
 
   test('records a success on the shared AiFailureTracker', async () => {
     const { step, fakeAiGateway, tracker } = await buildStep();
-    fakeAiGateway.classifyEmail.mockResolvedValue({ score: 1, reasoning: 'ok' });
+    fakeAiGateway.classifyEmail.mockResolvedValue({
+      score: 1,
+      reasoning: 'ok',
+    });
     const recordSuccess = vi.spyOn(tracker, 'recordSuccess');
 
     await step.classify(
       { nonSpamMessages: [makeMessage(1)], lowSpamMessages: [] },
-      fixtureSession()
+      fixtureSession(),
     );
 
     expect(recordSuccess).toHaveBeenCalledTimes(1);
@@ -237,13 +241,13 @@ describe('AiClassificationStep', () => {
       failureAlertThreshold: 3,
     });
     fakeAiGateway.classifyEmail.mockRejectedValue(
-      new Error('provider timeout')
+      new Error('provider timeout'),
     );
     const recordFailure = vi.spyOn(tracker, 'recordFailure');
 
     await step.classify(
       { nonSpamMessages: [makeMessage(1)], lowSpamMessages: [] },
-      fixtureSession()
+      fixtureSession(),
     );
 
     expect(recordFailure).toHaveBeenCalledWith(expect.any(Error), 3);
@@ -263,15 +267,15 @@ describe('AiClassificationStep', () => {
     const session = fixtureSession();
     const first = await step.classify(
       { nonSpamMessages: [makeMessage(1)], lowSpamMessages: [] },
-      session
+      session,
     );
     const second = await step.classify(
       { nonSpamMessages: [makeMessage(2)], lowSpamMessages: [] },
-      session
+      session,
     );
     const third = await step.classify(
       { nonSpamMessages: [makeMessage(3)], lowSpamMessages: [] },
-      session
+      session,
     );
 
     expect(first.nonSpamMessages[0].aiInfo.error).toBe('boom');

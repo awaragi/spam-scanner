@@ -1,9 +1,16 @@
 import { describe, test, expect, vi } from 'vitest';
 import { HealthService } from './health.service.js';
-import type { RunnerRegistry, RunnerRegistryStatus } from '../../runtime/runner-registry.js';
+import type {
+  RunnerRegistry,
+  RunnerRegistryStatus,
+} from '../../runtime/runner-registry.js';
 import type { AiFailureTracker } from '../../domain/ai/ai-failure-tracker.js';
 import type { RspamdGateway } from '../../infrastructure/rspamd/rspamd.gateway.js';
-import type { MailboxRunnerStatus, JobStatus, JobName } from '../../runtime/mailbox-runner.js';
+import type {
+  MailboxRunnerStatus,
+  JobStatus,
+  JobName,
+} from '../../runtime/mailbox-runner.js';
 
 function fixtureJobStatus(overrides: Partial<JobStatus> = {}): JobStatus {
   return {
@@ -126,9 +133,9 @@ describe('HealthService', () => {
         state: 'degraded',
         mode: 'loop',
       });
-      expect(result.mailboxes[0].lastSuccessfulScanAgeMs).toBeGreaterThanOrEqual(
-        4000,
-      );
+      expect(
+        result.mailboxes[0].lastSuccessfulScanAgeMs,
+      ).toBeGreaterThanOrEqual(4000);
     });
 
     test('reports lastSuccessfulScanAgeMs as null when the last scan did not succeed', async () => {

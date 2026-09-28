@@ -21,14 +21,14 @@ export type TokenPayload = AdminTokenPayload | MailboxTokenPayload;
 
 /** Narrows a decoded `TokenPayload` to `MailboxTokenPayload` by its `scope` claim. */
 export function isMailboxTokenPayload(
-  payload: TokenPayload
+  payload: TokenPayload,
 ): payload is MailboxTokenPayload {
   return payload.scope === 'mailbox';
 }
 
 /** Narrows a decoded `TokenPayload` to `AdminTokenPayload` by its `scope` claim. */
 export function isAdminTokenPayload(
-  payload: TokenPayload
+  payload: TokenPayload,
 ): payload is AdminTokenPayload {
   return payload.scope === 'admin';
 }

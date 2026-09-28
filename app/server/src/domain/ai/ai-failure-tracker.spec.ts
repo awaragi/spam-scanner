@@ -22,7 +22,7 @@ describe('nextFailureStreak', () => {
     const { streak, shouldAlert } = nextFailureStreak(
       emptyStreak,
       err('boom'),
-      3
+      3,
     );
     expect(streak).toMatchObject({
       reason: 'unknown',
@@ -42,12 +42,12 @@ describe('nextFailureStreak', () => {
     const { streak: first } = nextFailureStreak(
       emptyStreak,
       err('Empty response from AI provider'),
-      3
+      3,
     );
     const { streak: second } = nextFailureStreak(
       first,
       err('AI response is not valid JSON: bad'),
-      3
+      3,
     );
     expect(second.reason).toBe('invalid_json');
     expect(second.count).toBe(1);
