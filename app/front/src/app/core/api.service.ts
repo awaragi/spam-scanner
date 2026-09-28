@@ -14,10 +14,7 @@ export class ApiService {
     });
   }
 
-  exchangeMailboxToken(
-    adminToken: string,
-    mailboxId: string,
-  ): Observable<{ token: string }> {
+  exchangeMailboxToken(adminToken: string, mailboxId: string): Observable<{ token: string }> {
     return this.http.post<{ token: string }>(
       `${this.base}/auth/mailboxes/${encodeURIComponent(mailboxId)}/token`,
       {},
@@ -32,10 +29,9 @@ export class ApiService {
   }
 
   mailboxGet<T>(mailboxToken: string, mailboxId: string, path: string): Observable<T> {
-    return this.http.get<T>(
-      `${this.base}/mailboxes/${encodeURIComponent(mailboxId)}${path}`,
-      { headers: this.bearer(mailboxToken) },
-    );
+    return this.http.get<T>(`${this.base}/mailboxes/${encodeURIComponent(mailboxId)}${path}`, {
+      headers: this.bearer(mailboxToken),
+    });
   }
 
   mailboxPost<T>(

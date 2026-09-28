@@ -55,16 +55,13 @@ export class SenderListPanelComponent implements OnInit {
 
   reload(): void {
     this.message.set('');
-    this.api
-      .mailboxGet<string[]>(this.token(), this.mailboxId, `/lists/${this.kind}`)
-      .subscribe({
-        next: (list) => {
-          this.addresses.set(list);
-          this.editorText = list.join('\n');
-        },
-        error: (err) =>
-          this.message.set(JSON.stringify(err.error ?? err.message, null, 2)),
-      });
+    this.api.mailboxGet<string[]>(this.token(), this.mailboxId, `/lists/${this.kind}`).subscribe({
+      next: (list) => {
+        this.addresses.set(list);
+        this.editorText = list.join('\n');
+      },
+      error: (err) => this.message.set(JSON.stringify(err.error ?? err.message, null, 2)),
+    });
   }
 
   save(): void {
@@ -77,19 +74,13 @@ export class SenderListPanelComponent implements OnInit {
       return;
     }
     this.api
-      .mailboxPut<{ replaced: true }>(
-        this.token(),
-        this.mailboxId,
-        `/lists/${this.kind}`,
-        parsed,
-      )
+      .mailboxPut<{ replaced: true }>(this.token(), this.mailboxId, `/lists/${this.kind}`, parsed)
       .subscribe({
         next: () => {
           this.addresses.set(parsed);
           this.message.set('Saved.');
         },
-        error: (err) =>
-          this.message.set(JSON.stringify(err.error ?? err.message, null, 2)),
+        error: (err) => this.message.set(JSON.stringify(err.error ?? err.message, null, 2)),
       });
   }
 
@@ -124,37 +115,35 @@ export class SenderListPanelComponent implements OnInit {
               this.editorText = parsed.join('\n');
               this.message.set(`Imported ${parsed.length} address(es).`);
             },
-            error: (err) =>
-              this.message.set(JSON.stringify(err.error ?? err.message, null, 2)),
+            error: (err) => this.message.set(JSON.stringify(err.error ?? err.message, null, 2)),
           });
       })
       .catch((err) => this.message.set(String(err)));
   }
 
   exportJson(): void {
-    this.fetchExport((list) => this.downloadFile(`${this.kind}.json`, JSON.stringify(list, null, 2)));
+    this.fetchExport((list) =>
+      this.downloadFile(`${this.kind}.json`, JSON.stringify(list, null, 2)),
+    );
   }
 
   exportLines(): void {
-    this.fetchExport((list) => this.downloadFile(`${this.kind}.txt`, list.join('\n') + (list.length ? '\n' : '')));
+    this.fetchExport((list) =>
+      this.downloadFile(`${this.kind}.txt`, list.join('\n') + (list.length ? '\n' : '')),
+    );
   }
 
   private fetchExport(write: (list: string[]) => void): void {
     this.message.set('');
     this.api
-      .mailboxGet<string[]>(
-        this.token(),
-        this.mailboxId,
-        `/lists/${this.kind}/export`,
-      )
+      .mailboxGet<string[]>(this.token(), this.mailboxId, `/lists/${this.kind}/export`)
       .subscribe({
         next: (list) => {
           this.addresses.set(list);
           write(list);
           this.message.set(`Exported ${list.length} address(es).`);
         },
-        error: (err) =>
-          this.message.set(JSON.stringify(err.error ?? err.message, null, 2)),
+        error: (err) => this.message.set(JSON.stringify(err.error ?? err.message, null, 2)),
       });
   }
 

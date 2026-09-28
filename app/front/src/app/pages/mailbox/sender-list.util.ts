@@ -9,7 +9,10 @@ export function parseAddressList(text: string): string[] {
     if (!Array.isArray(parsed)) {
       throw new Error('JSON must be an array of strings');
     }
-    return parsed.map(String).map((s) => s.trim()).filter(Boolean);
+    return parsed
+      .map(String)
+      .map((s) => s.trim())
+      .filter(Boolean);
   }
   return trimmed
     .split(/\r?\n/)

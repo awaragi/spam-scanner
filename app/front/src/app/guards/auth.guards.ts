@@ -1,10 +1,6 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-import {
-  getAdminToken,
-  getMailboxId,
-  getMailboxToken,
-} from '../core/auth-storage';
+import { getAdminToken, getMailboxId, getMailboxToken } from '../core/auth-storage';
 
 export const adminGuard: CanActivateFn = () => {
   const router = inject(Router);

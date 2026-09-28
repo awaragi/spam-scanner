@@ -1,11 +1,7 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ApiService } from '../../core/api.service';
-import {
-  clearMailboxSession,
-  getMailboxId,
-  getMailboxToken,
-} from '../../core/auth-storage';
+import { clearMailboxSession, getMailboxId, getMailboxToken } from '../../core/auth-storage';
 import { SenderListPanelComponent } from './sender-list-panel.component';
 
 const JOBS = [
@@ -53,8 +49,7 @@ export class MailboxComponent implements OnInit {
   readonly output = signal('');
 
   ngOnInit(): void {
-    this.mailboxId =
-      this.route.snapshot.paramMap.get('id') ?? getMailboxId() ?? '';
+    this.mailboxId = this.route.snapshot.paramMap.get('id') ?? getMailboxId() ?? '';
     this.refreshStatus();
   }
 
@@ -95,11 +90,9 @@ export class MailboxComponent implements OnInit {
   }
 
   private mailboxPost(path: string, body: unknown = {}): void {
-    this.api
-      .mailboxPost<unknown>(this.token(), this.mailboxId, path, body)
-      .subscribe({
-        next: (data) => this.output.set(JSON.stringify(data, null, 2)),
-        error: (err) => this.output.set(JSON.stringify(err.error ?? err.message, null, 2)),
-      });
+    this.api.mailboxPost<unknown>(this.token(), this.mailboxId, path, body).subscribe({
+      next: (data) => this.output.set(JSON.stringify(data, null, 2)),
+      error: (err) => this.output.set(JSON.stringify(err.error ?? err.message, null, 2)),
+    });
   }
 }
