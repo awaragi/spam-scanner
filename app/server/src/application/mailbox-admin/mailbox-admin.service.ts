@@ -9,6 +9,7 @@ import {
 } from '../../infrastructure/imap/imap-connection.factory.js';
 import {
   readScannerState,
+  writeScannerState,
   deleteScannerState,
 } from '../../infrastructure/state/scanner-state.repository.js';
 import {
@@ -96,8 +97,24 @@ export class MailboxAdminService {
     });
   }
 
+  /**
+   * Replaces the mailbox's stored scanner state wholesale (design.md D7's
+   * restore/backup use case) - append-before-delete safety is
+   * `writeScannerState`'s own concern, not this service's.
+   */
+  async writeState(mailboxId: string, state: ScannerState): Promise<void> {
+    await this.withConnection(mailboxId, (imap, mailbox) =>
+      writeScannerState(
+        imap,
+        mailbox.stateFolder,
+        state,
+        this.pinoLogger.logger,
+      ),
+    );
+  }
+
   /** Deletes the mailbox's stored scanner state. */
-  async resetState(mailboxId: string): Promise<boolean> {
+  async deleteState(mailboxId: string): Promise<boolean> {
     return this.withConnection(mailboxId, (imap, mailbox) =>
       deleteScannerState(imap, mailbox.stateFolder, this.pinoLogger.logger),
     );

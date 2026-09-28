@@ -60,6 +60,12 @@ export class ApiService {
     );
   }
 
+  mailboxDelete<T>(mailboxToken: string, mailboxId: string, path: string): Observable<T> {
+    return this.http.delete<T>(`${this.base}/mailboxes/${encodeURIComponent(mailboxId)}${path}`, {
+      headers: this.bearer(mailboxToken),
+    });
+  }
+
   liveness(): Observable<{ status: string }> {
     return this.http.get<{ status: string }>(`${this.base}/health/live`);
   }

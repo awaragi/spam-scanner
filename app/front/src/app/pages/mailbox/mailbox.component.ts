@@ -23,7 +23,7 @@ const JOBS = [
       <button type="button" (click)="refreshStatus()">GET status</button>
       <button type="button" (click)="loadSettings()">GET settings</button>
       <button type="button" (click)="loadState()">GET state</button>
-      <button type="button" (click)="resetState()">POST state/reset</button>
+      <button type="button" (click)="deleteState()">DELETE state</button>
     </p>
 
     <h2>Sender lists</h2>
@@ -74,8 +74,8 @@ export class MailboxComponent implements OnInit {
     this.mailboxGet('/state');
   }
 
-  resetState(): void {
-    this.mailboxPost('/state/reset');
+  deleteState(): void {
+    this.mailboxDelete('/state');
   }
 
   triggerJob(job: string): void {
@@ -91,6 +91,13 @@ export class MailboxComponent implements OnInit {
 
   private mailboxPost(path: string, body: unknown = {}): void {
     this.api.mailboxPost<unknown>(this.token(), this.mailboxId, path, body).subscribe({
+      next: (data) => this.output.set(JSON.stringify(data, null, 2)),
+      error: (err) => this.output.set(JSON.stringify(err.error ?? err.message, null, 2)),
+    });
+  }
+
+  private mailboxDelete(path: string): void {
+    this.api.mailboxDelete<unknown>(this.token(), this.mailboxId, path).subscribe({
       next: (data) => this.output.set(JSON.stringify(data, null, 2)),
       error: (err) => this.output.set(JSON.stringify(err.error ?? err.message, null, 2)),
     });

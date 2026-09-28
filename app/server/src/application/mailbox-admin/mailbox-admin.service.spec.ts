@@ -14,6 +14,7 @@ const {
   mockNewClient,
   mockSafeLogout,
   mockReadScannerState,
+  mockWriteScannerState,
   mockDeleteScannerState,
   mockReadMapState,
   mockWriteMapState,
@@ -21,6 +22,7 @@ const {
   mockNewClient: vi.fn(),
   mockSafeLogout: vi.fn(),
   mockReadScannerState: vi.fn(),
+  mockWriteScannerState: vi.fn(),
   mockDeleteScannerState: vi.fn(),
   mockReadMapState: vi.fn(),
   mockWriteMapState: vi.fn(),
@@ -33,6 +35,7 @@ vi.mock('../../infrastructure/imap/imap-connection.factory.js', () => ({
 
 vi.mock('../../infrastructure/state/scanner-state.repository.js', () => ({
   readScannerState: mockReadScannerState,
+  writeScannerState: mockWriteScannerState,
   deleteScannerState: mockDeleteScannerState,
 }));
 

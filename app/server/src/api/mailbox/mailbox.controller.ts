@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   NotFoundException,
   Param,
@@ -29,6 +30,7 @@ import {
   listReplaceSchema,
   type ListReplaceBody,
 } from './list-replace.schema.js';
+import { stateWriteSchema, type StateWriteBody } from './state-write.schema.js';
 
 const LIST_KINDS: readonly SenderListKind[] = ['whitelist', 'blacklist'];
 
@@ -150,12 +152,21 @@ export class MailboxController {
     return this.mailboxAdminService.readState(mailboxId);
   }
 
-  @Post('state/reset')
-  async resetState(
+  @Put('state')
+  async writeState(
     @Param('mailboxId') mailboxId: string,
-  ): Promise<{ reset: true }> {
-    await this.mailboxAdminService.resetState(mailboxId);
-    return { reset: true };
+    @Body(new ZodValidationPipe(stateWriteSchema)) body: StateWriteBody,
+  ): Promise<{ written: true }> {
+    await this.mailboxAdminService.writeState(mailboxId, body);
+    return { written: true };
+  }
+
+  @Delete('state')
+  async deleteState(
+    @Param('mailboxId') mailboxId: string,
+  ): Promise<{ deleted: boolean }> {
+    const deleted = await this.mailboxAdminService.deleteState(mailboxId);
+    return { deleted };
   }
 
   @Get('lists/:kind')
