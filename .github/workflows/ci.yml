@@ -18,11 +18,15 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run lint
+      # Turbo (not the bare npm scripts): `server` imports `shared`'s built
+      # output, so lint/test need `shared` built first - turbo's `^build`
+      # task dependency (turbo.json) handles that automatically, and also
+      # covers `shared`'s and `front`'s own test suites, not just `server`'s.
+      - run: npx turbo run lint
 
       - run: npm run format:check
 
-      - run: npm test
+      - run: npx turbo run test
 
   docker-build:
     runs-on: ubuntu-latest
@@ -34,5 +38,5 @@ jobs:
       - uses: docker/build-push-action@v7
         with:
           context: .
-          file: app/server/Dockerfile
+          file: server/Dockerfile
           push: false

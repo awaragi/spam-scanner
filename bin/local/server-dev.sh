@@ -4,7 +4,7 @@
 # Usage (from anywhere):
 #   bin/local/server-dev.sh
 #
-# Requires: npm install in app/server (or from repo root workspaces).
+# Requires: npm install in server/ (or from repo root workspaces).
 
 set -euo pipefail
 
@@ -32,5 +32,5 @@ load_env() {
 
 load_env
 
-cd "${PROJECT_ROOT}/app/server"
+cd "${PROJECT_ROOT}/server"
 exec npm run start:dev

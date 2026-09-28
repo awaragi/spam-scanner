@@ -6,7 +6,7 @@ services:
     image: spam-scanner-server:latest
     build:
       context: .
-      dockerfile: app/server/Dockerfile
+      dockerfile: server/Dockerfile
     env_file: .env
     ports:
       # Loopback-only, matching rspamd's binding below: the Angular dev

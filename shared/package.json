@@ -1,0 +1,54 @@
+{
+  "name": "shared",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "clean": "rm -rf dist",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "lint": "oxlint --type-aware src/",
+    "test": "vitest run"
+  },
+  "exports": {
+    "./ai": {
+      "types": "./dist/ai/index.d.ts",
+      "import": "./dist/ai/index.js"
+    },
+    "./classification": {
+      "types": "./dist/classification/index.d.ts",
+      "import": "./dist/classification/index.js"
+    },
+    "./scanning": {
+      "types": "./dist/scanning/index.d.ts",
+      "import": "./dist/scanning/index.js"
+    },
+    "./sender-lists": {
+      "types": "./dist/sender-lists/index.d.ts",
+      "import": "./dist/sender-lists/index.js"
+    },
+    "./state": {
+      "types": "./dist/state/index.d.ts",
+      "import": "./dist/state/index.js"
+    },
+    "./utils": {
+      "types": "./dist/utils/index.d.ts",
+      "import": "./dist/utils/index.js"
+    }
+  },
+  "dependencies": {
+    "email-addresses": "^5.0.0",
+    "mailparser": "^3.9.28",
+    "openai": "^7.17.0"
+  },
+  "devDependencies": {
+    "@types/mailparser": "^3.4.6",
+    "oxlint": "^1.85.0",
+    "prettier": "^3.8.1",
+    "typescript": "^6.0.2",
+    "vite": "^7.3.6",
+    "vite-plugin-dts": "^5.1.1",
+    "vitest": "^4.1.2"
+  }
+}

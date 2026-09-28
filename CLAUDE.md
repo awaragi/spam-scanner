@@ -10,16 +10,23 @@ database.
 
 ## Layout
 
-- `app/server/` — NestJS server: runs one runner per mailbox and exposes the
-  HTTP control API (OpenAPI). Its own `bin/` holds server-specific CLI
-  scripts (`generate-env.ts`), imported and tested like the rest of the
-  workspace - not to be confused with the repo-root `bin/` below.
-- `app/front/` — Angular control UI for the server API.
+- `server/` — NestJS server: runs one runner per mailbox and exposes the
+  HTTP control API (OpenAPI). Depends on `shared` for domain logic; has no
+  `bin/` of its own any more - see the repo-root `bin/` below.
+- `front/` — Angular control UI for the server API.
+- `shared/` — framework-free spam-scanner domain logic (`ai/`,
+  `classification/`, `scanning/`, `sender-lists/`, `state/`, `utils/`),
+  built with Vite in library mode (ESM + `.d.ts`) and imported both by
+  `server` and by root `bin/` scripts as a real workspace package - one
+  `exports` subpath per folder (`shared/ai`, `shared/utils`, ...), not one
+  combined barrel.
 - `rspamd/` — Rspamd Docker configuration, shared.
 - `docker-compose.yml` / `docker-compose.base.yml` — shared compose setup;
   each app's service builds from its own folder.
-- `bin/` (repo root) — scripts spanning the whole repo, not tied to one
-  workspace (`migrate-bayes-per-user.sh`). `bin/local/` — local dev scripts
+- `bin/` (repo root) — CLI scripts spanning the whole repo, not tied to one
+  workspace: `generate-env.ts`, `eval-prompt.ts` (both import `shared`'s
+  pre-built output directly, no server build needed), plus
+  `migrate-bayes-per-user.sh`. `bin/local/` — local dev scripts
   (`server-dev.sh`, `mock-rspamd.mjs`, etc.).
 - `openspec/` — the process of record for design/plan/spec work, used via the
   `/opsx:*` slash commands.
@@ -27,25 +34,26 @@ database.
   one app belongs in that app's own `skills/` folder. Each skill is mirrored by
   a thin stub under `.claude/skills/<name>/SKILL.md`.
 
-## Server architecture (`app/server/src/`)
+## Server architecture (`server/src/`)
 
 Layers, from innermost out. `lint:deps` (dependency-cruiser,
 `.dependency-cruiser.cjs`) enforces the direction:
 
-- `domain/` — pure spam-scanner rules and generic utils. Imports nothing else
-  from `src/` and nothing from Nest.
 - `config/` — the zod env schema (`app-config.schema.ts`), typed config
   sections, and per-mailbox settings defaults/overrides.
 - `infrastructure/` — the impure I/O boundary: IMAP (`*.gateway.ts`,
-  `*.repository.ts`), rspamd, AI, IMAP-backed state. May use `domain/` and
-  `config/`.
+  `*.repository.ts`), rspamd, AI, IMAP-backed state. May use `config/`.
 - `application/` — orchestration: scan/train/folder services and their steps
   (`*.service.ts`, `*.step.ts`), working on a per-job `MailboxSession`. May use
-  `infrastructure/`, `domain/`, and `config/`.
+  `infrastructure/` and `config/`.
 - `runtime/` — `MailboxRunner` (bootstrap, IDLE loop, interval, backoff,
   single-flight jobs) and `RunnerRegistry`.
 - `api/` — controllers, guards, DTO schemas. Keep controllers thin.
 - `logging/` — bootstrap wiring only. Not a layer, so `api/` can't import it.
+
+Pure spam-scanner rules and generic utils that used to be `src/domain/` now
+live in the `shared` package (see Layout above), a real npm dependency
+rather than an internal layer - any of the above may import it.
 
 ## Testing
 
@@ -73,26 +81,34 @@ security properties (secret redaction, token scoping).
 
 **How to test each layer:**
 
-- `domain/` — plain inputs and outputs, zero mocks.
+- `shared/` — plain inputs and outputs, zero mocks.
 - `infrastructure/` — fake the external client (ImapFlow, `fetch`, OpenAI SDK)
   and assert on the adapter's own behavior: request shape, parsing, error
   handling.
 - `application/` and `runtime/` — mock only `infrastructure/` modules or
-  providers, and use real `domain/` code and real steps. Build sessions and
+  providers, and use real `shared` code and real steps. Build sessions and
   config as plain fixture objects, not mocks.
-- Shared fakes live in `app/server/test/support/`.
+- Shared fakes live in `server/test/support/`.
 
 Assert on observable behavior, not internal structure, so refactors don't
 force test changes.
 
-## Commands (run inside `app/server/`, or with `-w app/server` from the root)
+## Commands (run inside `server/`, or with `-w server` from the root)
 
 - `npm test` — unit tests (vitest; specs sit next to their source as
   `*.spec.ts`)
 - `npm run lint` — oxlint plus the dependency-cruiser layer check
 - `npm run format` / `npm run format:check` — Prettier
 - `npm run build` / `npm run start:dev` — Nest build / watch mode
-- `npm run generate:env-example` — regenerates `.env.example` from
+
+## Commands (run from the repo root)
+
+- `turbo run build` / `test` / `lint` / `format:check` — runs each task
+  across `server`, `front`, and `shared` in dependency order (`shared`
+  builds before `server`, which imports it), with local caching
+  (`turbo.json`). `npm run <script> --workspace=<name>` still works
+  per-package for a single workspace.
+- `npm run generate:env-example` — regenerates `server/.env.example` from
   `configGroups`. A spec fails if the committed file drifts, so run this
   after changing the schema instead of editing `.env.example` by hand.
 - `npm run generate:env -- --input <old> --output <new>` — rewrites an
@@ -101,13 +117,16 @@ force test changes.
 - `npm run eval-prompt -- --prompt <file> --reports <folder> [--ham <folder>]
   [--marketing <folder>] [--spam <folder>]` — offline AI-prompt evaluation:
   scores a labeled `.eml` dataset against a system prompt supplied as a text
-  file and writes a timestamped report (no Nest/IMAP involved). See
-  `skills/prompt-engineer/`.
-- `npm run lint` / `format` / `format:check` (root) — run across every
-  `app/*` workspace (front uses oxlint and Prettier too); CI runs these
+  file and writes a timestamped report (no Nest/IMAP involved, no build step
+  beyond `shared` already being built). See `skills/prompt-engineer/`.
+- `npm run lint` / `test` / `format` / `format:check` — run across every
+  workspace (`server`, `front`, `shared`; front and shared use oxlint and
+  Prettier too). `lint` and `test` route through `turbo run` under the hood
+  so `shared` is always built first; CI calls `turbo run lint`/`test`
+  directly for the same reason.
 - `bin/local/server-dev.sh` — run the server with the repo-root `.env`
-- `npm run mock-rspamd` (root) — local stand-in for rspamd
-- `npm run front:start` (root) — Angular dev server
+- `npm run mock-rspamd` — local stand-in for rspamd
+- `npm run front:start` — Angular dev server
 
 ## Conventions
 

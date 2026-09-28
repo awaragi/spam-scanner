@@ -1,18 +1,33 @@
 {
   "name": "spam-scanner-monorepo",
   "private": true,
+  "type": "module",
+  "packageManager": "npm@11.19.0",
   "workspaces": [
-    "app/*"
+    "server",
+    "front",
+    "shared"
   ],
   "scripts": {
-    "test": "npm test --workspace=app/server",
-    "lint": "npm run lint --workspaces --if-present",
+    "test": "turbo run test",
+    "clean": "npm run clean --workspaces --if-present && rm -rf .turbo",
+    "lint": "turbo run lint",
     "format": "npm run format --workspaces --if-present",
     "format:check": "npm run format:check --workspaces --if-present",
     "mock-rspamd": "node bin/local/mock-rspamd.mjs",
-    "front:start": "npm start --workspace=front"
+    "front:start": "npm start --workspace=front",
+    "generate:env": "node bin/generate-env.ts",
+    "generate:env-example": "node bin/generate-env.ts --output server/.env.example",
+    "eval-prompt": "node bin/eval-prompt.ts"
   },
   "devDependencies": {
-    "express": "^5.1.0"
+    "@types/mailparser": "^3.4.6",
+    "dotenv": "^18.0.4",
+    "express": "^5.1.0",
+    "mailparser": "^3.9.30",
+    "openai": "^7.23.0",
+    "turbo": "^2.11.5",
+    "yargs": "^17.7.3",
+    "zod": "^4.6.5"
   }
 }

@@ -10,8 +10,8 @@ schema: spec-driven
 #     Domain: e-commerce platform
 context: |
   npm-workspaces monorepo for a multi-mailbox IMAP spam scanner: a NestJS
-  server (app/server) runs one runner per mailbox and exposes an HTTP control
-  API; an Angular UI (app/front) drives it. Rspamd is a stateless content
+  server (server/) runs one runner per mailbox and exposes an HTTP control
+  API; an Angular UI (front/) drives it. Rspamd is a stateless content
   scorer shared across mailboxes via HTTP (/checkv2, /learnham, /learnspam) -
   it has no list or mailbox awareness. Whitelist/blacklist matching, scan
   state, and IDLE orchestration all live in app code; per-mailbox state

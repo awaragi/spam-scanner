@@ -52,3 +52,6 @@ rspamd/config/worker-controller.inc
 # Build output and incremental TypeScript build metadata
 dist/
 *.tsbuildinfo
+
+# Turborepo local cache
+.turbo
