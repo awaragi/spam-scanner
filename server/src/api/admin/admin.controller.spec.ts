@@ -6,7 +6,7 @@ import {
   AiConfig,
   ApiAuthConfig,
   LoggingConfig,
-  MailboxConnectionConfig,
+  MailboxConnectionsConfig,
   RspamdConfig,
   ScanConfig,
   ServerConfig,
@@ -67,17 +67,31 @@ function fixtureApiAuthConfig(): ApiAuthConfig {
   } as ApiAuthConfig;
 }
 
-function fixtureMailboxConnectionConfig(): MailboxConnectionConfig {
+function fixtureMailboxConnectionsConfig(): MailboxConnectionsConfig {
   return {
-    id: 'owner@example.com',
-    imapHost: 'imap.example.com',
-    imapPort: 993,
-    imapUser: 'owner@example.com',
-    imapPassword: 'super-secret-imap-password',
-    imapTls: true,
-    imapAllowInsecure: false,
-    stateFolder: 'INBOX.scanner.state',
-  } as MailboxConnectionConfig;
+    mailboxes: [
+      {
+        id: 'owner@example.com',
+        imapHost: 'imap.example.com',
+        imapPort: 993,
+        imapUser: 'owner@example.com',
+        imapPassword: 'super-secret-imap-password',
+        imapTls: true,
+        imapAllowInsecure: false,
+        stateFolder: 'INBOX.scanner.state',
+      },
+      {
+        id: 'second@example.com',
+        imapHost: 'imap.example.com',
+        imapPort: 993,
+        imapUser: 'second@example.com',
+        imapPassword: 'super-secret-second-imap-password',
+        imapTls: true,
+        imapAllowInsecure: false,
+        stateFolder: 'INBOX.scanner.state',
+      },
+    ],
+  } as MailboxConnectionsConfig;
 }
 
 function build() {
@@ -90,7 +104,7 @@ function build() {
     fixtureLoggingConfig(),
     fixtureServerConfig(),
     fixtureApiAuthConfig(),
-    fixtureMailboxConnectionConfig(),
+    fixtureMailboxConnectionsConfig(),
   );
 
   return { controller };
@@ -102,6 +116,7 @@ const SECRET_VALUES = [
   'super-secret-admin-password',
   'super-secret-jwt-signing-key',
   'super-secret-imap-password',
+  'super-secret-second-imap-password',
 ];
 
 describe('AdminController', () => {
@@ -118,7 +133,8 @@ describe('AdminController', () => {
     expect(settings).not.toHaveProperty('ai.apiKey');
     expect(settings).not.toHaveProperty('apiAuth.adminPassword');
     expect(settings).not.toHaveProperty('apiAuth.jwtSecret');
-    expect(settings).not.toHaveProperty('mailbox.imapPassword');
+    expect(settings).not.toHaveProperty('mailboxes.0.imapPassword');
+    expect(settings).not.toHaveProperty('mailboxes.1.imapPassword');
   });
 
   test('GET /admin/settings returns the expected non-secret fields', () => {
@@ -157,15 +173,26 @@ describe('AdminController', () => {
       },
       server: { port: 3000 },
       apiAuth: { adminTokenTtlSeconds: 3600, mailboxTokenTtlSeconds: 3600 },
-      mailbox: {
-        id: 'owner@example.com',
-        imapHost: 'imap.example.com',
-        imapPort: 993,
-        imapUser: 'owner@example.com',
-        imapTls: true,
-        imapAllowInsecure: false,
-        stateFolder: 'INBOX.scanner.state',
-      },
+      mailboxes: [
+        {
+          id: 'owner@example.com',
+          imapHost: 'imap.example.com',
+          imapPort: 993,
+          imapUser: 'owner@example.com',
+          imapTls: true,
+          imapAllowInsecure: false,
+          stateFolder: 'INBOX.scanner.state',
+        },
+        {
+          id: 'second@example.com',
+          imapHost: 'imap.example.com',
+          imapPort: 993,
+          imapUser: 'second@example.com',
+          imapTls: true,
+          imapAllowInsecure: false,
+          stateFolder: 'INBOX.scanner.state',
+        },
+      ],
     });
   });
 });

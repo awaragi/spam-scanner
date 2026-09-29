@@ -3,6 +3,24 @@ import { z } from 'zod';
 const DEFAULT_AI_BASE_URL = 'https://api.openai.com/v1';
 
 /**
+ * One mailbox's connection info, once its `MAILBOX_<n>_*` env slot has been
+ * parsed (see `MailboxesSchema` below). Plain data - not a class - since
+ * there's no per-field `config.get()` reading to do any more: the whole
+ * array comes back from `AppConfigService.get('MAILBOXES', ...)` in one
+ * shot, already validated and typed.
+ */
+export interface MailboxConnectionConfig {
+  readonly id: string;
+  readonly imapHost: string;
+  readonly imapPort: number;
+  readonly imapUser: string;
+  readonly imapPassword: string;
+  readonly imapTls: boolean;
+  readonly imapAllowInsecure: boolean;
+  readonly stateFolder: string;
+}
+
+/**
  * Explicit, hand-written authoritative type for the merged runtime config -
  * not derived via `z.infer<typeof AppConfigSchema>`. `configGroups.reduce((acc, g)
  * => acc.merge(g.schema), z.object({}))` collapses precise field inference and, worse,
@@ -37,14 +55,7 @@ export interface AppConfig {
   API_JWT_SECRET: string;
   API_ADMIN_TOKEN_TTL: number;
   API_MAILBOX_TOKEN_TTL: number;
-  MAILBOX_ID: string;
-  MAILBOX_IMAP_HOST: string;
-  MAILBOX_IMAP_PORT: number;
-  MAILBOX_IMAP_USER: string;
-  MAILBOX_IMAP_PASSWORD: string;
-  MAILBOX_IMAP_TLS: boolean;
-  MAILBOX_IMAP_ALLOW_INSECURE: boolean;
-  MAILBOX_STATE_FOLDER: string;
+  MAILBOXES: MailboxConnectionConfig[];
 }
 
 /**
@@ -320,117 +331,397 @@ const apiGroup: ConfigGroupDef = {
 };
 
 /**
- * The one mailbox's connection info. The `MAILBOX_` prefix marks these keys
- * as the temporary env-backed mailbox registry, not app settings - they go
- * away once mailboxes move to real storage (see design.md D5). Validation
- * runs once at Nest bootstrap (not at module import), so a field with no safe
- * default can simply be required here.
+ * `.env.example` documentation only. The real mailbox connection info is
+ * parsed and validated dynamically (see `MailboxesSchema` below): it scans
+ * whatever `MAILBOX_<n>_*` keys are actually present, for however large `n`
+ * gets, rather than this schema declaring a fixed set of numbered fields -
+ * so there's no hardcoded cap on how many mailboxes a deployment can run.
+ * This group exists purely so `bin/generate-env.ts` has a concrete template
+ * to render; it is deliberately NOT merged into `AppConfigSchema` (see
+ * below), so its fields carry no constraint of their own.
  */
-const mailboxGroup: ConfigGroupDef = {
-  title: "The Server's Mailbox Connection",
+const mailboxDocGroup: ConfigGroupDef = {
+  title:
+    'Mailbox Connections (MAILBOX_1_* required - every server needs at least one mailbox. Add MAILBOX_2_*, MAILBOX_3_*, ... the same way, with no fixed limit, for more mailboxes)',
   schema: z.object({
-    MAILBOX_ID: z.email().describe(
-      `MAILBOX_ID: the mailbox owner's email address. Used as the mailbox's id and as its
-rspamd user (see the server/mailbox-registry capability) - distinct from MAILBOX_IMAP_USER,
+    MAILBOX_1_ID: z
+      .string()
+      .default('')
+      .describe(
+        `MAILBOX_1_ID: the mailbox owner's email address. Used as the mailbox's id and as its
+rspamd user (see the server/mailbox-registry capability) - distinct from MAILBOX_1_IMAP_USER,
 which may be a bare username on some providers.`,
-    ),
-    MAILBOX_IMAP_HOST: z
+      ),
+    MAILBOX_1_IMAP_HOST: z
       .string()
-      .min(1)
-      .describe('MAILBOX_IMAP_HOST: IMAP server hostname'),
-    MAILBOX_IMAP_PORT: intField(993).describe(
-      'MAILBOX_IMAP_PORT: IMAP server port',
-    ),
-    MAILBOX_IMAP_USER: z
+      .default('')
+      .describe('MAILBOX_1_IMAP_HOST: IMAP server hostname.'),
+    MAILBOX_1_IMAP_PORT: z
       .string()
-      .min(1)
-      .describe('MAILBOX_IMAP_USER: IMAP login username'),
-    MAILBOX_IMAP_PASSWORD: z
+      .default('993')
+      .describe('MAILBOX_1_IMAP_PORT: IMAP server port'),
+    MAILBOX_1_IMAP_USER: z
       .string()
-      .min(1)
-      .describe('MAILBOX_IMAP_PASSWORD: IMAP login password'),
-    MAILBOX_IMAP_TLS: boolField(true).describe(
-      `MAILBOX_IMAP_TLS: use TLS for the IMAP connection.
+      .default('')
+      .describe('MAILBOX_1_IMAP_USER: IMAP login username.'),
+    MAILBOX_1_IMAP_PASSWORD: z
+      .string()
+      .default('')
+      .describe('MAILBOX_1_IMAP_PASSWORD: IMAP login password.'),
+    MAILBOX_1_IMAP_TLS: z
+      .string()
+      .default('true')
+      .describe(
+        `MAILBOX_1_IMAP_TLS: use TLS for the IMAP connection.
 The code's default when this variable is absent is "true". Set it explicitly
 to "false" only for a server/port that doesn't support TLS.`,
-    ),
-    // Disabling direct TLS also requires this explicit second opt-in - see
-    // the `imap-transport-security` capability.
-    MAILBOX_IMAP_ALLOW_INSECURE: boolField(false).describe(
-      `MAILBOX_IMAP_ALLOW_INSECURE: required alongside MAILBOX_IMAP_TLS=false as an explicit,
+      ),
+    MAILBOX_1_IMAP_ALLOW_INSECURE: z
+      .string()
+      .default('false')
+      .describe(
+        `MAILBOX_1_IMAP_ALLOW_INSECURE: required alongside MAILBOX_1_IMAP_TLS=false as an explicit,
 deliberate second opt-in. Even with both set, STARTTLS is still enforced (the connection fails
 rather than silently falling back to plaintext if the server doesn't support it).`,
-    ),
-    MAILBOX_STATE_FOLDER: z
+      ),
+    MAILBOX_1_STATE_FOLDER: z
       .string()
       .default('INBOX.scanner.state')
       .describe(
-        `MAILBOX_STATE_FOLDER: IMAP folder holding this mailbox's JSON state messages
+        `MAILBOX_1_STATE_FOLDER: IMAP folder holding this mailbox's JSON state messages
 (scanner progress, whitelist, blacklist) - see the state-manager capability.`,
       ),
+    MAILBOX_2_ID: z
+      .string()
+      .default('')
+      .describe(
+        `MAILBOX_2_ID: an optional second mailbox - see MAILBOX_1_ID above for what each field
+means. Add MAILBOX_3_*, MAILBOX_4_*, ... the same way for further mailboxes; there is no
+fixed limit. Leave every MAILBOX_2_* field unset to skip this slot.`,
+      ),
+    MAILBOX_2_IMAP_HOST: z
+      .string()
+      .default('')
+      .describe('MAILBOX_2_IMAP_HOST: see MAILBOX_1_IMAP_HOST.'),
+    MAILBOX_2_IMAP_PORT: z
+      .string()
+      .default('993')
+      .describe('MAILBOX_2_IMAP_PORT: see MAILBOX_1_IMAP_PORT.'),
+    MAILBOX_2_IMAP_USER: z
+      .string()
+      .default('')
+      .describe('MAILBOX_2_IMAP_USER: see MAILBOX_1_IMAP_USER.'),
+    MAILBOX_2_IMAP_PASSWORD: z
+      .string()
+      .default('')
+      .describe('MAILBOX_2_IMAP_PASSWORD: see MAILBOX_1_IMAP_PASSWORD.'),
+    MAILBOX_2_IMAP_TLS: z
+      .string()
+      .default('true')
+      .describe('MAILBOX_2_IMAP_TLS: see MAILBOX_1_IMAP_TLS.'),
+    MAILBOX_2_IMAP_ALLOW_INSECURE: z
+      .string()
+      .default('false')
+      .describe(
+        'MAILBOX_2_IMAP_ALLOW_INSECURE: see MAILBOX_1_IMAP_ALLOW_INSECURE.',
+      ),
+    MAILBOX_2_STATE_FOLDER: z
+      .string()
+      .default('INBOX.scanner.state')
+      .describe('MAILBOX_2_STATE_FOLDER: see MAILBOX_1_STATE_FOLDER.'),
   }),
 };
 
+const MAILBOX_INDEX_PATTERN = /^MAILBOX_(\d+)_/;
+
+interface RawMailboxSlot {
+  index: number;
+  id: string;
+  imapHost: string;
+  imapPort: string;
+  imapUser: string;
+  imapPassword: string;
+  imapTls: string;
+  imapAllowInsecure: string;
+  stateFolder: string;
+}
+
 /**
- * Every config group, in `.env.example` file order. Exported so
- * `bin/generate-env.ts` can render `.env.example` directly from
- * it.
+ * Groups every `MAILBOX_<n>_*` key actually present in the raw environment
+ * into one raw slot per index, `1..(highest index seen)` - no fixed limit on
+ * how large that index gets. Pure reshaping only, no validation and no real
+ * defaulting (an unset field becomes `''`): `MailboxesSchema`'s
+ * `superRefine`/`transform` below do the actual validation and type
+ * coercion. Keeping this step itself unable to fail matters - zod skips an
+ * object's own effects once one of its fields hard-fails type parsing, so if
+ * this raised issues itself it could suppress unrelated ones (AI/RSPAMD/etc)
+ * elsewhere in `AppConfigSchema`.
  */
-export const configGroups: ConfigGroupDef[] = [
+function extractMailboxSlots(raw: unknown): RawMailboxSlot[] {
+  if (typeof raw !== 'object' || raw === null) {
+    return [];
+  }
+  const env = raw as Record<string, unknown>;
+  let maxIndex = 0;
+  for (const key of Object.keys(env)) {
+    const match = MAILBOX_INDEX_PATTERN.exec(key);
+    if (match) {
+      maxIndex = Math.max(maxIndex, Number(match[1]));
+    }
+  }
+  const field = (index: number, suffix: string): string => {
+    const value = env[`MAILBOX_${index}_${suffix}`];
+    return typeof value === 'string' ? value : '';
+  };
+  const slots: RawMailboxSlot[] = [];
+  for (let index = 1; index <= maxIndex; index++) {
+    slots.push({
+      index,
+      id: field(index, 'ID'),
+      imapHost: field(index, 'IMAP_HOST'),
+      imapPort: field(index, 'IMAP_PORT'),
+      imapUser: field(index, 'IMAP_USER'),
+      imapPassword: field(index, 'IMAP_PASSWORD'),
+      imapTls: field(index, 'IMAP_TLS'),
+      imapAllowInsecure: field(index, 'IMAP_ALLOW_INSECURE'),
+      stateFolder: field(index, 'STATE_FOLDER'),
+    });
+  }
+  return slots;
+}
+
+const rawMailboxSlotSchema = z.object({
+  index: z.number(),
+  id: z.string(),
+  imapHost: z.string(),
+  imapPort: z.string(),
+  imapUser: z.string(),
+  imapPassword: z.string(),
+  imapTls: z.string(),
+  imapAllowInsecure: z.string(),
+  stateFolder: z.string(),
+});
+
+/**
+ * Every configured mailbox, dynamically discovered from `MAILBOX_<n>_*` env
+ * keys with no fixed limit on `n` (`extractMailboxSlots` above finds the
+ * highest index actually used). At least one mailbox (slot 1) is required;
+ * each slot beyond it is either fully configured or fully unset (never a
+ * partial mix), slots are numbered contiguously from 1 with no gaps, ids
+ * don't collide, and disabling transport encryption's direct-TLS wrapper
+ * still requires the explicit `IMAP_ALLOW_INSECURE` opt-in (see
+ * `imap-transport-security` and `config-validation`).
+ */
+const MailboxesSchema = z
+  .array(rawMailboxSlotSchema)
+  .superRefine((slots, ctx) => {
+    if (slots.length === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['MAILBOX_1_ID'],
+        message:
+          'At least one mailbox is required - set MAILBOX_1_ID, MAILBOX_1_IMAP_HOST, MAILBOX_1_IMAP_USER and MAILBOX_1_IMAP_PASSWORD.',
+      });
+    }
+
+    const seenIds = new Set<string>();
+    let previousConfigured = true;
+    for (const slot of slots) {
+      const idKey = `MAILBOX_${slot.index}_ID`;
+      const hostKey = `MAILBOX_${slot.index}_IMAP_HOST`;
+      const portKey = `MAILBOX_${slot.index}_IMAP_PORT`;
+      const userKey = `MAILBOX_${slot.index}_IMAP_USER`;
+      const passwordKey = `MAILBOX_${slot.index}_IMAP_PASSWORD`;
+      const tlsKey = `MAILBOX_${slot.index}_IMAP_TLS`;
+      const allowInsecureKey = `MAILBOX_${slot.index}_IMAP_ALLOW_INSECURE`;
+
+      const requiredValues = [
+        slot.id,
+        slot.imapHost,
+        slot.imapUser,
+        slot.imapPassword,
+      ];
+      const setCount = requiredValues.filter((value) => value !== '').length;
+      const configured = setCount === requiredValues.length;
+
+      if (setCount === 0 && slot.index === 1) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [idKey],
+          message:
+            'At least one mailbox is required - set MAILBOX_1_ID, MAILBOX_1_IMAP_HOST, MAILBOX_1_IMAP_USER and MAILBOX_1_IMAP_PASSWORD.',
+        });
+      } else if (setCount > 0 && !configured) {
+        // Once any of a slot's required fields is set, every one of them is
+        // - report each missing field at its own key (not just at idKey), so
+        // e.g. deleting only MAILBOX_1_IMAP_HOST still points the error at
+        // MAILBOX_1_IMAP_HOST specifically, same as the old per-field checks.
+        const requiredKeys: Array<[string, string]> = [
+          [idKey, slot.id],
+          [hostKey, slot.imapHost],
+          [userKey, slot.imapUser],
+          [passwordKey, slot.imapPassword],
+        ];
+        for (const [key, value] of requiredKeys) {
+          if (value === '') {
+            ctx.addIssue({
+              code: 'custom',
+              path: [key],
+              message: `${key} is required once any of MAILBOX_${slot.index}_* is set (leave every MAILBOX_${slot.index}_* field unset to skip mailbox ${slot.index} entirely).`,
+            });
+          }
+        }
+      }
+
+      if (configured && !previousConfigured) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [idKey],
+          message: `Mailbox ${slot.index} is configured but mailbox ${slot.index - 1} is not - mailbox slots must be numbered contiguously starting at MAILBOX_1_*, with no gaps.`,
+        });
+      }
+
+      if (configured) {
+        const portRaw = slot.imapPort.trim();
+        if (portRaw !== '' && !/^-?\d+$/.test(portRaw)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [portKey],
+            message: `${portKey} must be a whole number.`,
+          });
+        }
+
+        if (!z.email().safeParse(slot.id).success) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [idKey],
+            message: `${idKey} must be a valid email address.`,
+          });
+        } else if (seenIds.has(slot.id)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [idKey],
+            message: `${idKey} ("${slot.id}") duplicates another mailbox's id - each mailbox needs a unique id.`,
+          });
+        } else {
+          seenIds.add(slot.id);
+        }
+
+        const tls = slot.imapTls !== 'false';
+        const allowInsecure = slot.imapAllowInsecure === 'true';
+        if (!tls && !allowInsecure) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [allowInsecureKey],
+            message: `${allowInsecureKey}=true is required alongside ${tlsKey}=false - disabling IMAP transport encryption must be an explicit, deliberate choice`,
+          });
+        }
+      }
+
+      previousConfigured = configured;
+    }
+  })
+  .transform((slots): MailboxConnectionConfig[] =>
+    slots
+      .filter((slot) => slot.id !== '')
+      .map((slot) => {
+        const portRaw = slot.imapPort.trim();
+        return {
+          id: slot.id,
+          imapHost: slot.imapHost,
+          imapPort: /^-?\d+$/.test(portRaw) ? parseInt(portRaw, 10) : 993,
+          imapUser: slot.imapUser,
+          imapPassword: slot.imapPassword,
+          imapTls: slot.imapTls !== 'false',
+          imapAllowInsecure: slot.imapAllowInsecure === 'true',
+          stateFolder: slot.stateFolder || 'INBOX.scanner.state',
+        };
+      }),
+  );
+
+const nonMailboxGroups: ConfigGroupDef[] = [
   rspamdGroup,
   aiGroup,
   scanGroup,
   loggingGroup,
   serverGroup,
   apiGroup,
-  mailboxGroup,
 ];
+
+/**
+ * Every config group, in `.env.example` file order. Exported so
+ * `bin/generate-env.ts` can render `.env.example` directly from it.
+ * `mailboxDocGroup` is documentation only (see its own doc comment) - real
+ * mailbox validation is `MailboxesSchema`, merged into `AppConfigSchema`
+ * separately below rather than through this array.
+ */
+export const configGroups: ConfigGroupDef[] = [
+  ...nonMailboxGroups,
+  mailboxDocGroup,
+];
+
+/**
+ * Injects a computed `MAILBOXES` key (the raw, ungrouped slots found by
+ * `extractMailboxSlots`) into the raw environment before the object schema
+ * below ever parses it. This has to wrap the *whole* `AppConfigSchema`, not
+ * live as that one field's own schema: a field's schema only ever receives
+ * that field's own raw value (`env['MAILBOXES']`, which doesn't exist), never
+ * its siblings - `extractMailboxSlots` needs the whole raw environment to
+ * find every `MAILBOX_<n>_*` key. Purely a reshape (never raises an issue
+ * itself), so it can't suppress unrelated validation elsewhere in the object
+ * - see `extractMailboxSlots`'s own doc comment for why that matters.
+ */
+function withMailboxSlots(raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null) {
+    return raw;
+  }
+  return {
+    ...(raw as Record<string, unknown>),
+    MAILBOXES: extractMailboxSlots(raw),
+  };
+}
 
 /**
  * The merged schema validating the server's entire environment-variable
  * configuration, in one pass, at Nest bootstrap (see `config.module.ts`).
- * `z.object()` only reads the keys it declares, so this can be handed
- * `process.env` directly without copying it field by field first.
+ * `z.object()` only reads the keys it declares, so `nonMailboxGroups`' part
+ * of this can be handed `process.env` directly without copying it field by
+ * field first - `MAILBOXES` is the one exception, populated dynamically by
+ * `withMailboxSlots` above rather than declaring a fixed set of
+ * `MAILBOX_<n>_*` keys.
  */
-export const AppConfigSchema = configGroups
-  .reduce((acc, group) => acc.merge(group.schema), z.object({}))
-  .superRefine((rawData, ctx) => {
-    // The `.reduce`/`.merge` chain above collapses zod's own field
-    // inference (see the `AppConfig` doc comment above) - `AppConfig` is the
-    // authoritative hand-written type for the merged shape.
-    const data = rawData as unknown as AppConfig;
-    // No default that makes sense on its own - fail fast at load time
-    // rather than let every AI classification call fail individually once
-    // AI is enabled.
-    if (data.AI_ENABLED && !data.AI_MODEL) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['AI_MODEL'],
-        message:
-          'AI_MODEL is required when AI_ENABLED=true (no default - set it explicitly, e.g. "gpt-4o-mini" or your provider\'s model name)',
-      });
-    }
-    if (
-      data.AI_ENABLED &&
-      !data.AI_API_KEY &&
-      data.AI_BASE_URL === DEFAULT_AI_BASE_URL
-    ) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['AI_API_KEY'],
-        message:
-          'AI_API_KEY is required when AI_ENABLED=true and AI_BASE_URL is the default OpenAI endpoint (set AI_API_KEY, or point AI_BASE_URL at a provider that needs no key, e.g. a local Ollama instance)',
-      });
-    }
-    // Disabling transport encryption's direct-TLS wrapper must be a deliberate
-    // second opt-in, not a bare MAILBOX_IMAP_TLS=false - see
-    // `imap-transport-security` and `config-validation`.
-    if (!data.MAILBOX_IMAP_TLS && !data.MAILBOX_IMAP_ALLOW_INSECURE) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['MAILBOX_IMAP_ALLOW_INSECURE'],
-        message:
-          'MAILBOX_IMAP_ALLOW_INSECURE=true is required alongside MAILBOX_IMAP_TLS=false - disabling IMAP transport encryption must be an explicit, deliberate choice',
-      });
-    }
-  });
+export const AppConfigSchema = z.preprocess(
+  withMailboxSlots,
+  nonMailboxGroups
+    .reduce((acc, group) => acc.merge(group.schema), z.object({}))
+    .extend({ MAILBOXES: MailboxesSchema })
+    .superRefine((rawData, ctx) => {
+      // The `.reduce`/`.merge` chain above collapses zod's own field
+      // inference (see the `AppConfig` doc comment above) - `AppConfig` is
+      // the authoritative hand-written type for the merged shape.
+      const data = rawData as unknown as AppConfig;
+      // No default that makes sense on its own - fail fast at load time
+      // rather than let every AI classification call fail individually once
+      // AI is enabled.
+      if (data.AI_ENABLED && !data.AI_MODEL) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['AI_MODEL'],
+          message:
+            'AI_MODEL is required when AI_ENABLED=true (no default - set it explicitly, e.g. "gpt-4o-mini" or your provider\'s model name)',
+        });
+      }
+      if (
+        data.AI_ENABLED &&
+        !data.AI_API_KEY &&
+        data.AI_BASE_URL === DEFAULT_AI_BASE_URL
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['AI_API_KEY'],
+          message:
+            'AI_API_KEY is required when AI_ENABLED=true and AI_BASE_URL is the default OpenAI endpoint (set AI_API_KEY, or point AI_BASE_URL at a provider that needs no key, e.g. a local Ollama instance)',
+        });
+      }
+    }),
+);

@@ -4,7 +4,7 @@ import { AppConfigSchema } from './app-config.schema.js';
 import {
   AiConfig,
   ApiAuthConfig,
-  MailboxConnectionConfig,
+  MailboxConnectionsConfig,
   RspamdConfig,
   ScanConfig,
   ServerConfig,
@@ -19,7 +19,7 @@ const sections = [
   LoggingConfig,
   ServerConfig,
   ApiAuthConfig,
-  MailboxConnectionConfig,
+  MailboxConnectionsConfig,
 ];
 
 /**

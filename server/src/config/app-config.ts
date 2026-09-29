@@ -1,5 +1,9 @@
 import { ConfigService } from '@nestjs/config';
-import type { AppConfig } from './app-config.schema.js';
+import type {
+  AppConfig,
+  MailboxConnectionConfig,
+} from './app-config.schema.js';
+export type { MailboxConnectionConfig } from './app-config.schema.js';
 
 /**
  * Every typed config section below is built from this same
@@ -127,30 +131,18 @@ export class ApiAuthConfig {
 }
 
 /**
- * The one mailbox's connection info (see the `server/mailbox-registry`
- * capability) - `MAILBOX_` env keys are a temporary env-backed registry, not
- * app settings (see design.md D5).
+ * Every configured mailbox's connection info, in slot order (see the
+ * `server/mailbox-registry` capability) - `MAILBOX_<n>_*` env keys are a
+ * temporary env-backed registry, not app settings (see design.md D5).
+ * `AppConfigSchema`'s `MAILBOXES` field already did the work of discovering
+ * how many slots are configured (scanning the raw env for `MAILBOX_<n>_*`
+ * keys with no fixed limit on `n`) and validating/coercing each one, so this
+ * is a single `config.get()` call rather than a per-slot loop.
  */
-export class MailboxConnectionConfig {
-  readonly id: string;
-  readonly imapHost: string;
-  readonly imapPort: number;
-  readonly imapUser: string;
-  readonly imapPassword: string;
-  readonly imapTls: boolean;
-  readonly imapAllowInsecure: boolean;
-  readonly stateFolder: string;
+export class MailboxConnectionsConfig {
+  readonly mailboxes: readonly MailboxConnectionConfig[];
 
   constructor(config: AppConfigService) {
-    this.id = config.get('MAILBOX_ID', { infer: true });
-    this.imapHost = config.get('MAILBOX_IMAP_HOST', { infer: true });
-    this.imapPort = config.get('MAILBOX_IMAP_PORT', { infer: true });
-    this.imapUser = config.get('MAILBOX_IMAP_USER', { infer: true });
-    this.imapPassword = config.get('MAILBOX_IMAP_PASSWORD', { infer: true });
-    this.imapTls = config.get('MAILBOX_IMAP_TLS', { infer: true });
-    this.imapAllowInsecure = config.get('MAILBOX_IMAP_ALLOW_INSECURE', {
-      infer: true,
-    });
-    this.stateFolder = config.get('MAILBOX_STATE_FOLDER', { infer: true });
+    this.mailboxes = config.get('MAILBOXES', { infer: true });
   }
 }

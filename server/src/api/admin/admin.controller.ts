@@ -6,7 +6,7 @@ import {
   AiConfig,
   ApiAuthConfig,
   LoggingConfig,
-  MailboxConnectionConfig,
+  MailboxConnectionsConfig,
   RspamdConfig,
   ScanConfig,
   ServerConfig,
@@ -42,7 +42,7 @@ export interface AdminSettings {
   };
   server: { port: number };
   apiAuth: { adminTokenTtlSeconds: number; mailboxTokenTtlSeconds: number };
-  mailbox: {
+  mailboxes: Array<{
     id: string;
     imapHost: string;
     imapPort: number;
@@ -50,7 +50,7 @@ export interface AdminSettings {
     imapTls: boolean;
     imapAllowInsecure: boolean;
     stateFolder: string;
-  };
+  }>;
 }
 
 /**
@@ -73,7 +73,7 @@ export class AdminController {
     private readonly loggingConfig: LoggingConfig,
     private readonly serverConfig: ServerConfig,
     private readonly apiAuthConfig: ApiAuthConfig,
-    private readonly mailboxConnectionConfig: MailboxConnectionConfig,
+    private readonly mailboxConnectionsConfig: MailboxConnectionsConfig,
   ) {}
 
   @Get('mailboxes')
@@ -130,15 +130,15 @@ export class AdminController {
         adminTokenTtlSeconds: this.apiAuthConfig.adminTokenTtlSeconds,
         mailboxTokenTtlSeconds: this.apiAuthConfig.mailboxTokenTtlSeconds,
       },
-      mailbox: {
-        id: this.mailboxConnectionConfig.id,
-        imapHost: this.mailboxConnectionConfig.imapHost,
-        imapPort: this.mailboxConnectionConfig.imapPort,
-        imapUser: this.mailboxConnectionConfig.imapUser,
-        imapTls: this.mailboxConnectionConfig.imapTls,
-        imapAllowInsecure: this.mailboxConnectionConfig.imapAllowInsecure,
-        stateFolder: this.mailboxConnectionConfig.stateFolder,
-      },
+      mailboxes: this.mailboxConnectionsConfig.mailboxes.map((mailbox) => ({
+        id: mailbox.id,
+        imapHost: mailbox.imapHost,
+        imapPort: mailbox.imapPort,
+        imapUser: mailbox.imapUser,
+        imapTls: mailbox.imapTls,
+        imapAllowInsecure: mailbox.imapAllowInsecure,
+        stateFolder: mailbox.stateFolder,
+      })),
     };
   }
 }

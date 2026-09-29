@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { MailboxConnectionConfig } from '../../config/app-config.js';
+import { MailboxConnectionsConfig } from '../../config/app-config.js';
 import type { Mailbox } from './mailbox.js';
 
 /**
@@ -8,32 +8,31 @@ import type { Mailbox } from './mailbox.js';
  * `findAll()`, written against "the list of mailboxes" so it doesn't need to
  * change when the registry's source does.
  *
- * For this change, the registry is backed by the single env-configured
- * mailbox connection (`MailboxConnectionConfig`, injected via the `@Global`
- * `AppConfigModule`) and always returns exactly one mailbox. Callers must
- * treat the return value as an opaque list - not as "the env-backed mailbox"
- * - since a later change replaces this backing without touching callers.
+ * For this change, the registry is backed by the env-configured mailbox
+ * connections (`MailboxConnectionsConfig`, injected via the `@Global`
+ * `AppConfigModule`) - one to `MAILBOX_MAX_COUNT` mailboxes, numbered
+ * `MAILBOX_1_*`, `MAILBOX_2_*`, .... Callers must treat the return value as
+ * an opaque list - not as "the env-backed mailboxes" - since a later change
+ * replaces this backing without touching callers.
  */
 @Injectable()
 export class MailboxRepository {
-  constructor(private readonly connection: MailboxConnectionConfig) {}
+  constructor(private readonly connections: MailboxConnectionsConfig) {}
 
   /**
-   * Returns every mailbox the server manages. Currently always a single
-   * entry, built from the injected connection config.
+   * Returns every mailbox the server manages, built from the injected
+   * connection configs.
    */
   findAll(): Mailbox[] {
-    return [
-      {
-        id: this.connection.id,
-        imapHost: this.connection.imapHost,
-        imapPort: this.connection.imapPort,
-        imapUser: this.connection.imapUser,
-        imapPassword: this.connection.imapPassword,
-        imapTls: this.connection.imapTls,
-        imapAllowInsecure: this.connection.imapAllowInsecure,
-        stateFolder: this.connection.stateFolder,
-      },
-    ];
+    return this.connections.mailboxes.map((connection) => ({
+      id: connection.id,
+      imapHost: connection.imapHost,
+      imapPort: connection.imapPort,
+      imapUser: connection.imapUser,
+      imapPassword: connection.imapPassword,
+      imapTls: connection.imapTls,
+      imapAllowInsecure: connection.imapAllowInsecure,
+      stateFolder: connection.stateFolder,
+    }));
   }
 }

@@ -1,39 +1,40 @@
 import { describe, test, expect } from 'vitest';
 import { Test } from '@nestjs/testing';
-import { MailboxConnectionConfig } from '../../config/app-config.js';
+import { MailboxConnectionsConfig } from '../../config/app-config.js';
 import { MailboxRepository } from './mailbox.repository.js';
 import { rspamdUserFor } from './mailbox.js';
 
 /**
- * Builds a fixture `MailboxConnectionConfig` without going through
+ * Builds a fixture `MailboxConnectionsConfig` without going through
  * `@nestjs/config`/env - `MailboxRepository` only depends on the section's
  * shape, so a plain object satisfies the type (see `config.module.spec.ts`
  * for the env-driven variant of this same section, used by `config/` tests
  * that exercise validation itself).
  */
-function fixtureConnection(
-  overrides: Partial<MailboxConnectionConfig> = {},
-): MailboxConnectionConfig {
-  return {
-    id: 'owner@example.com',
-    imapHost: 'imap.example.com',
-    imapPort: 993,
-    imapUser: 'owner@example.com',
-    imapPassword: 'secret',
-    imapTls: true,
-    imapAllowInsecure: false,
-    stateFolder: 'INBOX.scanner.state',
-    ...overrides,
-  };
+function fixtureConnections(
+  mailboxes: MailboxConnectionsConfig['mailboxes'] = [
+    {
+      id: 'owner@example.com',
+      imapHost: 'imap.example.com',
+      imapPort: 993,
+      imapUser: 'owner@example.com',
+      imapPassword: 'secret',
+      imapTls: true,
+      imapAllowInsecure: false,
+      stateFolder: 'INBOX.scanner.state',
+    },
+  ],
+): MailboxConnectionsConfig {
+  return { mailboxes };
 }
 
 async function buildRepository(
-  connection: MailboxConnectionConfig,
+  connections: MailboxConnectionsConfig,
 ): Promise<MailboxRepository> {
   const moduleRef = await Test.createTestingModule({
     providers: [
       MailboxRepository,
-      { provide: MailboxConnectionConfig, useValue: connection },
+      { provide: MailboxConnectionsConfig, useValue: connections },
     ],
   }).compile();
 
@@ -42,32 +43,63 @@ async function buildRepository(
 
 describe('MailboxRepository', () => {
   test('findAll returns a list of exactly one mailbox, matching the injected config', async () => {
-    const connection = fixtureConnection();
-    const repository = await buildRepository(connection);
+    const connections = fixtureConnections();
+    const repository = await buildRepository(connections);
 
     const mailboxes = repository.findAll();
 
     expect(mailboxes).toHaveLength(1);
-    expect(mailboxes[0]).toEqual({
-      id: connection.id,
-      imapHost: connection.imapHost,
-      imapPort: connection.imapPort,
-      imapUser: connection.imapUser,
-      imapPassword: connection.imapPassword,
-      imapTls: connection.imapTls,
-      imapAllowInsecure: connection.imapAllowInsecure,
-      stateFolder: connection.stateFolder,
-    });
+    expect(mailboxes[0]).toEqual(connections.mailboxes[0]);
+  });
+
+  test('findAll returns every configured mailbox, in slot order', async () => {
+    const connections = fixtureConnections([
+      {
+        id: 'first@example.com',
+        imapHost: 'imap.example.com',
+        imapPort: 993,
+        imapUser: 'first@example.com',
+        imapPassword: 'secret-1',
+        imapTls: true,
+        imapAllowInsecure: false,
+        stateFolder: 'INBOX.scanner.state',
+      },
+      {
+        id: 'second@example.com',
+        imapHost: 'imap.other.example.com',
+        imapPort: 143,
+        imapUser: 'jdoe',
+        imapPassword: 'secret-2',
+        imapTls: false,
+        imapAllowInsecure: true,
+        stateFolder: 'INBOX.scanner.state',
+      },
+    ]);
+    const repository = await buildRepository(connections);
+
+    const mailboxes = repository.findAll();
+
+    expect(mailboxes).toHaveLength(2);
+    expect(mailboxes[0]).toEqual(connections.mailboxes[0]);
+    expect(mailboxes[1]).toEqual(connections.mailboxes[1]);
   });
 
   test('a bare-username IMAP login still results in the mailbox id being the separately-configured email, not derived from the IMAP login', async () => {
-    const connection = fixtureConnection({
-      // A bare username unrelated to MAILBOX_ID's email - e.g. a self-hosted
-      // IMAP server that doesn't require an email-shaped login.
-      imapUser: 'jdoe',
-      id: 'jane.doe@example.com',
-    });
-    const repository = await buildRepository(connection);
+    const connections = fixtureConnections([
+      {
+        id: 'jane.doe@example.com',
+        imapHost: 'imap.example.com',
+        imapPort: 993,
+        // A bare username unrelated to id's email - e.g. a self-hosted IMAP
+        // server that doesn't require an email-shaped login.
+        imapUser: 'jdoe',
+        imapPassword: 'secret',
+        imapTls: true,
+        imapAllowInsecure: false,
+        stateFolder: 'INBOX.scanner.state',
+      },
+    ]);
+    const repository = await buildRepository(connections);
 
     const [mailbox] = repository.findAll();
 
@@ -77,11 +109,19 @@ describe('MailboxRepository', () => {
   });
 
   test('the rspamd user for a mailbox always equals its id', async () => {
-    const connection = fixtureConnection({
-      imapUser: 'jdoe',
-      id: 'jane.doe@example.com',
-    });
-    const repository = await buildRepository(connection);
+    const connections = fixtureConnections([
+      {
+        id: 'jane.doe@example.com',
+        imapHost: 'imap.example.com',
+        imapPort: 993,
+        imapUser: 'jdoe',
+        imapPassword: 'secret',
+        imapTls: true,
+        imapAllowInsecure: false,
+        stateFolder: 'INBOX.scanner.state',
+      },
+    ]);
+    const repository = await buildRepository(connections);
 
     const [mailbox] = repository.findAll();
 

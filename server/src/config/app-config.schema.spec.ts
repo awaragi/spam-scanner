@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { AppConfigSchema } from './app-config.schema.js';
+import { AppConfigSchema, type AppConfig } from './app-config.schema.js';
 
 /**
  * The minimal environment that satisfies every field with no safe default
@@ -8,13 +8,24 @@ import { AppConfigSchema } from './app-config.schema.js';
  */
 function requiredOnlyEnv(): Record<string, string> {
   return {
-    MAILBOX_ID: 'owner@example.com',
-    MAILBOX_IMAP_HOST: 'imap.example.com',
-    MAILBOX_IMAP_USER: 'owner@example.com',
-    MAILBOX_IMAP_PASSWORD: 'secret',
+    MAILBOX_1_ID: 'owner@example.com',
+    MAILBOX_1_IMAP_HOST: 'imap.example.com',
+    MAILBOX_1_IMAP_USER: 'owner@example.com',
+    MAILBOX_1_IMAP_PASSWORD: 'secret',
     API_ADMIN_PASSWORD: 'admin-secret',
     API_JWT_SECRET: 'jwt-secret',
   };
+}
+
+/**
+ * `AppConfigSchema`'s own `.reduce`/`.merge`/`.extend` chain collapses zod's
+ * field inference (see `AppConfig`'s doc comment in `app-config.schema.ts`),
+ * so a successful parse's `.data` needs this same cast the schema's own
+ * `superRefine` uses internally, rather than `AppConfig` being derivable via
+ * `z.infer`.
+ */
+function asConfig(data: unknown): AppConfig {
+  return data as AppConfig;
 }
 
 describe('AppConfigSchema', () => {
@@ -38,7 +49,6 @@ describe('AppConfigSchema', () => {
       'PORT',
       'API_ADMIN_TOKEN_TTL',
       'API_MAILBOX_TOKEN_TTL',
-      'MAILBOX_IMAP_PORT',
     ])('rejects a non-numeric %s rather than silently producing NaN', (key) => {
       const result = AppConfigSchema.safeParse({
         ...requiredOnlyEnv(),
@@ -49,6 +59,21 @@ describe('AppConfigSchema', () => {
       if (result.success) return;
       expect(
         result.error.issues.some((issue) => issue.path.join('.') === key),
+      ).toBe(true);
+    });
+
+    test('rejects a non-numeric MAILBOX_1_IMAP_PORT rather than silently producing NaN', () => {
+      const result = AppConfigSchema.safeParse({
+        ...requiredOnlyEnv(),
+        MAILBOX_1_IMAP_PORT: '5m',
+      });
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(
+        result.error.issues.some(
+          (issue) => issue.path.join('.') === 'MAILBOXES.MAILBOX_1_IMAP_PORT',
+        ),
       ).toBe(true);
     });
 
@@ -84,22 +109,22 @@ describe('AppConfigSchema', () => {
 
       expect(result.success).toBe(true);
       if (!result.success) return;
-      expect(result.data.SCAN_INTERVAL).toBe(60);
+      expect(asConfig(result.data).SCAN_INTERVAL).toBe(60);
     });
 
-    test('MAILBOX_IMAP_TLS is false only when explicitly set to "false"', () => {
+    test('the mailbox IMAP_TLS is false only when explicitly set to "false"', () => {
       const result = AppConfigSchema.safeParse({
         ...requiredOnlyEnv(),
-        MAILBOX_IMAP_TLS: 'false',
-        // Required alongside MAILBOX_IMAP_TLS=false since 2.5 - see the
+        MAILBOX_1_IMAP_TLS: 'false',
+        // Required alongside MAILBOX_1_IMAP_TLS=false since 2.5 - see the
         // 'cross-field validation' describe block below; irrelevant to what
         // this test asserts about boolField parsing.
-        MAILBOX_IMAP_ALLOW_INSECURE: 'true',
+        MAILBOX_1_IMAP_ALLOW_INSECURE: 'true',
       });
 
       expect(result.success).toBe(true);
       if (!result.success) return;
-      expect(result.data.MAILBOX_IMAP_TLS).toBe(false);
+      expect(asConfig(result.data).MAILBOXES[0].imapTls).toBe(false);
     });
 
     test('AI_ENABLED is true only when explicitly set to "true"', () => {
@@ -115,14 +140,14 @@ describe('AppConfigSchema', () => {
 
       expect(result.success).toBe(true);
       if (!result.success) return;
-      expect(result.data.AI_ENABLED).toBe(true);
+      expect(asConfig(result.data).AI_ENABLED).toBe(true);
     });
 
     test.each([
-      'MAILBOX_ID',
-      'MAILBOX_IMAP_HOST',
-      'MAILBOX_IMAP_USER',
-      'MAILBOX_IMAP_PASSWORD',
+      'MAILBOX_1_ID',
+      'MAILBOX_1_IMAP_HOST',
+      'MAILBOX_1_IMAP_USER',
+      'MAILBOX_1_IMAP_PASSWORD',
     ])('rejects a missing required field %s', (key) => {
       const env = requiredOnlyEnv();
       delete (env as Record<string, string | undefined>)[key];
@@ -132,7 +157,9 @@ describe('AppConfigSchema', () => {
       expect(result.success).toBe(false);
       if (result.success) return;
       expect(
-        result.error.issues.some((issue) => issue.path.join('.') === key),
+        result.error.issues.some(
+          (issue) => issue.path.join('.') === `MAILBOXES.${key}`,
+        ),
       ).toBe(true);
     });
 
@@ -147,10 +174,11 @@ describe('AppConfigSchema', () => {
 
       expect(result.success).toBe(true);
       if (!result.success) return;
-      expect(result.data.API_ADMIN_PASSWORD).toBe('admin-secret');
-      expect(result.data.API_JWT_SECRET).toBe('jwt-secret');
-      expect(result.data.API_ADMIN_TOKEN_TTL).toBe(7200);
-      expect(result.data.API_MAILBOX_TOKEN_TTL).toBe(1800);
+      const data = asConfig(result.data);
+      expect(data.API_ADMIN_PASSWORD).toBe('admin-secret');
+      expect(data.API_JWT_SECRET).toBe('jwt-secret');
+      expect(data.API_ADMIN_TOKEN_TTL).toBe(7200);
+      expect(data.API_MAILBOX_TOKEN_TTL).toBe(1800);
     });
 
     test.each(['API_ADMIN_PASSWORD', 'API_JWT_SECRET'])(
@@ -169,17 +197,17 @@ describe('AppConfigSchema', () => {
       },
     );
 
-    test('rejects a MAILBOX_ID that is not shaped like an email address', () => {
+    test('rejects a MAILBOX_1_ID that is not shaped like an email address', () => {
       const result = AppConfigSchema.safeParse({
         ...requiredOnlyEnv(),
-        MAILBOX_ID: 'not-an-email',
+        MAILBOX_1_ID: 'not-an-email',
       });
 
       expect(result.success).toBe(false);
       if (result.success) return;
       expect(
         result.error.issues.some(
-          (issue) => issue.path.join('.') === 'MAILBOX_ID',
+          (issue) => issue.path.join('.') === 'MAILBOXES.MAILBOX_1_ID',
         ),
       ).toBe(true);
     });
@@ -202,7 +230,7 @@ describe('AppConfigSchema', () => {
 
   test('reports a missing required field and an out-of-range field together', () => {
     const env = requiredOnlyEnv();
-    delete (env as Record<string, string | undefined>).MAILBOX_IMAP_HOST;
+    delete (env as Record<string, string | undefined>).MAILBOX_1_IMAP_HOST;
 
     const result = AppConfigSchema.safeParse({
       ...env,
@@ -213,7 +241,7 @@ describe('AppConfigSchema', () => {
     if (result.success) return;
 
     const paths = result.error.issues.map((issue) => issue.path.join('.'));
-    expect(paths).toContain('MAILBOX_IMAP_HOST');
+    expect(paths).toContain('MAILBOXES.MAILBOX_1_IMAP_HOST');
     expect(paths).toContain('AI_MAX_RETRIES');
   });
 
@@ -275,38 +303,39 @@ describe('AppConfigSchema', () => {
       expect(result.success).toBe(true);
     });
 
-    test('rejects MAILBOX_IMAP_TLS=false with no MAILBOX_IMAP_ALLOW_INSECURE opt-in', () => {
+    test('rejects MAILBOX_1_IMAP_TLS=false with no MAILBOX_1_IMAP_ALLOW_INSECURE opt-in', () => {
       const result = AppConfigSchema.safeParse({
         ...requiredOnlyEnv(),
-        MAILBOX_IMAP_TLS: 'false',
+        MAILBOX_1_IMAP_TLS: 'false',
       });
 
       expect(result.success).toBe(false);
       if (result.success) return;
       expect(
         result.error.issues.some(
-          (issue) => issue.path.join('.') === 'MAILBOX_IMAP_ALLOW_INSECURE',
+          (issue) =>
+            issue.path.join('.') === 'MAILBOXES.MAILBOX_1_IMAP_ALLOW_INSECURE',
         ),
       ).toBe(true);
     });
 
-    test('accepts MAILBOX_IMAP_TLS=false when MAILBOX_IMAP_ALLOW_INSECURE=true', () => {
+    test('accepts MAILBOX_1_IMAP_TLS=false when MAILBOX_1_IMAP_ALLOW_INSECURE=true', () => {
       const result = AppConfigSchema.safeParse({
         ...requiredOnlyEnv(),
-        MAILBOX_IMAP_TLS: 'false',
-        MAILBOX_IMAP_ALLOW_INSECURE: 'true',
+        MAILBOX_1_IMAP_TLS: 'false',
+        MAILBOX_1_IMAP_ALLOW_INSECURE: 'true',
       });
 
       expect(result.success).toBe(true);
     });
 
-    test('does not require MAILBOX_IMAP_ALLOW_INSECURE when MAILBOX_IMAP_TLS is at its default (true)', () => {
+    test('does not require MAILBOX_1_IMAP_ALLOW_INSECURE when MAILBOX_1_IMAP_TLS is at its default (true)', () => {
       const result = AppConfigSchema.safeParse(requiredOnlyEnv());
 
       expect(result.success).toBe(true);
     });
 
-    test('reports AI_MODEL missing, MAILBOX_IMAP_ALLOW_INSECURE missing, and an unrelated bad field together', () => {
+    test('reports AI_MODEL missing, the mailbox ALLOW_INSECURE missing, and an unrelated bad field together', () => {
       // SCAN_INTERVAL=0 fails its own `.refine()` (a "custom" zod issue), not
       // the underlying number type check - zod only runs `.superRefine()` on
       // an object once every field it declares has passed its own type-level
@@ -315,7 +344,7 @@ describe('AppConfigSchema', () => {
       const result = AppConfigSchema.safeParse({
         ...requiredOnlyEnv(),
         AI_ENABLED: 'true',
-        MAILBOX_IMAP_TLS: 'false',
+        MAILBOX_1_IMAP_TLS: 'false',
         SCAN_INTERVAL: '0',
       });
 
@@ -325,8 +354,155 @@ describe('AppConfigSchema', () => {
       const paths = result.error.issues.map((issue) => issue.path.join('.'));
       expect(paths).toContain('AI_MODEL');
       expect(paths).toContain('AI_API_KEY');
-      expect(paths).toContain('MAILBOX_IMAP_ALLOW_INSECURE');
+      expect(paths).toContain('MAILBOXES.MAILBOX_1_IMAP_ALLOW_INSECURE');
       expect(paths).toContain('SCAN_INTERVAL');
+    });
+  });
+
+  describe('mailbox slots - dynamically discovered, no fixed limit', () => {
+    test('a second mailbox is optional - one mailbox alone still parses', () => {
+      const result = AppConfigSchema.safeParse(requiredOnlyEnv());
+
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(asConfig(result.data).MAILBOXES).toHaveLength(1);
+    });
+
+    test('accepts a fully-configured second mailbox', () => {
+      const result = AppConfigSchema.safeParse({
+        ...requiredOnlyEnv(),
+        MAILBOX_2_ID: 'second@example.com',
+        MAILBOX_2_IMAP_HOST: 'imap.example.com',
+        MAILBOX_2_IMAP_USER: 'second@example.com',
+        MAILBOX_2_IMAP_PASSWORD: 'secret-2',
+      });
+
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      const mailboxes = asConfig(result.data).MAILBOXES;
+      expect(mailboxes).toHaveLength(2);
+      expect(mailboxes[1].id).toBe('second@example.com');
+    });
+
+    test('rejects an env with no MAILBOX_ keys at all', () => {
+      const result = AppConfigSchema.safeParse({
+        API_ADMIN_PASSWORD: 'admin-secret',
+        API_JWT_SECRET: 'jwt-secret',
+      });
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(
+        result.error.issues.some(
+          (issue) => issue.path.join('.') === 'MAILBOXES.MAILBOX_1_ID',
+        ),
+      ).toBe(true);
+    });
+
+    test('there is no fixed limit on how many mailboxes are accepted', () => {
+      const env = requiredOnlyEnv();
+      for (let index = 2; index <= 9; index++) {
+        env[`MAILBOX_${index}_ID`] = `user${index}@example.com`;
+        env[`MAILBOX_${index}_IMAP_HOST`] = 'imap.example.com';
+        env[`MAILBOX_${index}_IMAP_USER`] = `user${index}@example.com`;
+        env[`MAILBOX_${index}_IMAP_PASSWORD`] = `secret-${index}`;
+      }
+
+      const result = AppConfigSchema.safeParse(env);
+
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(asConfig(result.data).MAILBOXES).toHaveLength(9);
+      expect(asConfig(result.data).MAILBOXES[8].id).toBe('user9@example.com');
+    });
+
+    test('rejects a partially-configured second mailbox, pointing at the specific missing fields', () => {
+      const result = AppConfigSchema.safeParse({
+        ...requiredOnlyEnv(),
+        MAILBOX_2_ID: 'second@example.com',
+        MAILBOX_2_IMAP_HOST: 'imap.example.com',
+        // MAILBOX_2_IMAP_USER/PASSWORD left unset.
+      });
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      const paths = result.error.issues.map((issue) => issue.path.join('.'));
+      expect(paths).toContain('MAILBOXES.MAILBOX_2_IMAP_USER');
+      expect(paths).toContain('MAILBOXES.MAILBOX_2_IMAP_PASSWORD');
+    });
+
+    test('rejects a non-email MAILBOX_2_ID', () => {
+      const result = AppConfigSchema.safeParse({
+        ...requiredOnlyEnv(),
+        MAILBOX_2_ID: 'not-an-email',
+        MAILBOX_2_IMAP_HOST: 'imap.example.com',
+        MAILBOX_2_IMAP_USER: 'second@example.com',
+        MAILBOX_2_IMAP_PASSWORD: 'secret-2',
+      });
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(
+        result.error.issues.some(
+          (issue) => issue.path.join('.') === 'MAILBOXES.MAILBOX_2_ID',
+        ),
+      ).toBe(true);
+    });
+
+    test('rejects a duplicate mailbox id across slots', () => {
+      const result = AppConfigSchema.safeParse({
+        ...requiredOnlyEnv(),
+        MAILBOX_2_ID: 'owner@example.com',
+        MAILBOX_2_IMAP_HOST: 'imap.example.com',
+        MAILBOX_2_IMAP_USER: 'owner@example.com',
+        MAILBOX_2_IMAP_PASSWORD: 'secret-2',
+      });
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(
+        result.error.issues.some(
+          (issue) => issue.path.join('.') === 'MAILBOXES.MAILBOX_2_ID',
+        ),
+      ).toBe(true);
+    });
+
+    test('rejects a configured MAILBOX_3 when MAILBOX_2 is left unset (a gap)', () => {
+      const result = AppConfigSchema.safeParse({
+        ...requiredOnlyEnv(),
+        MAILBOX_3_ID: 'third@example.com',
+        MAILBOX_3_IMAP_HOST: 'imap.example.com',
+        MAILBOX_3_IMAP_USER: 'third@example.com',
+        MAILBOX_3_IMAP_PASSWORD: 'secret-3',
+      });
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(
+        result.error.issues.some(
+          (issue) => issue.path.join('.') === 'MAILBOXES.MAILBOX_3_ID',
+        ),
+      ).toBe(true);
+    });
+
+    test('requires MAILBOX_2_IMAP_ALLOW_INSECURE alongside MAILBOX_2_IMAP_TLS=false, independently of mailbox 1', () => {
+      const result = AppConfigSchema.safeParse({
+        ...requiredOnlyEnv(),
+        MAILBOX_2_ID: 'second@example.com',
+        MAILBOX_2_IMAP_HOST: 'imap.example.com',
+        MAILBOX_2_IMAP_USER: 'second@example.com',
+        MAILBOX_2_IMAP_PASSWORD: 'secret-2',
+        MAILBOX_2_IMAP_TLS: 'false',
+      });
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(
+        result.error.issues.some(
+          (issue) =>
+            issue.path.join('.') === 'MAILBOXES.MAILBOX_2_IMAP_ALLOW_INSECURE',
+        ),
+      ).toBe(true);
     });
   });
 });
