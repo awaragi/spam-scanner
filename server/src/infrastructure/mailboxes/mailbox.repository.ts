@@ -33,6 +33,7 @@ export class MailboxRepository {
       imapTls: connection.imapTls,
       imapAllowInsecure: connection.imapAllowInsecure,
       stateFolder: connection.stateFolder,
+      enabled: connection.enabled,
     }));
   }
 }

@@ -18,6 +18,7 @@ export interface MailboxConnectionConfig {
   readonly imapTls: boolean;
   readonly imapAllowInsecure: boolean;
   readonly stateFolder: string;
+  readonly enabled: boolean;
 }
 
 /**
@@ -391,6 +392,14 @@ rather than silently falling back to plaintext if the server doesn't support it)
         `MAILBOX_1_STATE_FOLDER: IMAP folder holding this mailbox's JSON state messages
 (scanner progress, whitelist, blacklist) - see the state-manager capability.`,
       ),
+    MAILBOX_1_ENABLED: z
+      .string()
+      .default('true')
+      .describe(
+        `MAILBOX_1_ENABLED: when "false", the server does not start a runner for this mailbox at
+bootstrap. Defaults to enabled when unset. Runtime enable/disable via the API is in-memory only
+and does not change this value.`,
+      ),
     MAILBOX_2_ID: z
       .string()
       .default('')
@@ -429,6 +438,10 @@ fixed limit. Leave every MAILBOX_2_* field unset to skip this slot.`,
       .string()
       .default('INBOX.scanner.state')
       .describe('MAILBOX_2_STATE_FOLDER: see MAILBOX_1_STATE_FOLDER.'),
+    MAILBOX_2_ENABLED: z
+      .string()
+      .default('true')
+      .describe('MAILBOX_2_ENABLED: see MAILBOX_1_ENABLED.'),
   }),
 };
 
@@ -444,6 +457,7 @@ interface RawMailboxSlot {
   imapTls: string;
   imapAllowInsecure: string;
   stateFolder: string;
+  enabled: string;
 }
 
 /**
@@ -485,6 +499,7 @@ function extractMailboxSlots(raw: unknown): RawMailboxSlot[] {
       imapTls: field(index, 'IMAP_TLS'),
       imapAllowInsecure: field(index, 'IMAP_ALLOW_INSECURE'),
       stateFolder: field(index, 'STATE_FOLDER'),
+      enabled: field(index, 'ENABLED'),
     });
   }
   return slots;
@@ -500,6 +515,7 @@ const rawMailboxSlotSchema = z.object({
   imapTls: z.string(),
   imapAllowInsecure: z.string(),
   stateFolder: z.string(),
+  enabled: z.string(),
 });
 
 /**
@@ -635,6 +651,7 @@ const MailboxesSchema = z
           imapTls: slot.imapTls !== 'false',
           imapAllowInsecure: slot.imapAllowInsecure === 'true',
           stateFolder: slot.stateFolder || 'INBOX.scanner.state',
+          enabled: slot.enabled !== 'false',
         };
       }),
   );

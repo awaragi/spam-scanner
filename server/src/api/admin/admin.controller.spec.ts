@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, vi } from 'vitest';
 import { AdminController, type AdminSettings } from './admin.controller.js';
 import type { RunnerRegistry } from '../../runtime/runner-registry.js';
 import type { HealthService } from '../health/health.service.js';
@@ -79,6 +79,7 @@ function fixtureMailboxConnectionsConfig(): MailboxConnectionsConfig {
         imapTls: true,
         imapAllowInsecure: false,
         stateFolder: 'INBOX.scanner.state',
+        enabled: true,
       },
       {
         id: 'second@example.com',
@@ -89,14 +90,33 @@ function fixtureMailboxConnectionsConfig(): MailboxConnectionsConfig {
         imapTls: true,
         imapAllowInsecure: false,
         stateFolder: 'INBOX.scanner.state',
+        enabled: true,
       },
     ],
   } as MailboxConnectionsConfig;
 }
 
-function build() {
+function build(runnerRegistry: Partial<RunnerRegistry> = {}) {
+  const registry = {
+    getStatus: () => ({
+      mailboxes: [
+        {
+          mailboxId: 'owner@example.com',
+          enabled: true,
+          state: 'running',
+          mode: 'idle',
+          jobs: {},
+        },
+        { mailboxId: 'second@example.com', enabled: false },
+      ],
+    }),
+    enableMailbox: () => undefined,
+    disableMailbox: async () => undefined,
+    ...runnerRegistry,
+  };
+
   const controller = new AdminController(
-    {} as RunnerRegistry,
+    registry as RunnerRegistry,
     {} as HealthService,
     fixtureRspamdConfig(),
     fixtureAiConfig(),
@@ -120,6 +140,35 @@ const SECRET_VALUES = [
 ];
 
 describe('AdminController', () => {
+  test('GET /admin/mailboxes includes enabled and disabled mailboxes', () => {
+    const { controller } = build();
+
+    const mailboxes = controller.getMailboxes();
+
+    expect(mailboxes).toHaveLength(2);
+    expect(mailboxes[0]).toMatchObject({
+      mailboxId: 'owner@example.com',
+      enabled: true,
+      state: 'running',
+    });
+    expect(mailboxes[1]).toEqual({
+      mailboxId: 'second@example.com',
+      enabled: false,
+    });
+  });
+
+  test('PUT /admin/mailboxes/:id/enabled delegates to RunnerRegistry', async () => {
+    const disableMailbox = vi.fn().mockResolvedValue(undefined);
+    const enableMailbox = vi.fn();
+    const { controller } = build({ disableMailbox, enableMailbox });
+
+    await controller.setMailboxEnabled('second@example.com', { enabled: false });
+    expect(disableMailbox).toHaveBeenCalledWith('second@example.com');
+
+    await controller.setMailboxEnabled('second@example.com', { enabled: true });
+    expect(enableMailbox).toHaveBeenCalledWith('second@example.com');
+  });
+
   test('GET /admin/settings never includes any secret field', () => {
     const { controller } = build();
 

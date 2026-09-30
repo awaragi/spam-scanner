@@ -29,6 +29,7 @@ export interface Mailbox {
   readonly imapTls: boolean;
   readonly imapAllowInsecure: boolean;
   readonly stateFolder: string;
+  readonly enabled: boolean;
 }
 
 /**

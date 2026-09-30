@@ -65,6 +65,7 @@ function fixtureMailbox(overrides: Partial<Mailbox> = {}): Mailbox {
     imapTls: true,
     imapAllowInsecure: false,
     stateFolder: 'INBOX.scanner.state',
+    enabled: true,
     ...overrides,
   };
 }
@@ -236,6 +237,120 @@ describe('RunnerRegistry', () => {
     // Stop every runner, including the bad mailbox's still-retrying one, so
     // no real backoff timer is left pending once this test ends.
     await registry.onApplicationShutdown();
+  });
+
+  describe('mailbox enable/disable (mailbox-runner-enable-toggle)', () => {
+    test('bootstrap starts a runner only for enabled mailboxes', async () => {
+      const enabled = fixtureMailbox({ id: 'enabled@example.com', enabled: true });
+      const disabled = fixtureMailbox({
+        id: 'disabled@example.com',
+        enabled: false,
+      });
+
+      const { registry } = await buildRegistry({
+        mailboxes: [enabled, disabled],
+      });
+      registry.onApplicationBootstrap();
+
+      expect(registry.getMailboxStatus('enabled@example.com').enabled).toBe(
+        true,
+      );
+      expect(registry.getMailboxStatus('disabled@example.com')).toEqual({
+        mailboxId: 'disabled@example.com',
+        enabled: false,
+      });
+      await expect(
+        registry.triggerNow('disabled@example.com', 'scan'),
+      ).rejects.toThrow('Unknown mailbox: disabled@example.com');
+
+      await registry.onApplicationShutdown();
+    });
+
+    test('disableMailbox awaits runner.stop() and is idempotent', async () => {
+      const { registry } = await buildRegistry();
+      registry.onApplicationBootstrap();
+
+      let resolveStop!: () => void;
+      const stopSpy = vi
+        .spyOn(MailboxRunner.prototype, 'stop')
+        .mockImplementation(
+          () =>
+            new Promise<void>((resolve) => {
+              resolveStop = resolve;
+            }),
+        );
+
+      const disabling = registry.disableMailbox('owner@example.com');
+      await Promise.resolve();
+      expect(stopSpy).toHaveBeenCalled();
+      let settled = false;
+      void disabling.then(() => {
+        settled = true;
+      });
+      await Promise.resolve();
+      expect(settled).toBe(false);
+
+      resolveStop();
+      await disabling;
+      expect(registry.getMailboxStatus('owner@example.com').enabled).toBe(
+        false,
+      );
+
+      await expect(
+        registry.disableMailbox('owner@example.com'),
+      ).resolves.toBeUndefined();
+
+      stopSpy.mockRestore();
+      await registry.onApplicationShutdown();
+    });
+
+    test('enableMailbox starts a fresh runner and is idempotent', async () => {
+      const { registry } = await buildRegistry({
+        mailboxes: [fixtureMailbox({ enabled: false })],
+      });
+      registry.onApplicationBootstrap();
+
+      expect(registry.getMailboxStatus('owner@example.com').enabled).toBe(
+        false,
+      );
+
+      registry.enableMailbox('owner@example.com');
+      const firstStatus = registry.getMailboxStatus('owner@example.com');
+      expect(firstStatus.enabled).toBe(true);
+
+      registry.enableMailbox('owner@example.com');
+      expect(registry.getMailboxStatus('owner@example.com')).toEqual(
+        firstStatus,
+      );
+
+      await registry.onApplicationShutdown();
+    });
+
+    test('getStatus lists enabled and disabled mailboxes with the expected shapes', async () => {
+      const { registry } = await buildRegistry({
+        mailboxes: [
+          fixtureMailbox({ id: 'enabled@example.com', enabled: true }),
+          fixtureMailbox({ id: 'disabled@example.com', enabled: false }),
+        ],
+      });
+      registry.onApplicationBootstrap();
+
+      const { mailboxes } = registry.getStatus();
+      expect(mailboxes).toHaveLength(2);
+      expect(mailboxes[0]).toMatchObject({
+        mailboxId: 'disabled@example.com',
+        enabled: false,
+      });
+      expect(mailboxes[1]).toMatchObject({
+        mailboxId: 'enabled@example.com',
+        enabled: true,
+        state: expect.any(String),
+        mode: expect.any(String),
+      });
+      expect(mailboxes[0]).not.toHaveProperty('state');
+
+      await registry.onApplicationShutdown();
+    });
   });
 
   // --- 4.2: getStatus() / triggerNow() -----------------------------------

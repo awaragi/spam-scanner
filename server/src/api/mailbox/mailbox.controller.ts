@@ -27,6 +27,10 @@ import {
   type SettingsUpdateBody,
 } from './settings-update.schema.js';
 import {
+  mailboxEnabledSchema,
+  type MailboxEnabledBody,
+} from './mailbox-enabled.schema.js';
+import {
   listReplaceSchema,
   type ListReplaceBody,
 } from './list-replace.schema.js';
@@ -131,6 +135,22 @@ export class MailboxController {
     return withUnknownMailboxAsNotFound(() =>
       this.runnerRegistry.getMailboxSettings(mailboxId),
     );
+  }
+
+  @Put('enabled')
+  async setEnabled(
+    @Param('mailboxId') mailboxId: string,
+    @Body(new ZodValidationPipe(mailboxEnabledSchema))
+    body: MailboxEnabledBody,
+  ): Promise<{ updated: true }> {
+    await withUnknownMailboxAsNotFoundAsync(async () => {
+      if (body.enabled) {
+        this.runnerRegistry.enableMailbox(mailboxId);
+      } else {
+        await this.runnerRegistry.disableMailbox(mailboxId);
+      }
+    });
+    return { updated: true };
   }
 
   @Put('settings')

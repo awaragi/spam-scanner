@@ -22,6 +22,7 @@ function fixtureConnections(
       imapTls: true,
       imapAllowInsecure: false,
       stateFolder: 'INBOX.scanner.state',
+      enabled: true,
     },
   ],
 ): MailboxConnectionsConfig {
@@ -42,6 +43,25 @@ async function buildRepository(
 }
 
 describe('MailboxRepository', () => {
+  test('maps enabled: false from the connection config onto Mailbox', async () => {
+    const connections = fixtureConnections([
+      {
+        id: 'owner@example.com',
+        imapHost: 'imap.example.com',
+        imapPort: 993,
+        imapUser: 'owner@example.com',
+        imapPassword: 'secret',
+        imapTls: true,
+        imapAllowInsecure: false,
+        stateFolder: 'INBOX.scanner.state',
+        enabled: false,
+      },
+    ]);
+    const repository = await buildRepository(connections);
+
+    expect(repository.findAll()[0]?.enabled).toBe(false);
+  });
+
   test('findAll returns a list of exactly one mailbox, matching the injected config', async () => {
     const connections = fixtureConnections();
     const repository = await buildRepository(connections);
@@ -63,6 +83,7 @@ describe('MailboxRepository', () => {
         imapTls: true,
         imapAllowInsecure: false,
         stateFolder: 'INBOX.scanner.state',
+    enabled: true,
       },
       {
         id: 'second@example.com',
@@ -73,6 +94,7 @@ describe('MailboxRepository', () => {
         imapTls: false,
         imapAllowInsecure: true,
         stateFolder: 'INBOX.scanner.state',
+    enabled: true,
       },
     ]);
     const repository = await buildRepository(connections);
@@ -97,6 +119,7 @@ describe('MailboxRepository', () => {
         imapTls: true,
         imapAllowInsecure: false,
         stateFolder: 'INBOX.scanner.state',
+    enabled: true,
       },
     ]);
     const repository = await buildRepository(connections);
@@ -119,6 +142,7 @@ describe('MailboxRepository', () => {
         imapTls: true,
         imapAllowInsecure: false,
         stateFolder: 'INBOX.scanner.state',
+    enabled: true,
       },
     ]);
     const repository = await buildRepository(connections);

@@ -7,10 +7,11 @@ import type { MailboxRunnerStatus } from '../../runtime/mailbox-runner.js';
 /** One mailbox's entry in `health()`'s `mailboxes` array - design.md D8. */
 export interface MailboxHealthSummary {
   mailboxId: string;
-  state: MailboxRunnerStatus['state'];
-  mode: MailboxRunnerStatus['mode'];
+  enabled: boolean;
+  state?: 'running' | 'degraded';
+  mode?: 'idle' | 'loop';
   /** `null` when this mailbox has never once completed a successful scan. */
-  lastSuccessfulScanAgeMs: number | null;
+  lastSuccessfulScanAgeMs?: number | null;
 }
 
 /** The full shape `health()` returns - design.md D8. */
@@ -21,7 +22,9 @@ export interface HealthReport {
   mailboxes: MailboxHealthSummary[];
 }
 
-function lastSuccessfulScanAgeMs(mailbox: MailboxRunnerStatus): number | null {
+function lastSuccessfulScanAgeMs(
+  mailbox: Extract<MailboxRunnerStatus, { enabled: true }>,
+): number | null {
   const scan = mailbox.jobs.scan;
   if (scan.lastResult !== 'success' || !scan.lastRunAt) {
     return null;
@@ -58,12 +61,17 @@ export class HealthService {
       status: 'up',
       rspamd: reachable ? 'reachable' : 'unreachable',
       ai,
-      mailboxes: mailboxes.map((mailbox) => ({
-        mailboxId: mailbox.mailboxId,
-        state: mailbox.state,
-        mode: mailbox.mode,
-        lastSuccessfulScanAgeMs: lastSuccessfulScanAgeMs(mailbox),
-      })),
+      mailboxes: mailboxes.map((mailbox) =>
+        mailbox.enabled
+          ? {
+              mailboxId: mailbox.mailboxId,
+              enabled: true,
+              state: mailbox.state,
+              mode: mailbox.mode,
+              lastSuccessfulScanAgeMs: lastSuccessfulScanAgeMs(mailbox),
+            }
+          : { mailboxId: mailbox.mailboxId, enabled: false },
+      ),
     };
   }
 }

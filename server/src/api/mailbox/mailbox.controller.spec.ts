@@ -6,6 +6,7 @@ import type { MailboxAdminService } from '../../application/mailbox-admin/mailbo
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { settingsUpdateSchema } from './settings-update.schema.js';
 import { listReplaceSchema } from './list-replace.schema.js';
+import { mailboxEnabledSchema } from './mailbox-enabled.schema.js';
 
 const MAILBOX_ID = 'owner@example.com';
 
@@ -13,7 +14,12 @@ function build() {
   const runnerRegistry = {
     triggerNow: vi.fn().mockResolvedValue(undefined),
     triggerInitFolders: vi.fn().mockResolvedValue(undefined),
-    getMailboxStatus: vi.fn().mockReturnValue({ mailboxId: MAILBOX_ID }),
+    enableMailbox: vi.fn(),
+    disableMailbox: vi.fn().mockResolvedValue(undefined),
+    getMailboxStatus: vi.fn().mockReturnValue({
+      mailboxId: MAILBOX_ID,
+      enabled: true,
+    }),
     // Runs `fn` through as a real `withRunnerPaused` would, so tests can
     // assert on the wrapped MailboxAdminService call it makes.
     withRunnerPaused: vi.fn((_mailboxId: string, fn: () => Promise<unknown>) =>
@@ -38,6 +44,35 @@ function build() {
 const UNKNOWN_MAILBOX_ERROR = new Error(`Unknown mailbox: ${MAILBOX_ID}`);
 
 describe('MailboxController', () => {
+  describe('setEnabled', () => {
+    test('disabling calls RunnerRegistry.disableMailbox', async () => {
+      const { controller, runnerRegistry } = build();
+
+      const result = await controller.setEnabled(MAILBOX_ID, { enabled: false });
+
+      expect(runnerRegistry.disableMailbox).toHaveBeenCalledWith(MAILBOX_ID);
+      expect(result).toEqual({ updated: true });
+    });
+
+    test('enabling calls RunnerRegistry.enableMailbox', async () => {
+      const { controller, runnerRegistry } = build();
+
+      const result = await controller.setEnabled(MAILBOX_ID, { enabled: true });
+
+      expect(runnerRegistry.enableMailbox).toHaveBeenCalledWith(MAILBOX_ID);
+      expect(result).toEqual({ updated: true });
+    });
+
+    test("translates disableMailbox's Unknown mailbox rejection to NotFoundException", async () => {
+      const { controller, runnerRegistry } = build();
+      runnerRegistry.disableMailbox.mockRejectedValue(UNKNOWN_MAILBOX_ERROR);
+
+      await expect(
+        controller.setEnabled(MAILBOX_ID, { enabled: false }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe('triggerJob', () => {
     test('maps a coalesced job name to RunnerRegistry.triggerNow', async () => {
       const { controller, runnerRegistry } = build();
@@ -203,6 +238,14 @@ describe('MailboxController', () => {
         'a@example.com',
         'b@example.com',
       ]);
+    });
+
+    test('an invalid enabled body is rejected', () => {
+      const pipe = new ZodValidationPipe(mailboxEnabledSchema);
+
+      expect(() => pipe.transform({ enabled: 'no' })).toThrow(
+        BadRequestException,
+      );
     });
   });
 });

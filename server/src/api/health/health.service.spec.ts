@@ -35,11 +35,12 @@ function fixtureMailboxStatus(
 
   return {
     mailboxId: 'owner@example.com',
+    enabled: true,
     state: 'running',
     mode: 'idle',
     jobs,
     ...overrides,
-  };
+  } as MailboxRunnerStatus;
 }
 
 function build(options: {
@@ -170,6 +171,30 @@ describe('HealthService', () => {
       const result = await service.health();
 
       expect(result.mailboxes[0].lastSuccessfulScanAgeMs).toBeNull();
+    });
+
+    test('reports a disabled mailbox without running/degraded fields', async () => {
+      const { service } = build({
+        status: {
+          mailboxes: [
+            { mailboxId: 'disabled@example.com', enabled: false },
+            fixtureMailboxStatus({ mailboxId: 'owner@example.com' }),
+          ],
+          ai: { reason: null, count: 0, lastError: null, lastAt: null },
+        },
+      });
+
+      const result = await service.health();
+
+      expect(result.mailboxes[0]).toEqual({
+        mailboxId: 'disabled@example.com',
+        enabled: false,
+      });
+      expect(result.mailboxes[1]).toMatchObject({
+        mailboxId: 'owner@example.com',
+        enabled: true,
+        state: 'running',
+      });
     });
   });
 });

@@ -89,9 +89,8 @@ export interface JobStatus {
   nextEligibleAt?: string;
 }
 
-/** A mailbox's overall runner status, as exposed by `getStatus()` - see design.md D5. */
-export interface MailboxRunnerStatus {
-  mailboxId: string;
+/** Status fields present only while a mailbox's runner is active. */
+export interface MailboxRunnerActiveFields {
   /**
    * Derived: `'degraded'` iff any job has `consecutiveFailures > 0`, or this
    * mailbox has never once bootstrapped successfully
@@ -104,6 +103,16 @@ export interface MailboxRunnerStatus {
   lastError?: string;
   jobs: Record<JobName, JobStatus>;
 }
+
+/** A running mailbox's status from `MailboxRunner.getStatus()` (no `enabled` flag). */
+export type MailboxRunnerActiveStatus = {
+  mailboxId: string;
+} & MailboxRunnerActiveFields;
+
+/** A mailbox's overall runner status, as exposed by the registry and API. */
+export type MailboxRunnerStatus =
+  | ({ enabled: true } & MailboxRunnerActiveStatus)
+  | { mailboxId: string; enabled: false };
 
 /**
  * Runs every job (training, scanning) for exactly one mailbox: per-job
@@ -424,7 +433,7 @@ export class MailboxRunner {
    * This mailbox's current status - design.md D5. `state` and `lastError`
    * are derived from the per-job state, never tracked separately.
    */
-  getStatus(): MailboxRunnerStatus {
+  getStatus(): MailboxRunnerActiveStatus {
     const jobs = {} as Record<JobName, JobStatus>;
     let degraded = false;
 

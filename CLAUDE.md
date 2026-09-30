@@ -127,6 +127,7 @@ force test changes.
 - `bin/local/server-dev.sh` — run the server with the repo-root `.env`
 - `npm run mock-rspamd` — local stand-in for rspamd
 - `npm run front:start` — Angular dev server
+- `bin/start-dev-mock.sh` / `bin/start-dev-docker.sh` — mock rspamd vs local Docker rspamd, each with server + front in tmux (`bin/attach-dev-*.sh`, `bin/stop-dev-*.sh`)
 
 ## Conventions
 

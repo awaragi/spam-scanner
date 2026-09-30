@@ -21,6 +21,9 @@ const JOBS = [
     <p>
       <button type="button" (click)="backToAdmin()">Back to admin</button>
       <button type="button" (click)="refreshStatus()">GET status</button>
+      <button type="button" (click)="toggleEnabled()">
+        {{ runnerEnabled() ? 'Disable' : 'Enable' }} mailbox (until restart)
+      </button>
       <button type="button" (click)="loadSettings()">GET settings</button>
       <button type="button" (click)="loadState()">GET state</button>
       <button type="button" (click)="deleteState()">DELETE state</button>
@@ -47,6 +50,7 @@ export class MailboxComponent implements OnInit {
   mailboxId = '';
   readonly jobs = JOBS;
   readonly output = signal('');
+  readonly runnerEnabled = signal(true);
 
   ngOnInit(): void {
     this.mailboxId = this.route.snapshot.paramMap.get('id') ?? getMailboxId() ?? '';
@@ -63,7 +67,32 @@ export class MailboxComponent implements OnInit {
   }
 
   refreshStatus(): void {
-    this.mailboxGet('/status');
+    this.api
+      .mailboxGet<{ enabled: boolean }>(this.token(), this.mailboxId, '/status')
+      .subscribe({
+        next: (data) => {
+          this.runnerEnabled.set(data.enabled);
+          this.output.set(JSON.stringify(data, null, 2));
+        },
+        error: (err) =>
+          this.output.set(JSON.stringify(err.error ?? err.message, null, 2)),
+      });
+  }
+
+  toggleEnabled(): void {
+    const next = !this.runnerEnabled();
+    this.api
+      .mailboxPut<{ updated: true }>(
+        this.token(),
+        this.mailboxId,
+        '/enabled',
+        { enabled: next },
+      )
+      .subscribe({
+        next: () => this.refreshStatus(),
+        error: (err) =>
+          this.output.set(JSON.stringify(err.error ?? err.message, null, 2)),
+      });
   }
 
   loadSettings(): void {

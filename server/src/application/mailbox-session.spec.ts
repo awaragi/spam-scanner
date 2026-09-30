@@ -17,6 +17,7 @@ function fixtureMailbox(overrides: Partial<Mailbox> = {}): Mailbox {
     imapTls: true,
     imapAllowInsecure: false,
     stateFolder: 'INBOX.scanner.state',
+    enabled: true,
     ...overrides,
   };
 }

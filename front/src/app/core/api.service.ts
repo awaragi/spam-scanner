@@ -28,6 +28,16 @@ export class ApiService {
     });
   }
 
+  adminPut<T>(
+    adminToken: string,
+    path: string,
+    body: unknown,
+  ): Observable<T> {
+    return this.http.put<T>(`${this.base}${path}`, body, {
+      headers: this.bearer(adminToken),
+    });
+  }
+
   mailboxGet<T>(mailboxToken: string, mailboxId: string, path: string): Observable<T> {
     return this.http.get<T>(`${this.base}/mailboxes/${encodeURIComponent(mailboxId)}${path}`, {
       headers: this.bearer(mailboxToken),

@@ -28,10 +28,16 @@ import {
     <ul>
       @for (mb of mailboxes(); track mb.mailboxId) {
         <li>
-          {{ mb.mailboxId }} — state={{ mb.state }} mode={{ mb.mode }}
-          @if (mb.lastError) {
-            <span> err={{ mb.lastError }}</span>
+          {{ mb.mailboxId }} — enabled={{ mb.enabled }}
+          @if (mb.enabled) {
+            <span> state={{ mb.state }} mode={{ mb.mode }}</span>
+            @if (mb.lastError) {
+              <span> err={{ mb.lastError }}</span>
+            }
           }
+          <button type="button" (click)="toggleEnabled(mb)">
+            {{ mb.enabled ? 'Disable' : 'Enable' }} (until restart)
+          </button>
           <button type="button" (click)="openMailbox(mb.mailboxId)">Open mailbox</button>
         </li>
       }
@@ -46,7 +52,13 @@ export class AdminComponent implements OnInit {
   private readonly router = inject(Router);
 
   readonly mailboxes = signal<
-    Array<{ mailboxId: string; state: string; mode: string; lastError?: string }>
+    Array<{
+      mailboxId: string;
+      enabled: boolean;
+      state?: string;
+      mode?: string;
+      lastError?: string;
+    }>
   >([]);
   readonly output = signal('');
 
@@ -65,8 +77,9 @@ export class AdminComponent implements OnInit {
         this.mailboxes.set(
           data as Array<{
             mailboxId: string;
-            state: string;
-            mode: string;
+            enabled: boolean;
+            state?: string;
+            mode?: string;
             lastError?: string;
           }>,
         );
@@ -95,6 +108,23 @@ export class AdminComponent implements OnInit {
       next: (data) => this.output.set(JSON.stringify(data, null, 2)),
       error: (err) => this.output.set(JSON.stringify(err.error ?? err.message, null, 2)),
     });
+  }
+
+  toggleEnabled(mb: {
+    mailboxId: string;
+    enabled: boolean;
+  }): void {
+    this.api
+      .adminPut<{ updated: true }>(
+        this.adminToken(),
+        `/admin/mailboxes/${encodeURIComponent(mb.mailboxId)}/enabled`,
+        { enabled: !mb.enabled },
+      )
+      .subscribe({
+        next: () => this.loadMailboxes(),
+        error: (err) =>
+          this.output.set(JSON.stringify(err.error ?? err.message, null, 2)),
+      });
   }
 
   openMailbox(mailboxId: string): void {

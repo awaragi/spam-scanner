@@ -48,7 +48,10 @@ export interface RunnerRegistryStatus {
 export class RunnerRegistry
   implements OnApplicationBootstrap, OnApplicationShutdown
 {
-  /** One `MailboxRunner` per mailbox id, built at bootstrap and never replaced. */
+  /** Every configured mailbox id → record, fixed at bootstrap. */
+  private readonly mailboxes = new Map<string, Mailbox>();
+
+  /** One active `MailboxRunner` per enabled mailbox id. */
   private readonly runners = new Map<string, MailboxRunner>();
 
   constructor(
@@ -83,28 +86,43 @@ export class RunnerRegistry
    * SHALL NOT stop the server process".
    */
   onApplicationBootstrap(): void {
-    const mailboxes = this.mailboxRepository.findAll();
-    for (const mailbox of mailboxes) {
-      const runner = new MailboxRunner(
-        mailbox,
-        this.folderInitService,
-        this.rspamdTrainingService,
-        this.senderListTrainingService,
-        this.scanService,
-        this.scanConfig,
-        this.pinoLogger.logger,
-      );
-      this.runners.set(mailbox.id, runner);
-      void runner.start().catch((error: unknown) => {
-        this.pinoLogger.error(
-          {
-            mailboxId: mailbox.id,
-            error: error instanceof Error ? error.message : String(error),
-          },
-          'Unexpected error starting mailbox runner',
-        );
-      });
+    for (const mailbox of this.mailboxRepository.findAll()) {
+      this.mailboxes.set(mailbox.id, mailbox);
+      if (mailbox.enabled) {
+        this.startRunner(mailbox);
+      }
     }
+  }
+
+  /**
+   * Stops a running mailbox's runner gracefully and removes it from the active
+   * map. Idempotent when the mailbox is already disabled.
+   */
+  async disableMailbox(mailboxId: string): Promise<void> {
+    if (!this.mailboxes.has(mailboxId)) {
+      throw new Error(`Unknown mailbox: ${mailboxId}`);
+    }
+    const runner = this.runners.get(mailboxId);
+    if (!runner) {
+      return;
+    }
+    await runner.stop();
+    this.runners.delete(mailboxId);
+  }
+
+  /**
+   * Constructs and starts a fresh runner for a disabled mailbox. Idempotent
+   * when the mailbox already has an active runner.
+   */
+  enableMailbox(mailboxId: string): void {
+    const mailbox = this.mailboxes.get(mailboxId);
+    if (!mailbox) {
+      throw new Error(`Unknown mailbox: ${mailboxId}`);
+    }
+    if (this.runners.has(mailboxId)) {
+      return;
+    }
+    this.startRunner(mailbox);
   }
 
   /**
@@ -113,7 +131,9 @@ export class RunnerRegistry
    */
   getStatus(): RunnerRegistryStatus {
     return {
-      mailboxes: [...this.runners.values()].map((runner) => runner.getStatus()),
+      mailboxes: [...this.mailboxes.keys()]
+        .sort()
+        .map((mailboxId) => this.statusForMailbox(mailboxId)),
       ai: this.aiFailureTracker.status(),
     };
   }
@@ -126,10 +146,7 @@ export class RunnerRegistry
    * does not exist.
    */
   async triggerNow(mailboxId: string, job: JobName): Promise<void> {
-    const runner = this.runners.get(mailboxId);
-    if (!runner) {
-      throw new Error(`Unknown mailbox: ${mailboxId}`);
-    }
+    const runner = this.requireRunner(mailboxId);
     await runner.triggerNow(job);
   }
 
@@ -139,11 +156,7 @@ export class RunnerRegistry
    * contract as `triggerNow`.
    */
   getMailboxStatus(mailboxId: string): MailboxRunnerStatus {
-    const runner = this.runners.get(mailboxId);
-    if (!runner) {
-      throw new Error(`Unknown mailbox: ${mailboxId}`);
-    }
-    return runner.getStatus();
+    return this.statusForMailbox(mailboxId);
   }
 
   /**
@@ -151,11 +164,7 @@ export class RunnerRegistry
    * design.md D6. Same "unknown mailbox throws" contract as `triggerNow`.
    */
   getMailboxSettings(mailboxId: string): MailboxSettings {
-    const runner = this.runners.get(mailboxId);
-    if (!runner) {
-      throw new Error(`Unknown mailbox: ${mailboxId}`);
-    }
-    return runner.getSettings();
+    return this.requireRunner(mailboxId).getSettings();
   }
 
   /**
@@ -163,11 +172,7 @@ export class RunnerRegistry
    * design.md D6. Same "unknown mailbox throws" contract as `triggerNow`.
    */
   async triggerInitFolders(mailboxId: string): Promise<void> {
-    const runner = this.runners.get(mailboxId);
-    if (!runner) {
-      throw new Error(`Unknown mailbox: ${mailboxId}`);
-    }
-    await runner.triggerInitFolders();
+    await this.requireRunner(mailboxId).triggerInitFolders();
   }
 
   /**
@@ -208,10 +213,7 @@ export class RunnerRegistry
     mailboxId: string,
     overrides: Record<string, unknown>,
   ): Promise<void> {
-    const existingRunner = this.runners.get(mailboxId);
-    if (!existingRunner) {
-      throw new Error(`Unknown mailbox: ${mailboxId}`);
-    }
+    const existingRunner = this.requireRunner(mailboxId);
 
     // Step 2 (D5): throws (ZodError) on a type error against a recognized
     // key, before anything below runs. `overrides` is always a defined
@@ -221,9 +223,7 @@ export class RunnerRegistry
     const validated =
       validateOverrides(overrides, this.pinoLogger.logger, mailboxId) ?? {};
 
-    const mailbox = this.mailboxRepository
-      .findAll()
-      .find((candidate) => candidate.id === mailboxId);
+    const mailbox = this.mailboxes.get(mailboxId);
     if (!mailbox) {
       throw new Error(`Unknown mailbox: ${mailboxId}`);
     }
@@ -255,6 +255,10 @@ export class RunnerRegistry
    * exact same "new instance, started, swapped into the map" sequence.
    */
   private restartRunner(mailbox: Mailbox): void {
+    this.startRunner(mailbox);
+  }
+
+  private startRunner(mailbox: Mailbox): void {
     const newRunner = new MailboxRunner(
       mailbox,
       this.folderInitService,
@@ -276,6 +280,28 @@ export class RunnerRegistry
     this.runners.set(mailbox.id, newRunner);
   }
 
+  private statusForMailbox(mailboxId: string): MailboxRunnerStatus {
+    if (!this.mailboxes.has(mailboxId)) {
+      throw new Error(`Unknown mailbox: ${mailboxId}`);
+    }
+    const runner = this.runners.get(mailboxId);
+    if (!runner) {
+      return { mailboxId, enabled: false };
+    }
+    return { enabled: true, ...runner.getStatus() };
+  }
+
+  private requireRunner(mailboxId: string): MailboxRunner {
+    if (!this.mailboxes.has(mailboxId)) {
+      throw new Error(`Unknown mailbox: ${mailboxId}`);
+    }
+    const runner = this.runners.get(mailboxId);
+    if (!runner) {
+      throw new Error(`Unknown mailbox: ${mailboxId}`);
+    }
+    return runner;
+  }
+
   /**
    * Stops the mailbox's runner, runs `fn`, then always starts a fresh
    * runner for it - even when `fn` throws, so a failed external write never
@@ -292,13 +318,8 @@ export class RunnerRegistry
     mailboxId: string,
     fn: () => Promise<T>,
   ): Promise<T> {
-    const existingRunner = this.runners.get(mailboxId);
-    if (!existingRunner) {
-      throw new Error(`Unknown mailbox: ${mailboxId}`);
-    }
-    const mailbox = this.mailboxRepository
-      .findAll()
-      .find((candidate) => candidate.id === mailboxId);
+    const existingRunner = this.requireRunner(mailboxId);
+    const mailbox = this.mailboxes.get(mailboxId);
     if (!mailbox) {
       throw new Error(`Unknown mailbox: ${mailboxId}`);
     }

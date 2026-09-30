@@ -127,6 +127,29 @@ describe('AppConfigSchema', () => {
       expect(asConfig(result.data).MAILBOXES[0].imapTls).toBe(false);
     });
 
+    test('MAILBOX_1_ENABLED defaults to true and parses false/true explicitly', () => {
+      const unset = AppConfigSchema.safeParse(requiredOnlyEnv());
+      expect(unset.success).toBe(true);
+      if (!unset.success) return;
+      expect(asConfig(unset.data).MAILBOXES[0].enabled).toBe(true);
+
+      const disabled = AppConfigSchema.safeParse({
+        ...requiredOnlyEnv(),
+        MAILBOX_1_ENABLED: 'false',
+      });
+      expect(disabled.success).toBe(true);
+      if (!disabled.success) return;
+      expect(asConfig(disabled.data).MAILBOXES[0].enabled).toBe(false);
+
+      const enabled = AppConfigSchema.safeParse({
+        ...requiredOnlyEnv(),
+        MAILBOX_1_ENABLED: 'true',
+      });
+      expect(enabled.success).toBe(true);
+      if (!enabled.success) return;
+      expect(asConfig(enabled.data).MAILBOXES[0].enabled).toBe(true);
+    });
+
     test('AI_ENABLED is true only when explicitly set to "true"', () => {
       const result = AppConfigSchema.safeParse({
         ...requiredOnlyEnv(),

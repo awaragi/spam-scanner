@@ -1,4 +1,12 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Put,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RunnerRegistry } from '../../runtime/runner-registry.js';
 import type { MailboxRunnerStatus } from '../../runtime/mailbox-runner.js';
@@ -13,6 +21,11 @@ import {
 } from '../../config/app-config.js';
 import { HealthService, type HealthReport } from '../health/health.service.js';
 import { AdminGuard } from '../common/guards/admin.guard.js';
+import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
+import {
+  mailboxEnabledSchema,
+  type MailboxEnabledBody,
+} from '../mailbox/mailbox-enabled.schema.js';
 
 /** `GET /admin/settings`'s shape - every non-secret field from every config section. */
 export interface AdminSettings {
@@ -79,6 +92,30 @@ export class AdminController {
   @Get('mailboxes')
   getMailboxes(): MailboxRunnerStatus[] {
     return this.runnerRegistry.getStatus().mailboxes;
+  }
+
+  @Put('mailboxes/:mailboxId/enabled')
+  async setMailboxEnabled(
+    @Param('mailboxId') mailboxId: string,
+    @Body(new ZodValidationPipe(mailboxEnabledSchema))
+    body: MailboxEnabledBody,
+  ): Promise<{ updated: true }> {
+    try {
+      if (body.enabled) {
+        this.runnerRegistry.enableMailbox(mailboxId);
+      } else {
+        await this.runnerRegistry.disableMailbox(mailboxId);
+      }
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.startsWith('Unknown mailbox:')
+      ) {
+        throw new NotFoundException(error.message);
+      }
+      throw error;
+    }
+    return { updated: true };
   }
 
   @Get('health')
