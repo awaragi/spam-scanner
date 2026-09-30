@@ -4,7 +4,11 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { pathToFileURL } from 'url';
 import { configGroups } from '../server/src/config/app-config.schema.ts';
-import { diffEnvValues, renderEnvFile } from 'shared/utils';
+import {
+  diffEnvValues,
+  renderEnvFile,
+  type RenderEnvFileOptions,
+} from 'shared/utils';
 
 /**
  * Renders an env file from `configGroups` (see `app-config.schema.ts`) - the
@@ -26,13 +30,31 @@ import { diffEnvValues, renderEnvFile } from 'shared/utils';
  * (rather than through a `shared`-style package export) is a deliberate,
  * narrow exception - see this change's design.md D3.
  */
-export function generateEnv(outputPath: string, inputPath?: string): void {
+export interface GenerateEnvOptions extends RenderEnvFileOptions {
+  outputPath?: string;
+  inputPath?: string;
+}
+
+export function generateEnv({
+  outputPath,
+  inputPath,
+  ...renderOptions
+}: GenerateEnvOptions = {}): void {
   const values = inputPath
     ? parseEnvFile(readFileSync(inputPath, 'utf-8'))
     : {};
+  const rendered = renderEnvFile(configGroups, values, renderOptions);
 
-  writeFileSync(outputPath, renderEnvFile(configGroups, values));
-  console.log(`Wrote ${outputPath}`);
+  // With no output path the env content goes to stdout, so every status
+  // message below goes to stderr to keep stdout pipeable.
+  let log = console.error;
+  if (outputPath) {
+    writeFileSync(outputPath, rendered);
+    log = console.log;
+    log(`Wrote ${outputPath}`);
+  } else {
+    process.stdout.write(rendered);
+  }
 
   if (!inputPath) {
     return;
@@ -41,16 +63,16 @@ export function generateEnv(outputPath: string, inputPath?: string): void {
   // Key names only - never print a value read from the input file.
   const { defaultedKeys, unknownKeys } = diffEnvValues(configGroups, values);
   if (defaultedKeys.length > 0) {
-    console.log(
+    log(
       `\nNot set in ${inputPath} - fell back to default (review and adjust manually if needed):`,
     );
-    defaultedKeys.forEach((key) => console.log(`  - ${key}`));
+    defaultedKeys.forEach((key) => log(`  - ${key}`));
   }
   if (unknownKeys.length > 0) {
-    console.log(
-      `\nIn ${inputPath} but not a known config variable (possibly renamed or removed):`,
+    log(
+      `\nIn ${inputPath} but not a known config variable - copied through unchanged, not validated (e.g. docker-compose-only keys; otherwise possibly renamed or removed):`,
     );
-    unknownKeys.forEach((key) => console.log(`  - ${key}`));
+    unknownKeys.forEach((key) => log(`  - ${key}`));
   }
 }
 
@@ -60,7 +82,9 @@ const isMainModule =
 
 if (isMainModule) {
   const argv = await yargs(hideBin(process.argv))
-    .usage('Usage: $0 --output <path> [--input <path>]')
+    .usage(
+      'Usage: $0 [--output <path>] [--input <path>] [--skip-defaults] [--skip-comments]',
+    )
     .option('input', {
       type: 'string',
       describe:
@@ -68,12 +92,26 @@ if (isMainModule) {
     })
     .option('output', {
       type: 'string',
-      demandOption: true,
       describe:
-        'Path to write the rendered env file to, relative to the current working directory.',
+        'Path to write the rendered env file to, relative to the current working directory. When omitted, the result is printed to the console.',
+    })
+    .option('skip-defaults', {
+      type: 'boolean',
+      default: false,
+      describe: 'Only output the values that differ from the schema defaults.',
+    })
+    .option('skip-comments', {
+      type: 'boolean',
+      default: false,
+      describe: 'Omit group titles and variable descriptions.',
     })
     .strict()
     .help().argv;
 
-  generateEnv(argv.output, argv.input);
+  generateEnv({
+    outputPath: argv.output,
+    inputPath: argv.input,
+    skipDefaults: argv['skip-defaults'],
+    skipComments: argv['skip-comments'],
+  });
 }

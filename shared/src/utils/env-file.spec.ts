@@ -137,6 +137,38 @@ describe('env-file-util', () => {
     });
   });
 
+  describe('renderEnvFile with extra keys and options', () => {
+    const groups = [
+      {
+        title: 'G',
+        schema: z.object({
+          FOO: z.string().default('bar').describe('Foo.'),
+          BAZ: z.string().default('x'),
+        }),
+      },
+    ];
+
+    it('copies keys unknown to the schema through in a trailing section', () => {
+      expect(
+        renderEnvFile(groups, { EXTRA: '/p' }, { skipComments: true }),
+      ).toBe('FOO=bar\nBAZ=x\n\nEXTRA=/p\n');
+    });
+
+    it('skipDefaults keeps only changed keys and still keeps extras', () => {
+      expect(
+        renderEnvFile(
+          groups,
+          { FOO: 'bar', BAZ: 'y', EXTRA: '1' },
+          { skipDefaults: true, skipComments: true },
+        ),
+      ).toBe('BAZ=y\n\nEXTRA=1\n');
+    });
+
+    it('skipDefaults drops a group with no changed keys, and its title', () => {
+      expect(renderEnvFile(groups, {}, { skipDefaults: true })).toBe('');
+    });
+  });
+
   describe('diffEnvValues', () => {
     it('lists keys absent from `values` as defaulted', () => {
       const groups = [

@@ -14,4 +14,5 @@ export {
 } from './email-parser.js';
 export { dateToString } from './email.js';
 export { renderEnvFile, diffEnvValues } from './env-file.js';
+export type { RenderEnvFileOptions } from './env-file.js';
 export { splitFolderParts, collectFoldersToCreate } from './mailboxes.js';

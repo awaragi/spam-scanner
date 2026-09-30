@@ -113,7 +113,11 @@ force test changes.
   after changing the schema instead of editing `.env.example` by hand.
 - `npm run generate:env -- --input <old> --output <new>` — rewrites an
   existing server env file onto the current schema, keeping its values and
-  listing defaulted and unknown keys.
+  listing defaulted and unknown keys. Unknown keys (e.g. docker-compose-only
+  `SPAM_SCANNER_DATA`) are copied through unchanged, never validated. Extra
+  flags: omit `--output` to print to the console (status goes to stderr),
+  `--skip-defaults` to emit only values that differ from the schema defaults,
+  `--skip-comments` to drop group titles and descriptions.
 - `npm run eval-prompt -- --prompt <file> --reports <folder> [--ham <folder>]
   [--marketing <folder>] [--spam <folder>]` — offline AI-prompt evaluation:
   scores a labeled `.eml` dataset against a system prompt supplied as a text
