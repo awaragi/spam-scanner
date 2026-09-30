@@ -14,7 +14,7 @@ import {
  * Renders an env file from `configGroups` (see `app-config.schema.ts`) - the
  * single source of truth for every key's default and documentation.
  *
- * With no `inputPath`, this renders `server/.env.example`: run it after
+ * With no `inputPath`, this renders the repo-root `.env.example`: run it after
  * changing `configGroups` instead of hand-editing the example file, so the
  * two can't drift (see the drift test in
  * `app-config.schema.env-example.spec.ts`).

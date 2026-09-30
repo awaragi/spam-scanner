@@ -17,7 +17,7 @@
     "mock-rspamd": "node bin/local/mock-rspamd.mjs",
     "front:start": "npm start --workspace=front",
     "generate:env": "node bin/generate-env.ts",
-    "generate:env-example": "node bin/generate-env.ts --output server/.env.example",
+    "generate:env-example": "node bin/generate-env.ts --output .env.example",
     "eval-prompt": "node bin/eval-prompt.ts"
   },
   "devDependencies": {

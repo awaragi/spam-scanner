@@ -75,7 +75,7 @@ capabilities rather than introducing a new one.
   endpoint; extend mailbox listing/health responses.
 - `server/src/api/mailbox/mailbox.controller.ts` — mailbox-scoped
   enable/disable endpoint.
-- `server/.env.example` — regenerated via `npm run generate:env-example`.
+- repo-root `.env.example` — regenerated via `npm run generate:env-example`.
 - `front/src/app/pages/admin/admin.component.ts`,
   `front/src/app/pages/mailbox/mailbox.component.ts`,
   `front/src/app/core/api.service.ts` — enable/disable button and API call.

@@ -56,7 +56,7 @@ The file `bin/local/docker-compose.yml` SHALL replace `rspamd/docker-compose.yml
 
 ### Requirement: SPAM_SCANNER_DATA documented in env example
 
-The `.env.example` file SHALL include `SPAM_SCANNER_DATA` with a comment noting that `~` is not expanded by Docker Compose and an absolute path MUST be used.
+The repo-root `.env.example` file SHALL include `SPAM_SCANNER_DATA` with a comment noting that it is used by docker-compose only (the server never reads or validates it), that `~` is not expanded by Docker Compose, and that an absolute path MUST be used. The file is generated from the server's `configGroups` (where `SPAM_SCANNER_DATA` is a docs-only group) via `npm run generate:env-example`; there is no separate `server/.env.example`.
 
 #### Scenario: Developer follows example to configure data path
 

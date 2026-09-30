@@ -10,8 +10,8 @@
   `"false"` → `enabled: false`, `"true"` → `enabled: true`.
 - [x] 1.2 Add `enabled` to the `mailboxDocGroup` template in the same file
   so it is documented in the generated example file, then run
-  `npm run generate:env-example -w server` and verify
-  `server/.env.example` picks up `MAILBOX_1_ENABLED` /
+  `npm run generate:env-example` and verify
+  the repo-root `.env.example` picks up `MAILBOX_1_ENABLED` /
   `MAILBOX_2_ENABLED` with its default and description.
 
 ## 2. Mailbox registry

@@ -332,6 +332,26 @@ const apiGroup: ConfigGroupDef = {
 };
 
 /**
+ * `.env.example` documentation only: variables consumed by docker-compose,
+ * not by the server. Like `mailboxDocGroup`, it is deliberately NOT merged
+ * into `AppConfigSchema`, so the server neither reads nor validates it.
+ */
+const dockerComposeDocGroup: ConfigGroupDef = {
+  title: 'Docker Compose (not read or validated by the server)',
+  schema: z.object({
+    SPAM_SCANNER_DATA: z
+      .string()
+      .default('/absolute/path/to/.spam-scanner')
+      .describe(
+        `SPAM_SCANNER_DATA: used by docker-compose.yml only - the server never reads it.
+External data directory bind-mounted for rspamd state, logs and the Redis Bayes corpus.
+IMPORTANT: use an absolute path - Docker Compose does not expand ~
+Example: SPAM_SCANNER_DATA=/home/youruser/.spam-scanner`,
+      ),
+  }),
+};
+
+/**
  * `.env.example` documentation only. The real mailbox connection info is
  * parsed and validated dynamically (see `MailboxesSchema` below): it scans
  * whatever `MAILBOX_<n>_*` keys are actually present, for however large `n`
@@ -668,11 +688,13 @@ const nonMailboxGroups: ConfigGroupDef[] = [
 /**
  * Every config group, in `.env.example` file order. Exported so
  * `bin/generate-env.ts` can render `.env.example` directly from it.
- * `mailboxDocGroup` is documentation only (see its own doc comment) - real
+ * `dockerComposeDocGroup` and `mailboxDocGroup` are documentation only (see
+ * their own doc comments) - real
  * mailbox validation is `MailboxesSchema`, merged into `AppConfigSchema`
  * separately below rather than through this array.
  */
 export const configGroups: ConfigGroupDef[] = [
+  dockerComposeDocGroup,
   ...nonMailboxGroups,
   mailboxDocGroup,
 ];

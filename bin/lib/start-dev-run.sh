@@ -11,7 +11,7 @@ launch_dev_stack() {
 
   if [ ! -f "${REPO_ROOT}/.env" ]; then
     print_error ".env not found at ${REPO_ROOT}/.env"
-    print_error "Copy server/.env.example values into a repo-root .env before starting."
+    print_error "Copy .env.example to a repo-root .env before starting."
     exit 1
   fi
 
