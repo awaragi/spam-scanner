@@ -259,6 +259,17 @@ export class RunnerRegistry
   }
 
   private startRunner(mailbox: Mailbox): void {
+    // `this.pinoLogger.logger` is ambient-context-aware: called while an
+    // admin HTTP request is in flight (e.g. the enable-mailbox endpoint),
+    // it would return a logger already bound to that one request's
+    // metadata, which the runner would then keep on every log line for its
+    // entire lifetime. `runInContext` (with the default `inherit: false`)
+    // detaches from whatever request context is currently active and hands
+    // back the plain root logger instead, matching the clean logger runners
+    // already get when started at bootstrap (no request in flight there).
+    const runnerLogger = this.pinoLogger.runInContext(
+      () => this.pinoLogger.logger,
+    );
     const newRunner = new MailboxRunner(
       mailbox,
       this.folderInitService,
@@ -266,7 +277,7 @@ export class RunnerRegistry
       this.senderListTrainingService,
       this.scanService,
       this.scanConfig,
-      this.pinoLogger.logger,
+      runnerLogger,
     );
     void newRunner.start().catch((error: unknown) => {
       this.pinoLogger.error(

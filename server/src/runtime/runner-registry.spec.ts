@@ -113,6 +113,7 @@ function fixturePinoLogger(): {
     warn: vi.fn(),
     error: pinoLoggerError,
     fatal: vi.fn(),
+    runInContext: vi.fn((fn: () => unknown) => fn()),
   } as unknown as PinoLogger;
   return { pinoLogger, pinoLoggerError };
 }
