@@ -77,7 +77,7 @@ export class AiClassificationStep {
         maxInputTokens: this.aiConfig.maxInputTokens,
       });
       const { score, reasoning } = await this.ai.classifyEmail(content);
-      session.logger.info(
+      session.logger.debug(
         { uid: message.uid, ...identity, score, reasoning },
         'AI classification completed',
       );
