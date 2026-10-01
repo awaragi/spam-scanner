@@ -664,19 +664,34 @@ export class MailboxRunner {
    * attempt - `4-mailbox-settings-email` design.md D4's closure of the gap
    * left by `3-mailbox-runners`: a mailbox that can't yet connect/load
    * settings must stay degraded and keep retrying, not stop trying forever.
-   * On the first successful `bootstrap()`, starts the global interval (task
-   * 3.2/D7) plus - only when `mode === 'idle'` - the dedicated IDLE loop
-   * (task 3.3/D6), then returns. `stop()` called mid-retry is checked both
-   * right after `bootstrap()` resolves and via `sleep()`'s own abort
-   * handling, so shutdown during a bootstrap retry does not wait out a full
-   * backoff delay nor attempt one more bootstrap. Resolves without throwing
-   * on bootstrap failure so `RunnerRegistry` (task group 4) can start every
-   * mailbox's runner independently via `Promise.all`.
+   * On the first successful `bootstrap()`, runs one full cycle immediately
+   * (all four training jobs, then `scan`, via `runIntervalTick()`) before
+   * starting the global interval (task 3.2/D7) or - only when `mode ===
+   * 'idle'` - the dedicated IDLE loop (task 3.3/D6). This mirrors the old
+   * terminal orchestrator (`orchestration` spec's "one-time init phase" /
+   * "poll loop" requirements), which always ran a full cycle before its
+   * first wait, whether that wait was the poll interval or IDLE. Without
+   * it, a mailbox that was disabled (or whose process just restarted) sits
+   * straight in `waitForNewMail` with no `scanLastUid` yet to catch up
+   * against (`inbox.watcher.ts`'s pre-IDLE catch-up only fires once a
+   * number is there to compare), so a backlog accumulated while not running
+   * would otherwise go unprocessed until either new mail arrives or the
+   * interval's own safety-net tick - up to `scanIntervalSeconds` later -
+   * fires. `stop()` called mid-retry is checked both right after
+   * `bootstrap()` resolves and via `sleep()`'s own abort handling, so
+   * shutdown during a bootstrap retry does not wait out a full backoff delay
+   * nor attempt one more bootstrap; `stop()` called during the initial cycle
+   * itself is checked right after, so a shutdown mid-cycle skips starting
+   * the interval/IDLE loop. Resolves without throwing on bootstrap failure
+   * so `RunnerRegistry` (task group 4) can start every mailbox's runner
+   * independently via `Promise.all`.
    */
   async start(): Promise<void> {
     while (!this.stopped) {
       const result = await this.bootstrap();
       if (result) {
+        await this.runIntervalTick();
+        if (this.stopped) return;
         this.startInterval();
         if (this.mode === 'idle') {
           void this.runIdleLoop(result.folders.inbox);

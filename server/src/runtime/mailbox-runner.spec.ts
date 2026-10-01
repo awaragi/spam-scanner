@@ -533,9 +533,11 @@ describe('MailboxRunner', () => {
 
       await runner.start();
 
-      // One logout for the bootstrap connection - the IDLE loop's own
-      // dedicated connection (task 3.3) is separate and stays open.
-      expect(mockSafeLogout).toHaveBeenCalledTimes(1);
+      // One logout for the bootstrap connection, plus one each for the five
+      // job sessions `start()`'s own post-bootstrap cycle now runs (4
+      // training + 1 scan) before returning - the IDLE loop's own dedicated
+      // connection (task 3.3) is separate and stays open.
+      expect(mockSafeLogout).toHaveBeenCalledTimes(6);
 
       void runner.stop();
     });
@@ -698,22 +700,26 @@ describe('MailboxRunner', () => {
       expect(mockNewClient).toHaveBeenCalledTimes(2);
 
       // backoffMs(2) === 2 ** 2 * 1000 = 4000ms - strictly longer than the
-      // first backoff, and no 3rd attempt before it elapses.
+      // first backoff, and no 3rd attempt before it elapses. That 3rd
+      // attempt succeeds, so this same tick also runs start()'s post-
+      // bootstrap cycle (4 training sessions + 1 scan session) before
+      // start() resolves - 3 bootstrap attempts + 5 cycle sessions = 8.
       await vi.advanceTimersByTimeAsync(3999);
       expect(mockNewClient).toHaveBeenCalledTimes(2);
       await vi.advanceTimersByTimeAsync(1);
-      expect(mockNewClient).toHaveBeenCalledTimes(3);
+      expect(mockNewClient).toHaveBeenCalledTimes(8);
 
       await startPromise;
 
       expect(runner.getStatus().state).toBe('running');
       expect(runner.getStatus().mode).toBe('loop');
-      // The interval has not started yet at this point - no tick has fired.
-      expect(runSpam).not.toHaveBeenCalled();
+      // start()'s own post-bootstrap cycle already ran once by the time it
+      // resolves - the interval itself has not fired yet.
+      expect(runSpam).toHaveBeenCalledTimes(1);
 
       // The interval only starts once bootstrap finally succeeded.
       await vi.advanceTimersByTimeAsync(5000);
-      expect(runSpam).toHaveBeenCalledTimes(1);
+      expect(runSpam).toHaveBeenCalledTimes(2);
 
       void runner.stop();
     });
@@ -791,13 +797,20 @@ describe('MailboxRunner', () => {
       await runner.start();
       expect(runner.getStatus().mode).toBe('loop');
 
-      await vi.advanceTimersByTimeAsync(5000);
-
+      // start()'s own post-bootstrap cycle already ran all five once.
       expect(runSpam).toHaveBeenCalledTimes(1);
       expect(runHam).toHaveBeenCalledTimes(1);
       expect(runWhitelist).toHaveBeenCalledTimes(1);
       expect(runBlacklist).toHaveBeenCalledTimes(1);
       expect(runScan).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(5000);
+
+      expect(runSpam).toHaveBeenCalledTimes(2);
+      expect(runHam).toHaveBeenCalledTimes(2);
+      expect(runWhitelist).toHaveBeenCalledTimes(2);
+      expect(runBlacklist).toHaveBeenCalledTimes(2);
+      expect(runScan).toHaveBeenCalledTimes(2);
 
       void runner.stop();
     });
@@ -830,13 +843,20 @@ describe('MailboxRunner', () => {
       await runner.start();
       expect(runner.getStatus().mode).toBe('idle');
 
-      await vi.advanceTimersByTimeAsync(5000);
-
+      // start()'s own post-bootstrap cycle already ran all five once.
       expect(runSpam).toHaveBeenCalledTimes(1);
       expect(runHam).toHaveBeenCalledTimes(1);
       expect(runWhitelist).toHaveBeenCalledTimes(1);
       expect(runBlacklist).toHaveBeenCalledTimes(1);
       expect(runScan).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(5000);
+
+      expect(runSpam).toHaveBeenCalledTimes(2);
+      expect(runHam).toHaveBeenCalledTimes(2);
+      expect(runWhitelist).toHaveBeenCalledTimes(2);
+      expect(runBlacklist).toHaveBeenCalledTimes(2);
+      expect(runScan).toHaveBeenCalledTimes(2);
 
       void runner.stop();
     });
@@ -849,13 +869,16 @@ describe('MailboxRunner', () => {
       const { runner, runSpam } = buildRunner({ scanIntervalSeconds: 5 });
 
       await runner.start();
-      await vi.advanceTimersByTimeAsync(5000);
+      // start()'s own post-bootstrap cycle already ran runSpam once.
       expect(runSpam).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(runSpam).toHaveBeenCalledTimes(2);
 
       void runner.stop();
       await vi.advanceTimersByTimeAsync(20000);
 
-      expect(runSpam).toHaveBeenCalledTimes(1);
+      expect(runSpam).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -877,8 +900,11 @@ describe('MailboxRunner', () => {
 
       await runner.start();
       expect(runner.getStatus().mode).toBe('idle');
+      // start()'s own post-bootstrap cycle already ran scan once before the
+      // IDLE loop ever started.
+      expect(runScan).toHaveBeenCalledTimes(1);
 
-      await vi.waitFor(() => expect(runScan).toHaveBeenCalledTimes(2));
+      await vi.waitFor(() => expect(runScan).toHaveBeenCalledTimes(3));
       await vi.waitFor(() =>
         expect(mockWaitForNewMail).toHaveBeenCalledTimes(3),
       );
@@ -889,27 +915,40 @@ describe('MailboxRunner', () => {
 
       // The pending (3rd) wait resolves via the abort signal `stop()` fires,
       // and the loop sees `stopped` and exits without an extra scan or a
-      // reconnect attempt: 1 bootstrap connection + 1 dedicated IDLE
-      // connection + one fresh session per `runScan()` call (design.md D4 -
-      // each job opens/closes its own connection, including when triggered
-      // by IDLE) = 4 connections total, each logged out exactly once.
-      await vi.waitFor(() => expect(mockSafeLogout).toHaveBeenCalledTimes(4));
-      expect(runScan).toHaveBeenCalledTimes(2);
-      expect(mockNewClient).toHaveBeenCalledTimes(4);
+      // reconnect attempt: 1 bootstrap connection + 4 training sessions + 1
+      // scan session from start()'s own post-bootstrap cycle + 1 dedicated
+      // IDLE connection + one fresh session per IDLE-triggered `runScan()`
+      // call (design.md D4 - each job opens/closes its own connection) = 9
+      // connections total, each logged out exactly once.
+      await vi.waitFor(() => expect(mockSafeLogout).toHaveBeenCalledTimes(9));
+      expect(runScan).toHaveBeenCalledTimes(3);
+      expect(mockNewClient).toHaveBeenCalledTimes(9);
     });
 
-    test('passes scan last_uid into waitForNewMail after a successful scan', async () => {
+    /**
+     * This is the regression test for the bug the startup catch-up cycle
+     * fixes: before `start()` ran a cycle immediately, the very first
+     * `waitForNewMail` call of a fresh process/newly-enabled mailbox went
+     * out with `lastUid: undefined` (no scan had run yet in this process),
+     * so `inbox.watcher.ts`'s pre-IDLE catch-up check could never fire - a
+     * backlog accumulated while the mailbox was disabled sat unprocessed
+     * until either new mail arrived or the interval safety net eventually
+     * caught it. Now the startup cycle's own scan runs first and seeds
+     * `scanLastUid`, so even this first wait call already carries it.
+     */
+    test('passes scan last_uid into waitForNewMail, already seeded by the startup catch-up scan', async () => {
       mockNewClient.mockImplementation(() =>
         fixtureImap({ capabilities: capabilitiesWithIdle() }),
       );
       mockWaitForNewMail
-        .mockResolvedValueOnce(undefined)
-        .mockImplementationOnce(pendingWaitForNewMail);
+        .mockResolvedValueOnce(undefined) // 1st EXISTS
+        .mockImplementationOnce(pendingWaitForNewMail); // then sits idle
 
       const runScan = vi
         .fn()
-        .mockResolvedValueOnce({ processed: 1, last_uid: 42 })
-        .mockResolvedValue({ processed: 0, last_uid: 42 });
+        .mockResolvedValueOnce({ processed: 3, last_uid: 42 }) // startup cycle's own scan
+        .mockResolvedValueOnce({ processed: 1, last_uid: 50 }) // triggered by the 1st EXISTS
+        .mockResolvedValue({ processed: 0, last_uid: 50 });
 
       const { runner } = buildRunner({
         scanIntervalSeconds: 999_999,
@@ -918,15 +957,17 @@ describe('MailboxRunner', () => {
 
       await runner.start();
 
-      await vi.waitFor(() => expect(runScan).toHaveBeenCalledTimes(1));
+      expect(runScan).toHaveBeenCalledTimes(1);
       expect(mockWaitForNewMail.mock.calls[0]?.[2]).toEqual(
         expect.objectContaining({
-          lastUid: undefined,
+          lastUid: 42,
           logger: expect.any(Object),
         }),
       );
+
+      await vi.waitFor(() => expect(runScan).toHaveBeenCalledTimes(2));
       expect(mockWaitForNewMail.mock.calls[1]?.[2]).toEqual(
-        expect.objectContaining({ lastUid: 42 }),
+        expect.objectContaining({ lastUid: 50 }),
       );
 
       void runner.stop();
@@ -953,17 +994,18 @@ describe('MailboxRunner', () => {
       await vi.waitFor(() =>
         expect(mockWaitForNewMail).toHaveBeenCalledTimes(1),
       );
-      // The dedicated IDLE connection opened once for that failed attempt,
-      // on top of the bootstrap connection.
-      expect(mockNewClient).toHaveBeenCalledTimes(2);
+      // 1 bootstrap connection + 5 sessions from start()'s own post-
+      // bootstrap cycle (4 training + 1 scan) + 1 dedicated IDLE connection
+      // opened for that failed attempt.
+      expect(mockNewClient).toHaveBeenCalledTimes(7);
 
       // Still within backoffMs(1) === 2 ** 1 * 1000ms - no reconnect yet.
       await vi.advanceTimersByTimeAsync(1000);
-      expect(mockNewClient).toHaveBeenCalledTimes(2);
+      expect(mockNewClient).toHaveBeenCalledTimes(7);
       expect(runner.getStatus().mode).toBe('idle');
 
       // Cross the backoff window - the IDLE connection is re-opened.
-      await vi.waitFor(() => expect(mockNewClient).toHaveBeenCalledTimes(3), {
+      await vi.waitFor(() => expect(mockNewClient).toHaveBeenCalledTimes(8), {
         timeout: 5000,
       });
       await vi.waitFor(
