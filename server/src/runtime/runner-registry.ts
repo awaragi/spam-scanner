@@ -85,13 +85,67 @@ export class RunnerRegistry
    * one mailbox's runner SHALL NOT affect any other mailbox's runner, and
    * SHALL NOT stop the server process".
    */
-  onApplicationBootstrap(): void {
-    for (const mailbox of this.mailboxRepository.findAll()) {
+  async onApplicationBootstrap(): Promise<void> {
+    const mailboxes = await this.mailboxRepository.findAll();
+    for (const mailbox of mailboxes) {
       this.mailboxes.set(mailbox.id, mailbox);
       if (mailbox.enabled) {
         this.startRunner(mailbox);
       }
     }
+  }
+
+  /**
+   * Adds a brand-new account to the live registry - `AccountAdminService`
+   * calls this after a successful create (`persistent-mailbox-accounts`
+   * design.md D4 step 6, the `server/mailbox-runtime` spec's "New account
+   * starts a runner without process restart" scenario). Starts a runner
+   * immediately when `mailbox.enabled` is true; otherwise just makes the
+   * mailbox known (so e.g. a later enable finds it).
+   */
+  registerAccount(mailbox: Mailbox): void {
+    this.mailboxes.set(mailbox.id, mailbox);
+    if (mailbox.enabled) {
+      this.startRunner(mailbox);
+    }
+  }
+
+  /**
+   * Replaces an existing account's connection/`aiEnabled` snapshot in the
+   * live registry - `server/mailbox-runtime`'s "Account updates restart the
+   * affected runner when needed" requirement. Stops the mailbox's current
+   * runner (if any) and awaits that stop before swapping in the new
+   * `Mailbox` and (when still enabled) starting a fresh runner against it -
+   * the same "never let the old runner's last job race the new runner's
+   * first job" guarantee `updateSettings` already provides.
+   */
+  async updateAccount(mailbox: Mailbox): Promise<void> {
+    const existingRunner = this.runners.get(mailbox.id);
+    if (existingRunner) {
+      await existingRunner.stop();
+      this.runners.delete(mailbox.id);
+    }
+    this.mailboxes.set(mailbox.id, mailbox);
+    if (mailbox.enabled) {
+      this.startRunner(mailbox);
+    }
+  }
+
+  /**
+   * Removes an account from the live registry entirely -
+   * `server/mailbox-runtime`'s "Removing an account stops its runner"
+   * scenario. Stops the runner (if any) and awaits that stop before
+   * deleting both the runner and mailbox map entries, so every subsequent
+   * lookup (`triggerNow`, `getMailboxStatus`, ...) for this id throws the
+   * same "Unknown mailbox" error it would for an id that never existed.
+   */
+  async removeAccount(mailboxId: string): Promise<void> {
+    const runner = this.runners.get(mailboxId);
+    if (runner) {
+      await runner.stop();
+      this.runners.delete(mailboxId);
+    }
+    this.mailboxes.delete(mailboxId);
   }
 
   /**

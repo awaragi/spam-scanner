@@ -4,12 +4,15 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   NotFoundException,
   Param,
   Post,
   Put,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RunnerRegistry } from '../../runtime/runner-registry.js';
 import type { MailboxRunnerStatus } from '../../runtime/mailbox-runner.js';
@@ -18,9 +21,11 @@ import {
   MailboxAdminService,
   type SenderListKind,
 } from '../../application/mailbox-admin/mailbox-admin.service.js';
+import { AccountAdminService } from '../../application/accounts/account-admin.service.js';
 import type { ScannerState } from 'shared/state';
 import { MailboxScopeGuard } from '../common/guards/mailbox-scope.guard.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
+import { etagFor, requireIfMatchVersion } from '../common/http-exceptions.js';
 import { resolveJobName } from './job-name.js';
 import {
   settingsUpdateSchema,
@@ -102,6 +107,7 @@ export class MailboxController {
   constructor(
     private readonly runnerRegistry: RunnerRegistry,
     private readonly mailboxAdminService: MailboxAdminService,
+    private readonly accountAdminService: AccountAdminService,
   ) {}
 
   @Post('jobs/:job/trigger')
@@ -137,19 +143,48 @@ export class MailboxController {
     );
   }
 
+  /**
+   * The mailbox owner's own version of `AdminController.setMailboxEnabled`
+   * (`server/mailbox-api`'s "A mailbox token holder can enable or disable
+   * only its own mailbox's runner with persistence" requirement) - scope is
+   * already enforced by `@UseGuards(MailboxScopeGuard)` on this whole
+   * controller (a mailbox token can only ever reach its own `:mailboxId`
+   * routes), so this handler itself needs no extra ownership check.
+   */
+  @Get('enabled')
+  async getEnabled(
+    @Param('mailboxId') mailboxId: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ enabled: boolean }> {
+    const { enabled, version } =
+      await this.accountAdminService.getEnabledState(mailboxId);
+    res.setHeader('ETag', etagFor(version));
+    return { enabled };
+  }
+
   @Put('enabled')
   async setEnabled(
     @Param('mailboxId') mailboxId: string,
     @Body(new ZodValidationPipe(mailboxEnabledSchema))
     body: MailboxEnabledBody,
+    @Headers('if-match') ifMatch: string | undefined,
+    @Res({ passthrough: true }) res: Response,
   ): Promise<{ updated: true }> {
-    await withUnknownMailboxAsNotFoundAsync(async () => {
-      if (body.enabled) {
-        this.runnerRegistry.enableMailbox(mailboxId);
-      } else {
-        await this.runnerRegistry.disableMailbox(mailboxId);
-      }
-    });
+    const expectedVersion = requireIfMatchVersion(ifMatch);
+    const { listing } = await this.accountAdminService.setEnabled(
+      mailboxId,
+      body.enabled,
+      expectedVersion,
+    );
+    // Design.md D4 step 6: enable/disable syncs through the registry's
+    // existing enable/disable methods - see `AdminController`'s identical
+    // handler for the same reasoning.
+    if (body.enabled) {
+      this.runnerRegistry.enableMailbox(mailboxId);
+    } else {
+      await this.runnerRegistry.disableMailbox(mailboxId);
+    }
+    res.setHeader('ETag', etagFor(listing.version));
     return { updated: true };
   }
 

@@ -1,6 +1,6 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { ApiService } from '../../core/api.service';
+import { ApiService, parseEtagVersion } from '../../core/api.service';
 import { clearMailboxSession, getMailboxId, getMailboxToken } from '../../core/auth-storage';
 import { SenderListPanelComponent } from './sender-list-panel.component';
 
@@ -22,7 +22,7 @@ const JOBS = [
       <button type="button" (click)="backToAdmin()">Back to admin</button>
       <button type="button" (click)="refreshStatus()">GET status</button>
       <button type="button" (click)="toggleEnabled()">
-        {{ runnerEnabled() ? 'Disable' : 'Enable' }} mailbox (until restart)
+        {{ runnerEnabled() ? 'Disable' : 'Enable' }} mailbox
       </button>
       <button type="button" (click)="loadSettings()">GET settings</button>
       <button type="button" (click)="loadState()">GET state</button>
@@ -67,31 +67,51 @@ export class MailboxComponent implements OnInit {
   }
 
   refreshStatus(): void {
-    this.api
-      .mailboxGet<{ enabled: boolean }>(this.token(), this.mailboxId, '/status')
-      .subscribe({
-        next: (data) => {
-          this.runnerEnabled.set(data.enabled);
-          this.output.set(JSON.stringify(data, null, 2));
-        },
-        error: (err) =>
-          this.output.set(JSON.stringify(err.error ?? err.message, null, 2)),
-      });
+    this.api.mailboxGet<{ enabled: boolean }>(this.token(), this.mailboxId, '/status').subscribe({
+      next: (data) => {
+        this.runnerEnabled.set(data.enabled);
+        this.output.set(JSON.stringify(data, null, 2));
+      },
+      error: (err) => this.output.set(JSON.stringify(err.error ?? err.message, null, 2)),
+    });
   }
 
+  /**
+   * Persistent enable/disable through `AccountAdminService` on the server -
+   * survives a restart, so there's no "(until restart)" caveat any more.
+   * The mailbox owner has no access to `/admin/accounts` for a version to
+   * send as `If-Match`, so this fetches one from the mailbox-scoped
+   * `GET .../enabled` (its `ETag` response header) right before writing.
+   */
   toggleEnabled(): void {
     const next = !this.runnerEnabled();
     this.api
-      .mailboxPut<{ updated: true }>(
-        this.token(),
-        this.mailboxId,
-        '/enabled',
-        { enabled: next },
-      )
+      .mailboxGetWithEtag<{ enabled: boolean }>(this.token(), this.mailboxId, '/enabled')
       .subscribe({
-        next: () => this.refreshStatus(),
-        error: (err) =>
-          this.output.set(JSON.stringify(err.error ?? err.message, null, 2)),
+        next: ({ etag }) => {
+          const version = parseEtagVersion(etag);
+          if (version === null) {
+            this.output.set('Missing ETag on GET /enabled - cannot proceed safely.');
+            return;
+          }
+          this.api
+            .mailboxWriteWithEtag<{ updated: true }>(
+              this.token(),
+              this.mailboxId,
+              'PUT',
+              '/enabled',
+              version,
+              { enabled: next },
+            )
+            .subscribe({
+              next: () => this.refreshStatus(),
+              error: (err) => {
+                this.output.set(JSON.stringify(err.error ?? err.message, null, 2));
+                if (err.status === 409) this.refreshStatus();
+              },
+            });
+        },
+        error: (err) => this.output.set(JSON.stringify(err.error ?? err.message, null, 2)),
       });
   }
 

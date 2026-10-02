@@ -25,6 +25,67 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
+## Mailbox accounts (`accounts.json`)
+
+Mailbox connection info is **not** an environment variable any more (see
+`openspec/changes/persistent-mailbox-accounts`). Instead, the server reads
+and writes one JSON file at `${SPAM_SCANNER_DATA}/accounts.json` (defaulting
+to `~/.spam-scanner/accounts.json` when `SPAM_SCANNER_DATA` is unset) via
+`AccountStore` (`src/infrastructure/accounts/`). The admin HTTP API
+(`/admin/accounts`) is the normal way to create, edit, enable/disable, or
+delete an account; the file shape below is documented for operators who need
+to seed it by hand (e.g. migrating in a mailbox the server has never
+managed), and is validated by `accountsFileSchema`
+(`src/infrastructure/accounts/account.schema.ts`, exercised by
+`account.schema.spec.ts`).
+
+```json
+{
+  "version": 1,
+  "accounts": [
+    {
+      "id": "owner@example.com",
+      "imapHost": "imap.example.com",
+      "imapPort": 993,
+      "imapUser": "owner@example.com",
+      "imapPassword": "secret",
+      "imapTls": true,
+      "imapAllowInsecure": false,
+      "stateFolder": "INBOX.scanner.state",
+      "enabled": true,
+      "aiEnabled": true
+    },
+    {
+      "id": "second@example.com",
+      "imapHost": "imap.example.com",
+      "imapPort": 993,
+      "imapUser": "second@example.com",
+      "imapPassword": "secret-2",
+      "imapTls": true,
+      "imapAllowInsecure": false,
+      "stateFolder": "INBOX.scanner.state",
+      "enabled": true,
+      "aiEnabled": false
+    }
+  ]
+}
+```
+
+- `version` is a plain, non-negative, monotonically-increasing integer used
+  for optimistic concurrency: every write to the file bumps it by one, every
+  mutating admin API call must send it back as an `If-Match: "<version>"`
+  header, and a stale version is rejected with `409 Conflict` rather than
+  silently overwriting a concurrent change.
+- `id` is the mailbox's own email address and doubles as its rspamd user and
+  IMAP state-folder scope; it cannot be changed after creation (delete and
+  re-create instead).
+- `imapTls: false` requires `imapAllowInsecure: true` as an explicit opt-in
+  (same cross-field rule the old `MAILBOX_<n>_IMAP_TLS`/`_ALLOW_INSECURE` env
+  pair enforced).
+- `aiEnabled` is admin-only (not settable by the mailbox owner's own
+  settings API) - a mailbox only actually uses AI classification when both
+  this per-account flag and the app-wide `AI_ENABLED` are true.
+
 ## Project setup
 
 ```bash

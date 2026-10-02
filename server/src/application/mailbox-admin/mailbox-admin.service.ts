@@ -58,9 +58,9 @@ export class MailboxAdminService {
     mailboxId: string,
     fn: (imap: ImapFlow, mailbox: Mailbox) => Promise<T>,
   ): Promise<T> {
-    const mailbox = this.mailboxRepository
-      .findAll()
-      .find((candidate) => candidate.id === mailboxId);
+    const mailbox = (await this.mailboxRepository.findAll()).find(
+      (candidate) => candidate.id === mailboxId,
+    );
     if (!mailbox) {
       throw new NotFoundException(`Unknown mailbox: ${mailboxId}`);
     }

@@ -12,6 +12,12 @@ services:
       # Loopback-only, matching rspamd's binding below: the Angular dev
       # server (localhost:4200) connects to this from the host.
       - "127.0.0.1:3000:3000"
+    volumes:
+      # Same host path on both sides so the server's own SPAM_SCANNER_DATA
+      # (resolved from the same .env value) points at the mailbox accounts
+      # file on the host, alongside rspamd/Redis data - see
+      # persistent-mailbox-accounts design.md D1.
+      - "${SPAM_SCANNER_DATA}:${SPAM_SCANNER_DATA}"
     depends_on:
       rspamd:
         condition: service_healthy

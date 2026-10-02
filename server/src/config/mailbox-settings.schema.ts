@@ -5,7 +5,12 @@
  * mirror `mailbox-settings.defaults.ts`'s `MailboxFolderSettings`/
  * `MailboxLabelSettings`/`MailboxThresholdSettings`/
  * `MailboxAiEscalationSettings`/`MailboxSettings` interfaces exactly - keep
- * both in sync by hand.
+ * both in sync by hand. `aiEnabled` is deliberately NOT part of this
+ * schema (`persistent-mailbox-accounts` design.md D5) - it is admin-only,
+ * stored on the account record and resolved separately by
+ * `resolveMailboxSettings`'s own `aiEnabled` parameter; a stray `aiEnabled`
+ * key in a settings message is simply unrecognized here, so
+ * `validateOverrides` warns and drops it like any other global-only key.
  *
  * Unlike `app-config.schema.ts` (which parses raw environment *strings*),
  * a settings message already contains real JSON values written by the
@@ -65,7 +70,6 @@ export const overridableSchema = z
     labels: labelsSchema,
     thresholds: thresholdsSchema,
     aiEscalation: aiEscalationSchema,
-    aiEnabled: z.boolean(),
   })
   .partial();
 
@@ -104,7 +108,6 @@ const passthroughSchema = z
     labels: labelsSchema.passthrough(),
     thresholds: thresholdsSchema.passthrough(),
     aiEscalation: aiEscalationSchema.passthrough(),
-    aiEnabled: z.boolean(),
   })
   .partial()
   .passthrough();

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { MailboxConnectionsConfig } from '../../config/app-config.js';
+import { AccountStore } from '../accounts/account-store.js';
 import type { Mailbox } from './mailbox.js';
 
 /**
@@ -8,32 +8,34 @@ import type { Mailbox } from './mailbox.js';
  * `findAll()`, written against "the list of mailboxes" so it doesn't need to
  * change when the registry's source does.
  *
- * For this change, the registry is backed by the env-configured mailbox
- * connections (`MailboxConnectionsConfig`, injected via the `@Global`
- * `AppConfigModule`) - one to `MAILBOX_MAX_COUNT` mailboxes, numbered
- * `MAILBOX_1_*`, `MAILBOX_2_*`, .... Callers must treat the return value as
- * an opaque list - not as "the env-backed mailboxes" - since a later change
- * replaces this backing without touching callers.
+ * Backed by the durable `AccountStore` (`persistent-mailbox-accounts`
+ * design.md D2/D5) - `findAll()` reads through the store on every call
+ * (never cached here), so an account added, updated, or removed at runtime
+ * is reflected immediately without a server restart, per the
+ * `server/mailbox-registry` spec's "An account is added at runtime"
+ * scenario.
  */
 @Injectable()
 export class MailboxRepository {
-  constructor(private readonly connections: MailboxConnectionsConfig) {}
+  constructor(private readonly accountStore: AccountStore) {}
 
   /**
-   * Returns every mailbox the server manages, built from the injected
-   * connection configs.
+   * Returns every mailbox the server manages, mapped from the account
+   * store's current records.
    */
-  findAll(): Mailbox[] {
-    return this.connections.mailboxes.map((connection) => ({
-      id: connection.id,
-      imapHost: connection.imapHost,
-      imapPort: connection.imapPort,
-      imapUser: connection.imapUser,
-      imapPassword: connection.imapPassword,
-      imapTls: connection.imapTls,
-      imapAllowInsecure: connection.imapAllowInsecure,
-      stateFolder: connection.stateFolder,
-      enabled: connection.enabled,
+  async findAll(): Promise<Mailbox[]> {
+    const { accounts } = await this.accountStore.load();
+    return accounts.map((account) => ({
+      id: account.id,
+      imapHost: account.imapHost,
+      imapPort: account.imapPort,
+      imapUser: account.imapUser,
+      imapPassword: account.imapPassword,
+      imapTls: account.imapTls,
+      imapAllowInsecure: account.imapAllowInsecure,
+      stateFolder: account.stateFolder,
+      enabled: account.enabled,
+      aiEnabled: account.aiEnabled,
     }));
   }
 }

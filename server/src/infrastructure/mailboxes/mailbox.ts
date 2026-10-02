@@ -30,6 +30,13 @@ export interface Mailbox {
   readonly imapAllowInsecure: boolean;
   readonly stateFolder: string;
   readonly enabled: boolean;
+  /**
+   * Admin-only per-mailbox AI opt-out, resolved from the account record -
+   * see `server/mailbox-settings`'s "aiEnabled ... stored on the account
+   * record" requirement. Not settable through a mailbox's own settings
+   * message/API.
+   */
+  readonly aiEnabled: boolean;
 }
 
 /**

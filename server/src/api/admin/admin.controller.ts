@@ -2,19 +2,21 @@ import {
   Body,
   Controller,
   Get,
-  NotFoundException,
+  Headers,
   Param,
   Put,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RunnerRegistry } from '../../runtime/runner-registry.js';
 import type { MailboxRunnerStatus } from '../../runtime/mailbox-runner.js';
+import { AccountAdminService } from '../../application/accounts/account-admin.service.js';
 import {
   AiConfig,
   ApiAuthConfig,
   LoggingConfig,
-  MailboxConnectionsConfig,
   RspamdConfig,
   ScanConfig,
   ServerConfig,
@@ -22,12 +24,13 @@ import {
 import { HealthService, type HealthReport } from '../health/health.service.js';
 import { AdminGuard } from '../common/guards/admin.guard.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
+import { etagFor, requireIfMatchVersion } from '../common/http-exceptions.js';
 import {
   mailboxEnabledSchema,
   type MailboxEnabledBody,
 } from '../mailbox/mailbox-enabled.schema.js';
 
-/** `GET /admin/settings`'s shape - every non-secret field from every config section. */
+/** `GET /admin/settings`'s shape - every non-secret field from every config section. Carries no mailbox/account data (see `/admin/accounts`). */
 export interface AdminSettings {
   rspamd: { url: string; timeoutMs: number; envelopeTrustedHops: number };
   ai: {
@@ -55,15 +58,6 @@ export interface AdminSettings {
   };
   server: { port: number };
   apiAuth: { adminTokenTtlSeconds: number; mailboxTokenTtlSeconds: number };
-  mailboxes: Array<{
-    id: string;
-    imapHost: string;
-    imapPort: number;
-    imapUser: string;
-    imapTls: boolean;
-    imapAllowInsecure: boolean;
-    stateFolder: string;
-  }>;
 }
 
 /**
@@ -79,6 +73,7 @@ export interface AdminSettings {
 export class AdminController {
   constructor(
     private readonly runnerRegistry: RunnerRegistry,
+    private readonly accountAdminService: AccountAdminService,
     private readonly healthService: HealthService,
     private readonly rspamdConfig: RspamdConfig,
     private readonly aiConfig: AiConfig,
@@ -86,7 +81,6 @@ export class AdminController {
     private readonly loggingConfig: LoggingConfig,
     private readonly serverConfig: ServerConfig,
     private readonly apiAuthConfig: ApiAuthConfig,
-    private readonly mailboxConnectionsConfig: MailboxConnectionsConfig,
   ) {}
 
   @Get('mailboxes')
@@ -94,27 +88,38 @@ export class AdminController {
     return this.runnerRegistry.getStatus().mailboxes;
   }
 
+  /**
+   * Persistent enable/disable (`server/mailbox-api`'s "An admin can enable
+   * or disable any managed mailbox's runner with persistence" requirement) -
+   * `persistent-mailbox-accounts` design.md D4/D6: goes through
+   * `AccountAdminService.setEnabled` (IMAP test + versioned store write)
+   * before syncing the live `RunnerRegistry`, same `If-Match`/`ETag`
+   * precondition as `/admin/accounts`.
+   */
   @Put('mailboxes/:mailboxId/enabled')
   async setMailboxEnabled(
     @Param('mailboxId') mailboxId: string,
     @Body(new ZodValidationPipe(mailboxEnabledSchema))
     body: MailboxEnabledBody,
+    @Headers('if-match') ifMatch: string | undefined,
+    @Res({ passthrough: true }) res: Response,
   ): Promise<{ updated: true }> {
-    try {
-      if (body.enabled) {
-        this.runnerRegistry.enableMailbox(mailboxId);
-      } else {
-        await this.runnerRegistry.disableMailbox(mailboxId);
-      }
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message.startsWith('Unknown mailbox:')
-      ) {
-        throw new NotFoundException(error.message);
-      }
-      throw error;
+    const expectedVersion = requireIfMatchVersion(ifMatch);
+    const { listing } = await this.accountAdminService.setEnabled(
+      mailboxId,
+      body.enabled,
+      expectedVersion,
+    );
+    // Design.md D4 step 6: enable/disable syncs through the registry's
+    // existing enable/disable methods, not a full `updateAccount` replace -
+    // only `enabled` changed, so there's no new connection snapshot to
+    // swap in.
+    if (body.enabled) {
+      this.runnerRegistry.enableMailbox(mailboxId);
+    } else {
+      await this.runnerRegistry.disableMailbox(mailboxId);
     }
+    res.setHeader('ETag', etagFor(listing.version));
     return { updated: true };
   }
 
@@ -126,10 +131,12 @@ export class AdminController {
   /**
    * Assembled field-by-field from each injected config section, explicitly
    * omitting every credential/secret (`RspamdConfig.password`,
-   * `AiConfig.apiKey`, `ApiAuthConfig.adminPassword`/`jwtSecret`, and any
-   * IMAP credential - not read here at all) rather than spreading a section
-   * and deleting keys, so a new secret field added to a section later can't
-   * silently leak through this endpoint by omission.
+   * `AiConfig.apiKey`, `ApiAuthConfig.adminPassword`/`jwtSecret`) rather than
+   * spreading a section and deleting keys, so a new secret field added to a
+   * section later can't silently leak through this endpoint by omission.
+   * Carries no mailbox connection fields or account list at all - those are
+   * `/admin/accounts`'s job now (`server/mailbox-api`'s "App settings omit
+   * mailbox accounts" requirement).
    */
   @Get('settings')
   getSettings(): AdminSettings {
@@ -167,15 +174,6 @@ export class AdminController {
         adminTokenTtlSeconds: this.apiAuthConfig.adminTokenTtlSeconds,
         mailboxTokenTtlSeconds: this.apiAuthConfig.mailboxTokenTtlSeconds,
       },
-      mailboxes: this.mailboxConnectionsConfig.mailboxes.map((mailbox) => ({
-        id: mailbox.id,
-        imapHost: mailbox.imapHost,
-        imapPort: mailbox.imapPort,
-        imapUser: mailbox.imapUser,
-        imapTls: mailbox.imapTls,
-        imapAllowInsecure: mailbox.imapAllowInsecure,
-        stateFolder: mailbox.stateFolder,
-      })),
     };
   }
 }

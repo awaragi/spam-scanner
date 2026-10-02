@@ -502,6 +502,7 @@ export class MailboxRunner {
       );
       this.settings = resolveMailboxSettings(
         validateOverrides(rawOverrides, this.logger, this.mailbox.id),
+        this.mailbox.aiEnabled,
       );
 
       const folders = await resolveMailboxFolders(imap, {

@@ -103,8 +103,18 @@ export const defaultMailboxSettings: MailboxSettings = {
  * merge: each of the four nested groups is object-spread over its own
  * default group (an override to one field in a group leaves every other
  * field in that same group at its default); top-level scalars fall back to
- * the default only when `undefined`. `overrides === undefined` (no settings
- * message at all) returns `defaultMailboxSettings` unchanged.
+ * the default only when `undefined`.
+ *
+ * `aiEnabled` is a separate parameter, not part of `overrides` -
+ * `persistent-mailbox-accounts` design.md D5 moved it off the IMAP
+ * settings-override path entirely: it is resolved from the mailbox's
+ * account record (`Mailbox.aiEnabled`), admin-only, never from a settings
+ * message. Defaults to `defaultMailboxSettings.aiEnabled` so a caller that
+ * genuinely has no account context yet still gets a sane value.
+ *
+ * `overrides === undefined` with `aiEnabled` left at its own default
+ * returns `defaultMailboxSettings` unchanged (by reference) - the common
+ * "no settings message at all" case.
  *
  * Does NOT know about the global `AI_ENABLED` flag - the "opt-out can only
  * turn AI off, never on" rule is enforced separately, where both values are
@@ -113,27 +123,31 @@ export const defaultMailboxSettings: MailboxSettings = {
  */
 export function resolveMailboxSettings(
   overrides: OverridableSettings | undefined,
+  aiEnabled: boolean = defaultMailboxSettings.aiEnabled,
 ): MailboxSettings {
-  if (overrides === undefined) {
+  if (
+    overrides === undefined &&
+    aiEnabled === defaultMailboxSettings.aiEnabled
+  ) {
     return defaultMailboxSettings;
   }
 
   return {
-    folders: { ...defaultMailboxSettings.folders, ...overrides.folders },
-    scanRead: overrides.scanRead ?? defaultMailboxSettings.scanRead,
+    folders: { ...defaultMailboxSettings.folders, ...overrides?.folders },
+    scanRead: overrides?.scanRead ?? defaultMailboxSettings.scanRead,
     scanInitialState:
-      overrides.scanInitialState ?? defaultMailboxSettings.scanInitialState,
+      overrides?.scanInitialState ?? defaultMailboxSettings.scanInitialState,
     processingMode:
-      overrides.processingMode ?? defaultMailboxSettings.processingMode,
-    labels: { ...defaultMailboxSettings.labels, ...overrides.labels },
+      overrides?.processingMode ?? defaultMailboxSettings.processingMode,
+    labels: { ...defaultMailboxSettings.labels, ...overrides?.labels },
     thresholds: {
       ...defaultMailboxSettings.thresholds,
-      ...overrides.thresholds,
+      ...overrides?.thresholds,
     },
     aiEscalation: {
       ...defaultMailboxSettings.aiEscalation,
-      ...overrides.aiEscalation,
+      ...overrides?.aiEscalation,
     },
-    aiEnabled: overrides.aiEnabled ?? defaultMailboxSettings.aiEnabled,
+    aiEnabled,
   };
 }

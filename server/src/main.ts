@@ -33,7 +33,11 @@ async function bootstrap() {
 
   app.enableCors({
     origin: ['http://localhost:4200', 'http://127.0.0.1:4200'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'If-Match'],
+    // `ETag` isn't on the CORS-safelisted response-header set, so the
+    // front end's `fetch`/`HttpClient` can't read it back for its next
+    // `If-Match` without this (`persistent-mailbox-accounts` design.md D4).
+    exposedHeaders: ['ETag'],
   });
 
   const swaggerConfig = new DocumentBuilder()

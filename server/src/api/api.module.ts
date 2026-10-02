@@ -1,11 +1,13 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from './auth/auth.module.js';
 import { AdminController } from './admin/admin.controller.js';
+import { AccountsController } from './admin/accounts.controller.js';
 import { MailboxController } from './mailbox/mailbox.controller.js';
 import { HealthController } from './health/health.controller.js';
 import { HealthService } from './health/health.service.js';
 import { RuntimeModule } from '../runtime/runtime.module.js';
 import { MailboxAdminModule } from '../application/mailbox-admin/mailbox-admin.module.js';
+import { AccountsModule } from '../application/accounts/accounts.module.js';
 import { RspamdModule } from '../infrastructure/rspamd/rspamd.module.js';
 import { AiModule } from '../infrastructure/ai/ai.module.js';
 
@@ -25,6 +27,9 @@ import { AiModule } from '../infrastructure/ai/ai.module.js';
  *   `MailboxController` and (transitively, through `HealthService`) here.
  * - `MailboxAdminModule` - `MailboxAdminService`, used by
  *   `MailboxController` for scanner-state/sender-list operations.
+ * - `AccountsModule` (`application/accounts/`) - `AccountAdminService`,
+ *   used by `AccountsController` and (for the persistent enable/disable
+ *   routes) `AdminController`/`MailboxController`.
  * - `RspamdModule`/`AiModule` - `RspamdGateway`/`AiFailureTracker`, both
  *   only needed by `HealthService`.
  *
@@ -40,10 +45,16 @@ import { AiModule } from '../infrastructure/ai/ai.module.js';
     AuthModule,
     RuntimeModule,
     MailboxAdminModule,
+    AccountsModule,
     RspamdModule,
     AiModule,
   ],
-  controllers: [AdminController, MailboxController, HealthController],
+  controllers: [
+    AdminController,
+    AccountsController,
+    MailboxController,
+    HealthController,
+  ],
   providers: [HealthService],
 })
 export class ApiModule {}
