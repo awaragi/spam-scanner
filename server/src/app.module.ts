@@ -1,4 +1,6 @@
+import { join } from 'node:path';
 import { Module } from '@nestjs/common';
+import { ServeStaticModule } from '@nestjs/serve-static';
 import { AppConfigModule } from './config/config.module.js';
 import { AppLoggingModule } from './logging/logging.module.js';
 import { RspamdModule } from './infrastructure/rspamd/rspamd.module.js';
@@ -31,6 +33,16 @@ import { ApiModule } from './api/api.module.js';
   imports: [
     AppConfigModule,
     AppLoggingModule,
+    // Serves the built Angular app at `/` (bootstrap-level, like
+    // AppLoggingModule - not an `api/` concern). `exclude` is a `RegExp`,
+    // not a string glob, so it never depends on `path-to-regexp`'s
+    // Express-5 wildcard syntax (`serve-frontend-from-server` design.md
+    // D1/D2/D3/D5). `rootPath` is empty at dev time (`npm run start:dev`);
+    // only the Docker build (D6) populates `server/public`.
+    ServeStaticModule.forRoot({
+      rootPath: join(import.meta.dirname, '..', 'public'),
+      exclude: /^\/api(\/|$)/,
+    }),
     RspamdModule,
     AiModule,
     MailboxesModule,

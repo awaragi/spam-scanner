@@ -32,7 +32,27 @@ COPY server/nest-cli.json ./server/nest-cli.json
 RUN npm run build --workspace=shared
 RUN npm run build --workspace=server
 
-# Stage 2: Runtime - fresh production-only install (never copies node_modules
+# Stage 2: front-builder - builds the Angular UI, served as static files by
+# the server at runtime (`serve-frontend-from-server` design.md D6) instead
+# of a separate frontend container. `front` has no dependency on `shared`,
+# so unlike the builder stage above this needs no `shared` sources at all.
+FROM node:24-alpine AS front-builder
+
+WORKDIR /app
+
+COPY package*.json ./
+COPY front/package.json ./front/package.json
+
+RUN npm ci --workspace=front
+
+COPY front/src ./front/src
+COPY front/public ./front/public
+COPY front/angular.json ./front/angular.json
+COPY front/tsconfig*.json ./front/
+
+RUN npm run build --workspace=front
+
+# Stage 3: Runtime - fresh production-only install (never copies node_modules
 # from the builder stage, which would carry devDependencies across) plus the
 # compiled dist/.
 FROM node:24-alpine
@@ -47,6 +67,7 @@ RUN npm ci --workspace=server --workspace=shared --omit=dev
 
 COPY --from=builder --chown=node:node /app/server/dist ./server/dist
 COPY --from=builder --chown=node:node /app/shared/dist ./shared/dist
+COPY --from=front-builder --chown=node:node /app/front/dist/front/browser ./server/public
 
 # Run as the image's built-in non-root user - the app has no need for root
 # (all state lives in IMAP/rspamd, not the local filesystem).

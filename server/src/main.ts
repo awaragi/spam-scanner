@@ -31,6 +31,12 @@ async function bootstrap() {
   app.useLogger(app.get(Logger));
   app.enableShutdownHooks(undefined, { useProcessExit: true });
 
+  // Must run before `SwaggerModule.createDocument` below, which walks the
+  // already-mounted routes - the generated doc would otherwise describe the
+  // old unprefixed paths (`serve-frontend-from-server` design.md D4). Frees
+  // up every other path for the static frontend (D1).
+  app.setGlobalPrefix('api');
+
   app.enableCors({
     origin: ['http://localhost:4200', 'http://127.0.0.1:4200'],
     allowedHeaders: ['Content-Type', 'Authorization', 'If-Match'],
