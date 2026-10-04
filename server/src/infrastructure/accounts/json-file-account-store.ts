@@ -37,6 +37,12 @@ function isEnoent(error: unknown): boolean {
  *   (`load()` → version check → `writeFile` → `rename`) for one call can
  *   never interleave with another's, so two concurrent `save()` calls
  *   against the same starting version can't both "win".
+ * - `load()` caches the parsed file in memory after its first disk read and
+ *   serves that cache on every later call, invalidating it (replacing it
+ *   with the freshly written value) on every successful `save()`. This
+ *   process is the file's only writer, so the cache can only go stale by
+ *   someone editing `accounts.json` by hand while the server is running -
+ *   an already-unsupported way to change accounts.
  */
 @Injectable()
 export class JsonFileAccountStore extends AccountStore {
@@ -45,12 +51,23 @@ export class JsonFileAccountStore extends AccountStore {
   /** Every `save()` call chains onto this - see the class doc comment. */
   private queue: Promise<unknown> = Promise.resolve();
 
+  /** `load()`'s in-memory cache - see the class doc comment. */
+  private cache: AccountsFile | null = null;
+
   constructor(dataConfig: SpamScannerDataConfig) {
     super();
     this.filePath = join(dataConfig.path, ACCOUNTS_FILENAME);
   }
 
   async load(): Promise<AccountsFile> {
+    if (this.cache) {
+      return this.cache;
+    }
+    this.cache = await this.loadFromDisk();
+    return this.cache;
+  }
+
+  private async loadFromDisk(): Promise<AccountsFile> {
     let raw: string;
     try {
       raw = await readFile(this.filePath, 'utf-8');
@@ -91,6 +108,7 @@ export class JsonFileAccountStore extends AccountStore {
     const tempPath = `${this.filePath}.${randomUUID()}.tmp`;
     await writeFile(tempPath, JSON.stringify(next, null, 2) + '\n', 'utf-8');
     await rename(tempPath, this.filePath);
+    this.cache = next;
     return next;
   }
 }

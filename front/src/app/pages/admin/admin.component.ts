@@ -309,54 +309,66 @@ export class AdminComponent implements OnInit {
     });
   }
 
+  /**
+   * Re-fetches the account version right before writing - same pattern as
+   * `toggleEnabled`/`toggleAccountEnabled` - so a stale `accountsVersion()`
+   * (e.g. another admin tab's edit) surfaces as a normal 409-driven refresh
+   * rather than forcing a manual retry.
+   */
   toggleAiEnabled(account: PublicAccount): void {
-    const version = this.accountsVersion();
-    if (version === null) return;
-    this.api
-      .adminWriteWithEtag<AccountListing>(
-        this.adminToken(),
-        'PATCH',
-        `/admin/accounts/${encodeURIComponent(account.id)}`,
-        version,
-        { aiEnabled: !account.aiEnabled },
-      )
-      .subscribe({
-        next: ({ body }) => {
-          this.accounts.set(body.accounts);
-          this.accountsVersion.set(body.version);
-          this.loadMailboxes();
-          this.output.set(JSON.stringify(body, null, 2));
-        },
-        error: (err) => this.handle409OrError(err),
-      });
+    this.api.adminGetWithEtag<AccountListing>(this.adminToken(), '/admin/accounts').subscribe({
+      next: ({ body: current }) => {
+        this.api
+          .adminWriteWithEtag<AccountListing>(
+            this.adminToken(),
+            'PATCH',
+            `/admin/accounts/${encodeURIComponent(account.id)}`,
+            current.version,
+            { aiEnabled: !account.aiEnabled },
+          )
+          .subscribe({
+            next: ({ body }) => {
+              this.accounts.set(body.accounts);
+              this.accountsVersion.set(body.version);
+              this.loadMailboxes();
+              this.output.set(JSON.stringify(body, null, 2));
+            },
+            error: (err) => this.handle409OrError(err),
+          });
+      },
+      error: (err) => this.output.set(JSON.stringify(err.error ?? err.message, null, 2)),
+    });
   }
 
+  /** Same re-fetch-before-write pattern as `toggleAiEnabled` - see its doc comment. */
   deleteAccount(account: PublicAccount): void {
-    const version = this.accountsVersion();
-    if (version === null) return;
-    this.api
-      .adminWriteWithEtag<AccountListing>(
-        this.adminToken(),
-        'DELETE',
-        `/admin/accounts/${encodeURIComponent(account.id)}`,
-        version,
-      )
-      .subscribe({
-        next: ({ body }) => {
-          this.accounts.set(body.accounts);
-          this.accountsVersion.set(body.version);
-          this.loadMailboxes();
-          this.prefillCreateForm(account);
-          this.output.set(JSON.stringify(body, null, 2));
-        },
-        error: (err) => this.handle409OrError(err),
-      });
+    this.api.adminGetWithEtag<AccountListing>(this.adminToken(), '/admin/accounts').subscribe({
+      next: ({ body: current }) => {
+        this.api
+          .adminWriteWithEtag<AccountListing>(
+            this.adminToken(),
+            'DELETE',
+            `/admin/accounts/${encodeURIComponent(account.id)}`,
+            current.version,
+          )
+          .subscribe({
+            next: ({ body }) => {
+              this.accounts.set(body.accounts);
+              this.accountsVersion.set(body.version);
+              this.loadMailboxes();
+              this.prefillCreateForm(account);
+              this.output.set(JSON.stringify(body, null, 2));
+            },
+            error: (err) => this.handle409OrError(err),
+          });
+      },
+      error: (err) => this.output.set(JSON.stringify(err.error ?? err.message, null, 2)),
+    });
   }
 
+  /** Same re-fetch-before-write pattern as `toggleAiEnabled` - see its doc comment. */
   createAccount(event: SubmitEvent): void {
     event.preventDefault();
-    const version = this.accountsVersion();
-    if (version === null) return;
     const form = event.target as HTMLFormElement;
     const read = (name: string) => (form.elements.namedItem(name) as HTMLInputElement).value;
     const readChecked = (name: string) =>
@@ -375,24 +387,29 @@ export class AdminComponent implements OnInit {
       enabled: readChecked('enabled'),
       aiEnabled: readChecked('aiEnabled'),
     };
-    this.api
-      .adminWriteWithEtag<AccountListing>(
-        this.adminToken(),
-        'POST',
-        '/admin/accounts',
-        version,
-        body,
-      )
-      .subscribe({
-        next: ({ body: listing }) => {
-          this.accounts.set(listing.accounts);
-          this.accountsVersion.set(listing.version);
-          this.loadMailboxes();
-          this.output.set(JSON.stringify(listing, null, 2));
-          form.reset();
-        },
-        error: (err) => this.handle409OrError(err),
-      });
+    this.api.adminGetWithEtag<AccountListing>(this.adminToken(), '/admin/accounts').subscribe({
+      next: ({ body: current }) => {
+        this.api
+          .adminWriteWithEtag<AccountListing>(
+            this.adminToken(),
+            'POST',
+            '/admin/accounts',
+            current.version,
+            body,
+          )
+          .subscribe({
+            next: ({ body: listing }) => {
+              this.accounts.set(listing.accounts);
+              this.accountsVersion.set(listing.version);
+              this.loadMailboxes();
+              this.output.set(JSON.stringify(listing, null, 2));
+              form.reset();
+            },
+            error: (err) => this.handle409OrError(err),
+          });
+      },
+      error: (err) => this.output.set(JSON.stringify(err.error ?? err.message, null, 2)),
+    });
   }
 
   /** Admin token → scoped mailbox JWT, then mailbox UI. */

@@ -11,6 +11,14 @@ const DEFAULT_AI_BASE_URL = 'https://api.openai.com/v1';
 export const ACCOUNTS_FILENAME = 'accounts.json';
 
 /**
+ * The global route prefix every API route is mounted under
+ * (`main.ts`'s `setGlobalPrefix`/Swagger path and `app.module.ts`'s
+ * SPA-fallback `exclude` regex both derive from this one constant, so they
+ * can't silently desync from a future prefix change).
+ */
+export const API_PREFIX = 'api';
+
+/**
  * Explicit, hand-written authoritative type for the merged runtime config -
  * not derived via `z.infer<typeof AppConfigSchema>`. `configGroups.reduce((acc, g)
  * => acc.merge(g.schema), z.object({}))` collapses precise field inference and, worse,

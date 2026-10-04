@@ -191,14 +191,25 @@ describe('AccountAdminService', () => {
   });
 
   describe('setEnabled()', () => {
-    test('tests the IMAP connection even for an enabled-only change', async () => {
+    test('tests the IMAP connection when enabling', async () => {
+      const existing = fixtureAccount({ enabled: false });
+      const store = fakeStore({ version: 1, accounts: [existing] });
+      const service = buildService(store);
+
+      const result = await service.setEnabled(existing.id, true, 1);
+
+      expect(mockTestImapConnection).toHaveBeenCalledTimes(1);
+      expect(result.mailbox.enabled).toBe(true);
+    });
+
+    test('skips the IMAP connection test when disabling', async () => {
       const existing = fixtureAccount({ enabled: true });
       const store = fakeStore({ version: 1, accounts: [existing] });
       const service = buildService(store);
 
       const result = await service.setEnabled(existing.id, false, 1);
 
-      expect(mockTestImapConnection).toHaveBeenCalledTimes(1);
+      expect(mockTestImapConnection).not.toHaveBeenCalled();
       expect(result.mailbox.enabled).toBe(false);
     });
   });

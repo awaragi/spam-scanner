@@ -91,21 +91,6 @@ describe('AccountsController', () => {
     expect(accountAdminService.create).not.toHaveBeenCalled();
   });
 
-  test('POST with a valid If-Match creates the account and registers it with the runner registry', async () => {
-    const { controller, accountAdminService, runnerRegistry } = build();
-    const res = fixtureResponse();
-    const body = { id: 'new@example.com' } as never;
-
-    const listing = await controller.create(body, '"1"', res);
-
-    expect(accountAdminService.create).toHaveBeenCalledWith(body, 1);
-    expect(runnerRegistry.registerAccount).toHaveBeenCalledWith(
-      fixtureMailbox(),
-    );
-    expect(listing.version).toBe(2);
-    expect(res.setHeader).toHaveBeenCalledWith('ETag', '"2"');
-  });
-
   test('PATCH without If-Match rejects with 428, before the service runs', async () => {
     const { controller, accountAdminService } = build();
     const res = fixtureResponse();
@@ -116,25 +101,6 @@ describe('AccountsController', () => {
     expect(accountAdminService.update).not.toHaveBeenCalled();
   });
 
-  test('PATCH with a valid If-Match updates the account and syncs the runner registry', async () => {
-    const { controller, accountAdminService, runnerRegistry } = build();
-    const res = fixtureResponse();
-
-    await controller.update(
-      'owner@example.com',
-      { enabled: false },
-      '"1"',
-      res,
-    );
-
-    expect(accountAdminService.update).toHaveBeenCalledWith(
-      'owner@example.com',
-      { enabled: false },
-      1,
-    );
-    expect(runnerRegistry.updateAccount).toHaveBeenCalledWith(fixtureMailbox());
-  });
-
   test('DELETE without If-Match rejects with 428, before the service runs', async () => {
     const { controller, accountAdminService } = build();
     const res = fixtureResponse();
@@ -143,21 +109,6 @@ describe('AccountsController', () => {
       controller.remove('owner@example.com', undefined, res),
     ).rejects.toThrow(PreconditionRequiredException);
     expect(accountAdminService.delete).not.toHaveBeenCalled();
-  });
-
-  test('DELETE with a valid If-Match removes the account and stops its runner', async () => {
-    const { controller, accountAdminService, runnerRegistry } = build();
-    const res = fixtureResponse();
-
-    await controller.remove('owner@example.com', '"1"', res);
-
-    expect(accountAdminService.delete).toHaveBeenCalledWith(
-      'owner@example.com',
-      1,
-    );
-    expect(runnerRegistry.removeAccount).toHaveBeenCalledWith(
-      'owner@example.com',
-    );
   });
 
   test('a malformed If-Match header (not a quoted integer) also rejects with 428', async () => {

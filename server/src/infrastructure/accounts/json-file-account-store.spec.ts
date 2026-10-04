@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { JsonFileAccountStore } from './json-file-account-store.js';
@@ -102,6 +102,34 @@ describe('JsonFileAccountStore', () => {
 
     const file = await store.load();
     expect(file.version).toBe(1);
+  });
+
+  test('load() caches the parsed file across calls instead of re-reading disk each time', async () => {
+    const store = new JsonFileAccountStore(dataConfig);
+    await store.save(0, [fixtureAccount()]);
+    const cached = await store.load();
+
+    // An external hand-edit of the file while the process is running - the
+    // cache should not pick this up (only this store's own save() may
+    // invalidate it).
+    await writeFile(
+      join(dataDir, ACCOUNTS_FILENAME),
+      JSON.stringify({ version: 99, accounts: [] }),
+      'utf-8',
+    );
+
+    expect(await store.load()).toEqual(cached);
+  });
+
+  test('save() invalidates the cache so a later load() reflects the new version', async () => {
+    const store = new JsonFileAccountStore(dataConfig);
+    await store.save(0, [fixtureAccount()]);
+    const first = await store.load();
+
+    const updated = await store.save(1, []);
+
+    expect(await store.load()).toEqual(updated);
+    expect(await store.load()).not.toEqual(first);
   });
 
   test('a sequential save after a successful one, using the new version, succeeds', async () => {

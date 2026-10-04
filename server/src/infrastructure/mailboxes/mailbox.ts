@@ -1,12 +1,14 @@
+import type { z } from 'zod';
+import { accountRecordSchema } from '../accounts/account.schema.js';
+
 /**
  * The shape every other layer uses to refer to a mailbox - scanning,
  * training, folder init, and the rspamd/IMAP gateways - regardless of which
- * registry produced it (today `MailboxRepository`, env-backed; later, real
- * storage). See the `server/mailbox-registry` spec.
- *
- * `id` is the mailbox owner's email address, stored and used separately from
- * the IMAP login (`imapUser`), which may be a bare username on a
- * self-hosted server (`server/mailbox-registry`'s second requirement).
+ * registry produced it (today `MailboxRepository`, backed by `AccountStore`).
+ * See the `server/mailbox-registry` spec. Derived from `accountRecordSchema`
+ * (`../accounts/account.schema.ts`), the same canonical source `AccountRecord`
+ * derives from - see that schema's own doc comment for per-field notes
+ * (`id` vs `imapUser`, `aiEnabled`'s admin-only scope, etc).
  *
  * There is deliberately no separate "rspamd user" field. rspamd itself has
  * no mailbox awareness (see CLAUDE.md) - the server is what addresses each
@@ -19,25 +21,7 @@
  * that need "the rspamd user for this mailbox" use `rspamdUserFor()` below
  * (equivalently, `mailbox.id` directly).
  */
-export interface Mailbox {
-  /** The mailbox owner's email address - also this mailbox's rspamd user. */
-  readonly id: string;
-  readonly imapHost: string;
-  readonly imapPort: number;
-  readonly imapUser: string;
-  readonly imapPassword: string;
-  readonly imapTls: boolean;
-  readonly imapAllowInsecure: boolean;
-  readonly stateFolder: string;
-  readonly enabled: boolean;
-  /**
-   * Admin-only per-mailbox AI opt-out, resolved from the account record -
-   * see `server/mailbox-settings`'s "aiEnabled ... stored on the account
-   * record" requirement. Not settable through a mailbox's own settings
-   * message/API.
-   */
-  readonly aiEnabled: boolean;
-}
+export type Mailbox = z.infer<typeof accountRecordSchema>;
 
 /**
  * The rspamd user for a mailbox - always its `id`, per the

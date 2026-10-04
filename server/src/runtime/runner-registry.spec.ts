@@ -320,15 +320,57 @@ describe('RunnerRegistry', () => {
         false,
       );
 
-      registry.enableMailbox('owner@example.com');
+      await registry.enableMailbox('owner@example.com');
       const firstStatus = registry.getMailboxStatus('owner@example.com');
       expect(firstStatus.enabled).toBe(true);
 
-      registry.enableMailbox('owner@example.com');
+      await registry.enableMailbox('owner@example.com');
       expect(registry.getMailboxStatus('owner@example.com')).toEqual(
         firstStatus,
       );
 
+      await registry.onApplicationShutdown();
+    });
+
+    test('a disableMailbox/enableMailbox pair for the same mailbox is serialized, not interleaved', async () => {
+      const { registry } = await buildRegistry();
+      await registry.onApplicationBootstrap();
+
+      let resolveStop!: () => void;
+      const stopSpy = vi
+        .spyOn(MailboxRunner.prototype, 'stop')
+        .mockImplementation(
+          () =>
+            new Promise<void>((resolve) => {
+              resolveStop = resolve;
+            }),
+        );
+      // Installed after bootstrap's own (real) start() call, so this only
+      // tracks a *second* runner being constructed and started.
+      const startSpy = vi
+        .spyOn(MailboxRunner.prototype, 'start')
+        .mockResolvedValue(undefined);
+
+      const disabling = registry.disableMailbox('owner@example.com');
+      await Promise.resolve();
+      expect(stopSpy).toHaveBeenCalledTimes(1);
+
+      // Queued behind the in-flight disable - must not construct/start a
+      // fresh runner until disableMailbox's stop() actually resolves.
+      const enabling = registry.enableMailbox('owner@example.com');
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(startSpy).not.toHaveBeenCalled();
+
+      resolveStop();
+      await disabling;
+      await enabling;
+
+      expect(startSpy).toHaveBeenCalledTimes(1);
+      expect(registry.getMailboxStatus('owner@example.com').enabled).toBe(true);
+
+      stopSpy.mockRestore();
+      startSpy.mockRestore();
       await registry.onApplicationShutdown();
     });
 
@@ -668,7 +710,7 @@ describe('RunnerRegistry', () => {
       const { registry } = await buildRegistry({ mailboxes: [] });
       await registry.onApplicationBootstrap();
 
-      registry.registerAccount(fixtureMailbox({ id: 'new@example.com' }));
+      await registry.registerAccount(fixtureMailbox({ id: 'new@example.com' }));
 
       expect(registry.getMailboxStatus('new@example.com').enabled).toBe(true);
       await registry.onApplicationShutdown();
@@ -678,7 +720,7 @@ describe('RunnerRegistry', () => {
       const { registry } = await buildRegistry({ mailboxes: [] });
       await registry.onApplicationBootstrap();
 
-      registry.registerAccount(
+      await registry.registerAccount(
         fixtureMailbox({ id: 'new@example.com', enabled: false }),
       );
 

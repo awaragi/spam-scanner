@@ -66,11 +66,21 @@ export class AccountsController {
       body,
       expectedVersion,
     );
-    this.runnerRegistry.registerAccount(mailbox);
+    await this.runnerRegistry.registerAccount(mailbox);
     res.setHeader('ETag', etagFor(listing.version));
     return listing;
   }
 
+  /**
+   * Store write and `RunnerRegistry` sync are two separate awaited steps,
+   * not one atomic transaction - between them, the account file already
+   * reflects the update but the live runner still runs the old connection
+   * snapshot. Accepted gap, not a bug: a request landing in that window
+   * sees at most one extra job cycle on stale settings, self-heals the
+   * moment this method's `await` resolves, and there is no transactional
+   * primitive spanning the on-disk `AccountStore` and the in-memory
+   * `RunnerRegistry` to close it with.
+   */
   @Patch(':id')
   async update(
     @Param('id') id: string,
@@ -89,6 +99,7 @@ export class AccountsController {
     return listing;
   }
 
+  /** Same accepted store/registry sync gap as `update()` - see its doc comment. */
   @Delete(':id')
   async remove(
     @Param('id') id: string,

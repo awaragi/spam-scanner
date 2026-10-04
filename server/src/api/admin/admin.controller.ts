@@ -24,7 +24,11 @@ import {
 import { HealthService, type HealthReport } from '../health/health.service.js';
 import { AdminGuard } from '../common/guards/admin.guard.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
-import { etagFor, requireIfMatchVersion } from '../common/http-exceptions.js';
+import {
+  etagFor,
+  requireIfMatchVersion,
+  withUnknownMailboxAsNotFoundAsync,
+} from '../common/http-exceptions.js';
 import {
   mailboxEnabledSchema,
   type MailboxEnabledBody,
@@ -113,12 +117,14 @@ export class AdminController {
     // Design.md D4 step 6: enable/disable syncs through the registry's
     // existing enable/disable methods, not a full `updateAccount` replace -
     // only `enabled` changed, so there's no new connection snapshot to
-    // swap in.
-    if (body.enabled) {
-      this.runnerRegistry.enableMailbox(mailboxId);
-    } else {
-      await this.runnerRegistry.disableMailbox(mailboxId);
-    }
+    // swap in. A registry/store desync here must surface as a 404, not an
+    // uncaught 500, like every other registry call in `mailbox.controller.ts`
+    // already does.
+    await withUnknownMailboxAsNotFoundAsync(() =>
+      body.enabled
+        ? this.runnerRegistry.enableMailbox(mailboxId)
+        : this.runnerRegistry.disableMailbox(mailboxId),
+    );
     res.setHeader('ETag', etagFor(listing.version));
     return { updated: true };
   }

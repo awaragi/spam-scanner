@@ -3,6 +3,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
 import { ServerConfig } from './config/app-config.js';
+import { API_PREFIX } from './config/app-config.schema.js';
 
 /**
  * Bootstraps the whole app (task 7.2).
@@ -35,7 +36,7 @@ async function bootstrap() {
   // already-mounted routes - the generated doc would otherwise describe the
   // old unprefixed paths (`serve-frontend-from-server` design.md D4). Frees
   // up every other path for the static frontend (D1).
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix(API_PREFIX);
 
   app.enableCors({
     origin: ['http://localhost:4200', 'http://127.0.0.1:4200'],
@@ -56,7 +57,7 @@ async function bootstrap() {
     )
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup(`${API_PREFIX}/docs`, app, document);
 
   const { port } = app.get(ServerConfig);
   await app.listen(port);

@@ -136,7 +136,11 @@ export class AccountAdminService {
     const existing = this.requireAccount(accounts, mailboxId);
     const effective: AccountRecord = { ...existing, enabled };
 
-    await testImapConnection(effective, this.pinoLogger.logger);
+    // Disabling is often *because* the connection is already broken - only
+    // test on enable, where a bad connection should block the transition.
+    if (enabled) {
+      await testImapConnection(effective, this.pinoLogger.logger);
+    }
 
     const saved = await this.saveOrConflict(
       expectedVersion,

@@ -1,22 +1,11 @@
+import type { z } from 'zod';
+import { accountRecordSchema } from './account.schema.js';
+
 /**
  * One mailbox account record, durably stored by `AccountStore` - the
  * `server/mailbox-accounts` spec's "Account records are stored in a
- * versioned JSON file under SPAM_SCANNER_DATA" requirement. `id` is the
- * mailbox owner's email address (immutable - see the `server/mailbox-registry`
- * spec), distinct from `imapUser`, which may be a bare username on some
- * providers. `imapPassword` is stored in plain text (see design.md's
- * "Risks/Trade-offs" - encryption at rest is explicitly deferred).
+ * versioned JSON file under SPAM_SCANNER_DATA" requirement. Derived from
+ * `accountRecordSchema` (`account.schema.ts`), the single canonical source
+ * for this shape - see that schema's own doc comment for per-field notes.
  */
-export interface AccountRecord {
-  readonly id: string;
-  readonly imapHost: string;
-  readonly imapPort: number;
-  readonly imapUser: string;
-  readonly imapPassword: string;
-  readonly imapTls: boolean;
-  readonly imapAllowInsecure: boolean;
-  readonly stateFolder: string;
-  readonly enabled: boolean;
-  /** Admin-only per-mailbox AI opt-out - see `server/mailbox-settings`. */
-  readonly aiEnabled: boolean;
-}
+export type AccountRecord = z.infer<typeof accountRecordSchema>;

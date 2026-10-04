@@ -5,7 +5,6 @@ import {
   Delete,
   Get,
   Headers,
-  NotFoundException,
   Param,
   Post,
   Put,
@@ -25,7 +24,12 @@ import { AccountAdminService } from '../../application/accounts/account-admin.se
 import type { ScannerState } from 'shared/state';
 import { MailboxScopeGuard } from '../common/guards/mailbox-scope.guard.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
-import { etagFor, requireIfMatchVersion } from '../common/http-exceptions.js';
+import {
+  etagFor,
+  requireIfMatchVersion,
+  withUnknownMailboxAsNotFound,
+  withUnknownMailboxAsNotFoundAsync,
+} from '../common/http-exceptions.js';
 import { resolveJobName } from './job-name.js';
 import {
   settingsUpdateSchema,
@@ -48,48 +52,6 @@ function parseListKind(kind: string): SenderListKind {
     throw new BadRequestException(`Unknown list kind: ${kind}`);
   }
   return kind as SenderListKind;
-}
-
-/**
- * Translates the registry's plain `Error('Unknown mailbox: ...')` (design.md
- * D10) to a `NotFoundException` a Nest exception filter can turn into a 404.
- * `MailboxAdminService`'s own methods already throw `NotFoundException`
- * directly, so only the synchronous `RunnerRegistry` lookups
- * (`getMailboxStatus`/`getMailboxSettings`) need this wrapper.
- */
-function withUnknownMailboxAsNotFound<T>(fn: () => T): T {
-  try {
-    return fn();
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message.startsWith('Unknown mailbox:')
-    ) {
-      throw new NotFoundException(error.message);
-    }
-    throw error;
-  }
-}
-
-/**
- * Same translation as `withUnknownMailboxAsNotFound`, for the `async`
- * `RunnerRegistry` methods (`triggerNow`/`triggerInitFolders`/
- * `updateSettings`), which reject rather than throw synchronously.
- */
-async function withUnknownMailboxAsNotFoundAsync<T>(
-  fn: () => Promise<T>,
-): Promise<T> {
-  try {
-    return await fn();
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message.startsWith('Unknown mailbox:')
-    ) {
-      throw new NotFoundException(error.message);
-    }
-    throw error;
-  }
 }
 
 /**
@@ -178,12 +140,14 @@ export class MailboxController {
     );
     // Design.md D4 step 6: enable/disable syncs through the registry's
     // existing enable/disable methods - see `AdminController`'s identical
-    // handler for the same reasoning.
-    if (body.enabled) {
-      this.runnerRegistry.enableMailbox(mailboxId);
-    } else {
-      await this.runnerRegistry.disableMailbox(mailboxId);
-    }
+    // handler for the same reasoning. A registry/store desync here must
+    // surface as the same 404 every other registry call in this
+    // controller already gets, not an uncaught 500.
+    await withUnknownMailboxAsNotFoundAsync(() =>
+      body.enabled
+        ? this.runnerRegistry.enableMailbox(mailboxId)
+        : this.runnerRegistry.disableMailbox(mailboxId),
+    );
     res.setHeader('ETag', etagFor(listing.version));
     return { updated: true };
   }

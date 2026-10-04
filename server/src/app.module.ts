@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { Module } from '@nestjs/common';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { AppConfigModule } from './config/config.module.js';
+import { API_PREFIX } from './config/app-config.schema.js';
 import { AppLoggingModule } from './logging/logging.module.js';
 import { RspamdModule } from './infrastructure/rspamd/rspamd.module.js';
 import { AiModule } from './infrastructure/ai/ai.module.js';
@@ -41,7 +42,7 @@ import { ApiModule } from './api/api.module.js';
     // only the Docker build (D6) populates `server/public`.
     ServeStaticModule.forRoot({
       rootPath: join(import.meta.dirname, '..', 'public'),
-      exclude: /^\/api(\/|$)/,
+      exclude: new RegExp(`^/${API_PREFIX}(/|$)`),
     }),
     RspamdModule,
     AiModule,

@@ -54,6 +54,16 @@ export class RunnerRegistry
   /** One active `MailboxRunner` per enabled mailbox id. */
   private readonly runners = new Map<string, MailboxRunner>();
 
+  /**
+   * Per-mailbox-id promise-chain mutex serializing `registerAccount`/
+   * `updateAccount`/`removeAccount`/`enableMailbox`/`disableMailbox`/
+   * `updateSettings` - each does read → stop → mutate-maps → restart, and
+   * without this, two concurrent calls for the same mailbox id could
+   * interleave such that a live runner gets overwritten in `runners` but
+   * never stopped.
+   */
+  private readonly locks = new Map<string, Promise<unknown>>();
+
   constructor(
     private readonly mailboxRepository: MailboxRepository,
     private readonly scanConfig: ScanConfig,
@@ -103,11 +113,13 @@ export class RunnerRegistry
    * immediately when `mailbox.enabled` is true; otherwise just makes the
    * mailbox known (so e.g. a later enable finds it).
    */
-  registerAccount(mailbox: Mailbox): void {
-    this.mailboxes.set(mailbox.id, mailbox);
-    if (mailbox.enabled) {
-      this.startRunner(mailbox);
-    }
+  registerAccount(mailbox: Mailbox): Promise<void> {
+    return this.withLock(mailbox.id, async () => {
+      this.mailboxes.set(mailbox.id, mailbox);
+      if (mailbox.enabled) {
+        this.startRunner(mailbox);
+      }
+    });
   }
 
   /**
@@ -119,16 +131,18 @@ export class RunnerRegistry
    * the same "never let the old runner's last job race the new runner's
    * first job" guarantee `updateSettings` already provides.
    */
-  async updateAccount(mailbox: Mailbox): Promise<void> {
-    const existingRunner = this.runners.get(mailbox.id);
-    if (existingRunner) {
-      await existingRunner.stop();
-      this.runners.delete(mailbox.id);
-    }
-    this.mailboxes.set(mailbox.id, mailbox);
-    if (mailbox.enabled) {
-      this.startRunner(mailbox);
-    }
+  updateAccount(mailbox: Mailbox): Promise<void> {
+    return this.withLock(mailbox.id, async () => {
+      const existingRunner = this.runners.get(mailbox.id);
+      if (existingRunner) {
+        await existingRunner.stop();
+        this.runners.delete(mailbox.id);
+      }
+      this.mailboxes.set(mailbox.id, mailbox);
+      if (mailbox.enabled) {
+        this.startRunner(mailbox);
+      }
+    });
   }
 
   /**
@@ -139,44 +153,53 @@ export class RunnerRegistry
    * lookup (`triggerNow`, `getMailboxStatus`, ...) for this id throws the
    * same "Unknown mailbox" error it would for an id that never existed.
    */
-  async removeAccount(mailboxId: string): Promise<void> {
-    const runner = this.runners.get(mailboxId);
-    if (runner) {
-      await runner.stop();
-      this.runners.delete(mailboxId);
-    }
-    this.mailboxes.delete(mailboxId);
+  removeAccount(mailboxId: string): Promise<void> {
+    return this.withLock(mailboxId, async () => {
+      const runner = this.runners.get(mailboxId);
+      if (runner) {
+        await runner.stop();
+        this.runners.delete(mailboxId);
+      }
+      this.mailboxes.delete(mailboxId);
+    });
   }
 
   /**
    * Stops a running mailbox's runner gracefully and removes it from the active
    * map. Idempotent when the mailbox is already disabled.
    */
-  async disableMailbox(mailboxId: string): Promise<void> {
-    if (!this.mailboxes.has(mailboxId)) {
-      throw new Error(`Unknown mailbox: ${mailboxId}`);
-    }
-    const runner = this.runners.get(mailboxId);
-    if (!runner) {
-      return;
-    }
-    await runner.stop();
-    this.runners.delete(mailboxId);
+  disableMailbox(mailboxId: string): Promise<void> {
+    return this.withLock(mailboxId, async () => {
+      const mailbox = this.mailboxes.get(mailboxId);
+      if (!mailbox) {
+        throw new Error(`Unknown mailbox: ${mailboxId}`);
+      }
+      this.mailboxes.set(mailboxId, { ...mailbox, enabled: false });
+      const runner = this.runners.get(mailboxId);
+      if (!runner) {
+        return;
+      }
+      await runner.stop();
+      this.runners.delete(mailboxId);
+    });
   }
 
   /**
    * Constructs and starts a fresh runner for a disabled mailbox. Idempotent
    * when the mailbox already has an active runner.
    */
-  enableMailbox(mailboxId: string): void {
-    const mailbox = this.mailboxes.get(mailboxId);
-    if (!mailbox) {
-      throw new Error(`Unknown mailbox: ${mailboxId}`);
-    }
-    if (this.runners.has(mailboxId)) {
-      return;
-    }
-    this.startRunner(mailbox);
+  enableMailbox(mailboxId: string): Promise<void> {
+    return this.withLock(mailboxId, async () => {
+      const mailbox = this.mailboxes.get(mailboxId);
+      if (!mailbox) {
+        throw new Error(`Unknown mailbox: ${mailboxId}`);
+      }
+      this.mailboxes.set(mailboxId, { ...mailbox, enabled: true });
+      if (this.runners.has(mailboxId)) {
+        return;
+      }
+      this.startRunner(mailbox);
+    });
   }
 
   /**
@@ -263,41 +286,43 @@ export class RunnerRegistry
    * during that retry see the new (possibly degraded) runner rather than the
    * stopped old one or nothing.
    */
-  async updateSettings(
+  updateSettings(
     mailboxId: string,
     overrides: Record<string, unknown>,
   ): Promise<void> {
-    const existingRunner = this.requireRunner(mailboxId);
+    return this.withLock(mailboxId, async () => {
+      const existingRunner = this.requireRunner(mailboxId);
 
-    // Step 2 (D5): throws (ZodError) on a type error against a recognized
-    // key, before anything below runs. `overrides` is always a defined
-    // object here (an update always provides something), so the result is
-    // never `undefined` in practice - the `?? {}` below only satisfies
-    // `validateOverrides`'s general `| undefined` return type.
-    const validated =
-      validateOverrides(overrides, this.pinoLogger.logger, mailboxId) ?? {};
+      // Step 2 (D5): throws (ZodError) on a type error against a recognized
+      // key, before anything below runs. `overrides` is always a defined
+      // object here (an update always provides something), so the result is
+      // never `undefined` in practice - the `?? {}` below only satisfies
+      // `validateOverrides`'s general `| undefined` return type.
+      const validated =
+        validateOverrides(overrides, this.pinoLogger.logger, mailboxId) ?? {};
 
-    const mailbox = this.mailboxes.get(mailboxId);
-    if (!mailbox) {
-      throw new Error(`Unknown mailbox: ${mailboxId}`);
-    }
+      const mailbox = this.mailboxes.get(mailboxId);
+      if (!mailbox) {
+        throw new Error(`Unknown mailbox: ${mailboxId}`);
+      }
 
-    await existingRunner.stop();
+      await existingRunner.stop();
 
-    const imap = newClient(mailbox, this.pinoLogger.logger);
-    try {
-      await imap.connect();
-      await writeSettingsOverrides(
-        imap,
-        mailbox.stateFolder,
-        { ...validated },
-        this.pinoLogger.logger,
-      );
-    } finally {
-      await safeLogout(imap, this.pinoLogger.logger);
-    }
+      const imap = newClient(mailbox, this.pinoLogger.logger);
+      try {
+        await imap.connect();
+        await writeSettingsOverrides(
+          imap,
+          mailbox.stateFolder,
+          { ...validated },
+          this.pinoLogger.logger,
+        );
+      } finally {
+        await safeLogout(imap, this.pinoLogger.logger);
+      }
 
-    this.restartRunner(mailbox);
+      this.restartRunner(mailbox);
+    });
   }
 
   /**
@@ -365,6 +390,27 @@ export class RunnerRegistry
       throw new Error(`Unknown mailbox: ${mailboxId}`);
     }
     return runner;
+  }
+
+  /**
+   * Chains `fn` onto whatever is already queued for `mailboxId`, so two
+   * calls for the same mailbox never interleave their read → stop →
+   * mutate-maps → restart steps. Unrelated mailbox ids run fully in
+   * parallel. The queued continuation swallows `fn`'s rejection (so one
+   * failed call never jams the queue for later calls), while the `Promise`
+   * returned to the caller still rejects with it.
+   */
+  private withLock<T>(mailboxId: string, fn: () => Promise<T>): Promise<T> {
+    const previous = this.locks.get(mailboxId) ?? Promise.resolve();
+    const result = previous.then(fn, fn);
+    this.locks.set(
+      mailboxId,
+      result.then(
+        () => undefined,
+        () => undefined,
+      ),
+    );
+    return result;
   }
 
   /**
