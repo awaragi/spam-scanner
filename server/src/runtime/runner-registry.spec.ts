@@ -488,21 +488,36 @@ describe('RunnerRegistry', () => {
     });
   });
 
-  describe('getMailboxSettings()', () => {
-    test('delegates to the matching mailbox runner', async () => {
+  describe('getMailboxSettingsView()', () => {
+    test('returns resolved settings alongside which top-level keys are an actual stored override', async () => {
       const mailbox = fixtureMailbox();
+      mockReadSettingsOverrides.mockResolvedValue({ thresholds: { clean: 10 } });
       const { registry } = await buildRegistry({ mailboxes: [mailbox] });
       await registry.onApplicationBootstrap();
 
-      const settingsSpy = vi.spyOn(MailboxRunner.prototype, 'getSettings');
-      try {
-        const settings = registry.getMailboxSettings(mailbox.id);
+      // `onApplicationBootstrap` only awaits `MailboxRepository.findAll()`
+      // itself - each runner's `start()`/`bootstrap()` fires without being
+      // awaited (see the "does not block" test above), so settings aren't
+      // necessarily resolved yet the instant this call returns.
+      await vi.waitFor(() => {
+        expect(registry.getMailboxSettingsView(mailbox.id).overriddenKeys).toEqual([
+          'thresholds',
+        ]);
+      });
 
-        expect(settingsSpy).toHaveBeenCalledTimes(1);
-        expect(settings.folders.inbox).toBeDefined();
-      } finally {
-        settingsSpy.mockRestore();
-      }
+      expect(registry.getMailboxSettingsView(mailbox.id).settings.thresholds.clean).toBe(10);
+    });
+
+    test('reports no overridden keys for a mailbox with no settings message', async () => {
+      const mailbox = fixtureMailbox();
+      mockReadSettingsOverrides.mockResolvedValue(undefined);
+      const { registry } = await buildRegistry({ mailboxes: [mailbox] });
+      await registry.onApplicationBootstrap();
+
+      await vi.waitFor(() => {
+        expect(mockReadSettingsOverrides).toHaveBeenCalled();
+      });
+      expect(registry.getMailboxSettingsView(mailbox.id).overriddenKeys).toEqual([]);
     });
 
     test('throws a clear error for an unknown mailboxId', async () => {
@@ -510,7 +525,7 @@ describe('RunnerRegistry', () => {
       await registry.onApplicationBootstrap();
 
       expect(() =>
-        registry.getMailboxSettings('does-not-exist@example.com'),
+        registry.getMailboxSettingsView('does-not-exist@example.com'),
       ).toThrow('Unknown mailbox: does-not-exist@example.com');
     });
   });

@@ -240,8 +240,24 @@ export class RunnerRegistry
    * The mailbox's currently resolved settings - `5-server-api-auth`
    * design.md D6. Same "unknown mailbox throws" contract as `triggerNow`.
    */
-  getMailboxSettings(mailboxId: string): MailboxSettings {
-    return this.requireRunner(mailboxId).getSettings();
+  /**
+   * The mailbox's resolved settings alongside which top-level keys are an
+   * actual stored override versus a value that merely equals its code
+   * default - see `MailboxRunner.getOverriddenKeys()`. Both are read from
+   * the same runner instance in one call so they can never describe two
+   * different bootstraps (e.g. a settings update restarting the runner
+   * between two separate reads). Same "unknown mailbox throws" contract as
+   * `triggerNow`.
+   */
+  getMailboxSettingsView(mailboxId: string): {
+    settings: MailboxSettings;
+    overriddenKeys: string[];
+  } {
+    const runner = this.requireRunner(mailboxId);
+    return {
+      settings: runner.getSettings(),
+      overriddenKeys: runner.getOverriddenKeys(),
+    };
   }
 
   /**

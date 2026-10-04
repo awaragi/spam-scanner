@@ -1,79 +1,194 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { Component, OnInit, inject, signal } from '@angular/core';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { ApiService, parseEtagVersion } from '../../core/api.service';
-import { clearMailboxSession, getMailboxId, getMailboxToken } from '../../core/auth-storage';
+import { getMailboxId, getMailboxToken } from '../../core/auth-storage';
+import { ConfirmDialogService } from '../../shared/confirm-dialog.service';
+import { httpErrorMessage } from '../../shared/http-error.util';
+import { NotifyService } from '../../shared/notify.service';
+import { StatusBadgeComponent } from '../../shared/status-badge.component';
+import { JobsStatus, KebabJobName, isJobTriggerDisabled } from './job-trigger.util';
 import { SenderListPanelComponent } from './sender-list-panel.component';
 
-const JOBS = [
-  'scan',
-  'train-spam',
-  'train-ham',
-  'train-whitelist',
-  'train-blacklist',
-  'init-folders',
-] as const;
+const JOBS: { kebab: KebabJobName; label: string }[] = [
+  { kebab: 'scan', label: 'Scan' },
+  { kebab: 'train-spam', label: 'Train spam' },
+  { kebab: 'train-ham', label: 'Train ham' },
+  { kebab: 'train-whitelist', label: 'Train whitelist' },
+  { kebab: 'train-blacklist', label: 'Train blacklist' },
+  { kebab: 'init-folders', label: 'Initialize folders' },
+];
+
+interface ScannerState {
+  last_uid: number;
+  last_seen_date: string;
+  last_checked: string;
+  uid_validity?: string;
+}
 
 @Component({
   selector: 'app-mailbox',
-  imports: [SenderListPanelComponent],
+  imports: [
+    RouterLink,
+    MatButtonModule,
+    MatIconModule,
+    MatProgressSpinnerModule,
+    MatSlideToggleModule,
+    StatusBadgeComponent,
+    SenderListPanelComponent,
+  ],
   template: `
-    <h1>Mailbox: {{ mailboxId }}</h1>
-    <p>
-      <button type="button" (click)="backToAdmin()">Back to admin</button>
-      <button type="button" (click)="refreshStatus()">GET status</button>
-      <button type="button" (click)="toggleEnabled()">
-        {{ runnerEnabled() ? 'Disable' : 'Enable' }} mailbox
-      </button>
-      <button type="button" (click)="loadSettings()">GET settings</button>
-      <button type="button" (click)="loadState()">GET state</button>
-      <button type="button" (click)="deleteState()">DELETE state</button>
-    </p>
+    <section class="status-row">
+      <app-status-badge [status]="{ enabled: runnerEnabled(), state: runnerState() }" />
+      <mat-slide-toggle [checked]="runnerEnabled()" (change)="toggleEnabled()">
+        Enabled
+      </mat-slide-toggle>
+      <span class="spacer"></span>
+      <a mat-stroked-button [routerLink]="['settings']">
+        <mat-icon>settings</mat-icon>
+        Settings
+      </a>
+    </section>
+
+    <h2>Jobs</h2>
+    <div class="job-row">
+      @for (job of jobs; track job.kebab) {
+        <button
+          type="button"
+          mat-stroked-button
+          [disabled]="isJobDisabled(job.kebab)"
+          (click)="triggerJob(job.kebab)"
+        >
+          @if (isPending(job.kebab)) {
+            <mat-progress-spinner diameter="16" mode="indeterminate" />
+          }
+          {{ job.label }}
+        </button>
+      }
+    </div>
+
+    <h2>Scanner state</h2>
+    @if (state() === undefined) {
+      <p>Loading…</p>
+    } @else if (state() === null) {
+      <p>No scanner state yet.</p>
+    } @else {
+      <dl class="state-summary">
+        <dt>Last UID</dt>
+        <dd>{{ state()!.last_uid }}</dd>
+        <dt>Last seen date</dt>
+        <dd>{{ state()!.last_seen_date }}</dd>
+        <dt>Last checked</dt>
+        <dd>{{ state()!.last_checked }}</dd>
+        @if (state()!.uid_validity) {
+          <dt>UID validity</dt>
+          <dd>{{ state()!.uid_validity }}</dd>
+        }
+      </dl>
+    }
+    <button type="button" mat-stroked-button color="warn" (click)="resetState()">
+      Reset state
+    </button>
 
     <h2>Sender lists</h2>
     <app-sender-list-panel [mailboxId]="mailboxId" kind="whitelist" />
     <app-sender-list-panel [mailboxId]="mailboxId" kind="blacklist" />
-
-    <h2>Trigger jobs</h2>
-    @for (job of jobs; track job) {
-      <button type="button" (click)="triggerJob(job)">POST jobs/{{ job }}/trigger</button>
-    }
-
-    <h2>Output</h2>
-    <pre>{{ output() }}</pre>
   `,
+  styles: [
+    `
+      .status-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1rem;
+      }
+      .spacer {
+        flex: 1 1 auto;
+      }
+      .job-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+      }
+      .job-row button mat-progress-spinner {
+        display: inline-block;
+        margin-right: 0.5rem;
+        vertical-align: middle;
+      }
+      .state-summary {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.25rem 1rem;
+        max-width: 24rem;
+      }
+      .state-summary dt {
+        font-weight: 500;
+      }
+      .state-summary dd {
+        margin: 0;
+      }
+    `,
+  ],
 })
 export class MailboxComponent implements OnInit {
   private readonly api = inject(ApiService);
-  private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly notify = inject(NotifyService);
 
   mailboxId = '';
   readonly jobs = JOBS;
-  readonly output = signal('');
+
   readonly runnerEnabled = signal(true);
+  readonly runnerState = signal<'running' | 'degraded' | undefined>(undefined);
+  readonly jobsStatus = signal<JobsStatus | undefined>(undefined);
+  /** Jobs with a trigger request currently in flight. The server awaits a
+   * job's full completion before responding (design.md D4), so the request
+   * itself is the only "running" window the UI can ever observe for a
+   * self-triggered job - this is what the Scan/Train/... buttons actually
+   * show a spinner and disable against, separately from `jobsStatus()`. */
+  readonly pendingJobs = signal<ReadonlySet<KebabJobName>>(new Set());
+  /** `undefined` = not loaded yet, `null` = loaded, no state exists. */
+  readonly state = signal<ScannerState | null | undefined>(undefined);
 
   ngOnInit(): void {
     this.mailboxId = this.route.snapshot.paramMap.get('id') ?? getMailboxId() ?? '';
     this.refreshStatus();
+    this.reloadState();
   }
 
   private token(): string {
     return getMailboxToken() ?? '';
   }
 
-  backToAdmin(): void {
-    clearMailboxSession();
-    void this.router.navigate(['/admin']);
+  isJobDisabled(job: KebabJobName): boolean {
+    return isJobTriggerDisabled(job, this.jobsStatus()) || this.isPending(job);
+  }
+
+  isPending(job: KebabJobName): boolean {
+    return this.pendingJobs().has(job);
   }
 
   refreshStatus(): void {
-    this.api.mailboxGet<{ enabled: boolean }>(this.token(), this.mailboxId, '/status').subscribe({
-      next: (data) => {
-        this.runnerEnabled.set(data.enabled);
-        this.output.set(JSON.stringify(data, null, 2));
-      },
-      error: (err) => this.output.set(JSON.stringify(err.error ?? err.message, null, 2)),
-    });
+    this.api
+      .mailboxGet<{
+        enabled: boolean;
+        state?: 'running' | 'degraded';
+        jobs?: JobsStatus;
+      }>(this.token(), this.mailboxId, '/status')
+      .subscribe({
+        next: (data) => {
+          this.runnerEnabled.set(data.enabled);
+          this.runnerState.set(data.state);
+          this.jobsStatus.set(data.jobs);
+        },
+        error: (err) => this.notify.error(httpErrorMessage(err, 'Could not load status.')),
+      });
   }
 
   /**
@@ -91,7 +206,7 @@ export class MailboxComponent implements OnInit {
         next: ({ etag }) => {
           const version = parseEtagVersion(etag);
           if (version === null) {
-            this.output.set('Missing ETag on GET /enabled - cannot proceed safely.');
+            this.notify.error('Missing ETag on GET /enabled - cannot proceed safely.');
             return;
           }
           this.api
@@ -104,51 +219,77 @@ export class MailboxComponent implements OnInit {
               { enabled: next },
             )
             .subscribe({
-              next: () => this.refreshStatus(),
+              next: () => {
+                this.refreshStatus();
+                this.notify.success(`Mailbox ${next ? 'enabled' : 'disabled'}.`);
+              },
               error: (err) => {
-                this.output.set(JSON.stringify(err.error ?? err.message, null, 2));
+                this.notify.error(httpErrorMessage(err));
                 if (err.status === 409) this.refreshStatus();
               },
             });
         },
-        error: (err) => this.output.set(JSON.stringify(err.error ?? err.message, null, 2)),
+        error: (err) => this.notify.error(httpErrorMessage(err)),
       });
   }
 
-  loadSettings(): void {
-    this.mailboxGet('/settings');
+  triggerJob(job: KebabJobName): void {
+    this.setPending(job, true);
+    this.api
+      .mailboxPost<{ triggered: true }>(this.token(), this.mailboxId, `/jobs/${job}/trigger`)
+      .subscribe({
+        next: () => {
+          this.setPending(job, false);
+          this.notify.success(`${job} finished.`);
+          this.refreshStatus();
+          // The job already fully ran by the time this response arrives
+          // (the server awaits it - see `pendingJobs`'s doc comment), so
+          // scanner state may have genuinely changed; the status refresh
+          // above doesn't cover that on its own.
+          this.reloadState();
+        },
+        error: (err) => {
+          this.setPending(job, false);
+          this.notify.error(httpErrorMessage(err, `Could not trigger ${job}.`));
+        },
+      });
   }
 
-  loadState(): void {
-    this.mailboxGet('/state');
+  private setPending(job: KebabJobName, pending: boolean): void {
+    const next = new Set(this.pendingJobs());
+    if (pending) {
+      next.add(job);
+    } else {
+      next.delete(job);
+    }
+    this.pendingJobs.set(next);
   }
 
-  deleteState(): void {
-    this.mailboxDelete('/state');
-  }
-
-  triggerJob(job: string): void {
-    this.mailboxPost(`/jobs/${job}/trigger`);
-  }
-
-  private mailboxGet(path: string): void {
-    this.api.mailboxGet<unknown>(this.token(), this.mailboxId, path).subscribe({
-      next: (data) => this.output.set(JSON.stringify(data, null, 2)),
-      error: (err) => this.output.set(JSON.stringify(err.error ?? err.message, null, 2)),
+  reloadState(): void {
+    this.api.mailboxGet<ScannerState | null>(this.token(), this.mailboxId, '/state').subscribe({
+      next: (data) => this.state.set(data),
+      error: (err) => this.notify.error(httpErrorMessage(err, 'Could not load scanner state.')),
     });
   }
 
-  private mailboxPost(path: string, body: unknown = {}): void {
-    this.api.mailboxPost<unknown>(this.token(), this.mailboxId, path, body).subscribe({
-      next: (data) => this.output.set(JSON.stringify(data, null, 2)),
-      error: (err) => this.output.set(JSON.stringify(err.error ?? err.message, null, 2)),
-    });
-  }
-
-  private mailboxDelete(path: string): void {
-    this.api.mailboxDelete<unknown>(this.token(), this.mailboxId, path).subscribe({
-      next: (data) => this.output.set(JSON.stringify(data, null, 2)),
-      error: (err) => this.output.set(JSON.stringify(err.error ?? err.message, null, 2)),
-    });
+  resetState(): void {
+    this.confirmDialog
+      .confirm({
+        title: 'Reset scanner state',
+        message:
+          "Reset this mailbox's scanner state? The next scan will re-establish it from scratch.",
+      })
+      .subscribe((confirmed) => {
+        if (!confirmed) return;
+        this.api
+          .mailboxDelete<{ deleted: boolean }>(this.token(), this.mailboxId, '/state')
+          .subscribe({
+            next: () => {
+              this.notify.success('Scanner state reset.');
+              this.reloadState();
+            },
+            error: (err) => this.notify.error(httpErrorMessage(err, 'Could not reset state.')),
+          });
+      });
   }
 }

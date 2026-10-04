@@ -1,23 +1,54 @@
 import { Component, Input, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatIconModule } from '@angular/material/icon';
 import { ApiService } from '../../core/api.service';
 import { getMailboxToken } from '../../core/auth-storage';
+import { httpErrorMessage } from '../../shared/http-error.util';
+import { NotifyService } from '../../shared/notify.service';
 import { parseAddressList } from './sender-list.util';
 
 export type SenderListKind = 'whitelist' | 'blacklist';
 
 @Component({
   selector: 'app-sender-list-panel',
-  imports: [FormsModule],
+  imports: [FormsModule, MatButtonModule, MatCardModule, MatIconModule],
   template: `
-    <section>
-      <h3>{{ kind }}</h3>
-      <p>
-        <button type="button" (click)="reload()">Reload</button>
-        <button type="button" (click)="save()">Save (PUT)</button>
-        <button type="button" (click)="fileInput.click()">Import (.txt or .json)…</button>
-        <button type="button" (click)="exportJson()">Export JSON</button>
-        <button type="button" (click)="exportLines()">Export lines</button>
+    <mat-card class="list-panel">
+      <mat-card-header>
+        <mat-card-title>{{ kind }}</mat-card-title>
+        <mat-card-subtitle>{{ addresses().length }} address(es)</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <textarea
+          [(ngModel)]="editorText"
+          rows="12"
+          class="editor"
+          [attr.aria-label]="kind + ' addresses'"
+        ></textarea>
+      </mat-card-content>
+      <mat-card-actions>
+        <button type="button" mat-button (click)="reload()">
+          <mat-icon>refresh</mat-icon>
+          Reload
+        </button>
+        <button type="button" mat-button (click)="save()">
+          <mat-icon>save</mat-icon>
+          Save
+        </button>
+        <button type="button" mat-button (click)="fileInput.click()">
+          <mat-icon>upload_file</mat-icon>
+          Import…
+        </button>
+        <button type="button" mat-button (click)="exportJson()">
+          <mat-icon>download</mat-icon>
+          Export JSON
+        </button>
+        <button type="button" mat-button (click)="exportLines()">
+          <mat-icon>download</mat-icon>
+          Export lines
+        </button>
         <input
           #fileInput
           type="file"
@@ -25,52 +56,56 @@ export type SenderListKind = 'whitelist' | 'blacklist';
           hidden
           (change)="onFileSelected($event)"
         />
-      </p>
-      <p>{{ addresses().length }} address(es)</p>
-      <textarea
-        [(ngModel)]="editorText"
-        rows="12"
-        cols="60"
-        [attr.aria-label]="kind + ' addresses'"
-      ></textarea>
-      @if (message()) {
-        <pre>{{ message() }}</pre>
-      }
-    </section>
+      </mat-card-actions>
+    </mat-card>
   `,
+  styles: [
+    `
+      .list-panel {
+        margin-bottom: 1.5rem;
+      }
+      .editor {
+        width: 100%;
+        box-sizing: border-box;
+        font-family: monospace;
+      }
+      mat-card-actions {
+        display: flex;
+        flex-wrap: wrap;
+      }
+    `,
+  ],
 })
 export class SenderListPanelComponent implements OnInit {
   @Input({ required: true }) mailboxId!: string;
   @Input({ required: true }) kind!: SenderListKind;
 
   private readonly api = inject(ApiService);
+  private readonly notify = inject(NotifyService);
 
   readonly addresses = signal<string[]>([]);
   editorText = '';
-  readonly message = signal('');
 
   ngOnInit(): void {
     this.reload();
   }
 
   reload(): void {
-    this.message.set('');
     this.api.mailboxGet<string[]>(this.token(), this.mailboxId, `/lists/${this.kind}`).subscribe({
       next: (list) => {
         this.addresses.set(list);
         this.editorText = list.join('\n');
       },
-      error: (err) => this.message.set(JSON.stringify(err.error ?? err.message, null, 2)),
+      error: (err) => this.notify.error(httpErrorMessage(err, `Could not load ${this.kind}.`)),
     });
   }
 
   save(): void {
-    this.message.set('');
     let parsed: string[];
     try {
       parsed = parseAddressList(this.editorText);
     } catch (err) {
-      this.message.set(err instanceof Error ? err.message : String(err));
+      this.notify.error(err instanceof Error ? err.message : String(err));
       return;
     }
     this.api
@@ -78,9 +113,9 @@ export class SenderListPanelComponent implements OnInit {
       .subscribe({
         next: () => {
           this.addresses.set(parsed);
-          this.message.set('Saved.');
+          this.notify.success(`${this.kind} saved.`);
         },
-        error: (err) => this.message.set(JSON.stringify(err.error ?? err.message, null, 2)),
+        error: (err) => this.notify.error(httpErrorMessage(err, `Could not save ${this.kind}.`)),
       });
   }
 
@@ -91,7 +126,6 @@ export class SenderListPanelComponent implements OnInit {
     if (!file) {
       return;
     }
-    this.message.set('');
     file
       .text()
       .then((text) => {
@@ -99,7 +133,7 @@ export class SenderListPanelComponent implements OnInit {
         try {
           parsed = parseAddressList(text);
         } catch (err) {
-          this.message.set(err instanceof Error ? err.message : String(err));
+          this.notify.error(err instanceof Error ? err.message : String(err));
           return;
         }
         this.api
@@ -113,12 +147,13 @@ export class SenderListPanelComponent implements OnInit {
             next: () => {
               this.addresses.set(parsed);
               this.editorText = parsed.join('\n');
-              this.message.set(`Imported ${parsed.length} address(es).`);
+              this.notify.success(`Imported ${parsed.length} address(es).`);
             },
-            error: (err) => this.message.set(JSON.stringify(err.error ?? err.message, null, 2)),
+            error: (err) =>
+              this.notify.error(httpErrorMessage(err, `Could not import ${this.kind}.`)),
           });
       })
-      .catch((err) => this.message.set(String(err)));
+      .catch((err) => this.notify.error(String(err)));
   }
 
   exportJson(): void {
@@ -134,16 +169,15 @@ export class SenderListPanelComponent implements OnInit {
   }
 
   private fetchExport(write: (list: string[]) => void): void {
-    this.message.set('');
     this.api
       .mailboxGet<string[]>(this.token(), this.mailboxId, `/lists/${this.kind}/export`)
       .subscribe({
         next: (list) => {
           this.addresses.set(list);
           write(list);
-          this.message.set(`Exported ${list.length} address(es).`);
+          this.notify.success(`Exported ${list.length} address(es).`);
         },
-        error: (err) => this.message.set(JSON.stringify(err.error ?? err.message, null, 2)),
+        error: (err) => this.notify.error(httpErrorMessage(err, `Could not export ${this.kind}.`)),
       });
   }
 
