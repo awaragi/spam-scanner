@@ -34,15 +34,7 @@ describe('AppConfigModule', () => {
 
   test('resolves every typed config section from a fixture env via Test.createTestingModule', async () => {
     Object.assign(process.env, {
-      MAILBOX_1_ID: 'owner@example.com',
-      MAILBOX_1_IMAP_HOST: 'imap.example.com',
-      MAILBOX_1_IMAP_USER: 'owner@example.com',
-      MAILBOX_1_IMAP_PASSWORD: 'secret',
-      MAILBOX_1_STATE_FOLDER: 'INBOX.scanner.state',
-      MAILBOX_2_ID: 'second@example.com',
-      MAILBOX_2_IMAP_HOST: 'imap.example.com',
-      MAILBOX_2_IMAP_USER: 'second@example.com',
-      MAILBOX_2_IMAP_PASSWORD: 'secret-2',
+      SPAM_SCANNER_DATA: '/data/spam-scanner',
       RSPAMD_URL: 'http://rspamd.internal:11334',
       RSPAMD_PASSWORD: 'rspamd-secret',
       RSPAMD_TIMEOUT_MS: '45000',
@@ -59,13 +51,13 @@ describe('AppConfigModule', () => {
 
     const {
       AppConfigModule,
+      SpamScannerDataConfig,
       RspamdConfig,
       AiConfig,
       ScanConfig,
       LoggingConfig,
       ServerConfig,
       ApiAuthConfig,
-      MailboxConnectionsConfig,
     } = await loadConfigModule();
 
     const moduleRef = await Test.createTestingModule({
@@ -73,6 +65,9 @@ describe('AppConfigModule', () => {
     }).compile();
 
     try {
+      const data = moduleRef.get(SpamScannerDataConfig);
+      expect(data.path).toBe('/data/spam-scanner');
+
       const rspamd = moduleRef.get(RspamdConfig);
       expect(rspamd.url).toBe('http://rspamd.internal:11334');
       expect(rspamd.password).toBe('rspamd-secret');
@@ -104,35 +99,41 @@ describe('AppConfigModule', () => {
       expect(apiAuth.jwtSecret).toBe('jwt-secret');
       expect(apiAuth.adminTokenTtlSeconds).toBe(3600);
       expect(apiAuth.mailboxTokenTtlSeconds).toBe(3600);
-
-      const mailboxes = moduleRef.get(MailboxConnectionsConfig);
-      expect(mailboxes.mailboxes).toHaveLength(2);
-      const [first, second] = mailboxes.mailboxes;
-      expect(first.id).toBe('owner@example.com');
-      expect(first.imapHost).toBe('imap.example.com');
-      expect(first.imapUser).toBe('owner@example.com');
-      expect(first.imapPassword).toBe('secret');
-      expect(first.imapTls).toBe(true);
-      expect(first.imapAllowInsecure).toBe(false);
-      expect(first.stateFolder).toBe('INBOX.scanner.state');
-      expect(second.id).toBe('second@example.com');
-      expect(second.imapUser).toBe('second@example.com');
-      expect(second.imapPassword).toBe('secret-2');
     } finally {
       await moduleRef.close();
     }
   });
 
-  test('fails to bootstrap (throws) when a required mailbox connection field is missing', async () => {
-    delete process.env.MAILBOX_1_ID;
-    delete process.env.MAILBOX_1_IMAP_HOST;
-    delete process.env.MAILBOX_1_IMAP_USER;
-    delete process.env.MAILBOX_1_IMAP_PASSWORD;
+  test('SpamScannerDataConfig falls back to ~/.spam-scanner when SPAM_SCANNER_DATA is unset', async () => {
+    delete process.env.SPAM_SCANNER_DATA;
+    Object.assign(process.env, {
+      API_ADMIN_PASSWORD: 'admin-secret',
+      API_JWT_SECRET: 'jwt-secret',
+    });
+
+    const { AppConfigModule, SpamScannerDataConfig } = await loadConfigModule();
+
+    const moduleRef = await Test.createTestingModule({
+      imports: [AppConfigModule],
+    }).compile();
+
+    try {
+      const data = moduleRef.get(SpamScannerDataConfig);
+      expect(data.path).toContain('.spam-scanner');
+      expect(data.path).not.toBe('');
+    } finally {
+      await moduleRef.close();
+    }
+  });
+
+  test('fails to bootstrap (throws) when a required HTTP API auth field is missing', async () => {
+    delete process.env.API_ADMIN_PASSWORD;
+    delete process.env.API_JWT_SECRET;
 
     const { AppConfigModule } = await loadConfigModule();
 
     await expect(
       Test.createTestingModule({ imports: [AppConfigModule] }).compile(),
-    ).rejects.toThrow(/MAILBOX_1_ID/);
+    ).rejects.toThrow(/API_ADMIN_PASSWORD/);
   });
 });

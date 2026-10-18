@@ -16,6 +16,7 @@ function fixtureMailbox(overrides: Partial<Mailbox> = {}): Mailbox {
     imapAllowInsecure: false,
     stateFolder: 'INBOX.scanner.state',
     enabled: true,
+    aiEnabled: true,
     ...overrides,
   };
 }
@@ -82,10 +83,10 @@ describe('AuthService', () => {
   });
 
   describe('exchangeForMailboxToken', () => {
-    test('signs a mailbox-scope token carrying the mailboxId for a known mailbox', () => {
+    test('signs a mailbox-scope token carrying the mailboxId for a known mailbox', async () => {
       const service = build();
 
-      const result = service.exchangeForMailboxToken('owner@example.com');
+      const result = await service.exchangeForMailboxToken('owner@example.com');
 
       expect(result).toEqual({ token: 'signed-token' });
       expect(jwtService.sign).toHaveBeenCalledWith(
@@ -98,12 +99,12 @@ describe('AuthService', () => {
       );
     });
 
-    test('throws NotFoundException for an unknown mailbox id', () => {
+    test('throws NotFoundException for an unknown mailbox id', async () => {
       const service = build();
 
-      expect(() =>
+      await expect(
         service.exchangeForMailboxToken('unknown@example.com'),
-      ).toThrow(NotFoundException);
+      ).rejects.toThrow(NotFoundException);
       expect(jwtService.sign).not.toHaveBeenCalled();
     });
   });

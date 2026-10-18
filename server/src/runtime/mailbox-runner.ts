@@ -7,7 +7,10 @@ import {
   resolveMailboxSettings,
   type MailboxSettings,
 } from '../config/mailbox-settings.defaults.js';
-import { validateOverrides } from '../config/mailbox-settings.schema.js';
+import {
+  validateOverrides,
+  type OverridableSettings,
+} from '../config/mailbox-settings.schema.js';
 import {
   newClient,
   safeLogout,
@@ -188,6 +191,15 @@ export class MailboxRunner {
    * on every job run.
    */
   private settings: MailboxSettings = defaultMailboxSettings;
+
+  /**
+   * The raw (validated) overrides `this.settings` was resolved from -
+   * tracked separately so `getOverriddenKeys()` can tell the control UI
+   * which top-level settings keys are an actual stored override versus a
+   * value that merely happens to equal its code default. Same
+   * once-per-bootstrap lifecycle as `settings` above.
+   */
+  private overrides: OverridableSettings = {};
 
   /**
    * Consecutive `bootstrap()` failures - separate from both `JobState`'s
@@ -409,6 +421,17 @@ export class MailboxRunner {
   }
 
   /**
+   * Which top-level settings keys this mailbox currently has a stored
+   * override for, ready for the control UI to distinguish "overridden" from
+   * "using the code default" per settings group - otherwise every field
+   * looks pinned-in-place the moment settings are read, since
+   * `getSettings()` only ever returns the merged result.
+   */
+  getOverriddenKeys(): string[] {
+    return Object.keys(this.overrides);
+  }
+
+  /**
    * Runs folder initialization on demand - `5-server-api-auth` design.md
    * D6, ready for `RunnerRegistry.triggerInitFolders` to expose over HTTP.
    * Opens a fresh session (mirroring `runWithSession`'s session lifecycle)
@@ -500,9 +523,13 @@ export class MailboxRunner {
         this.mailbox.stateFolder,
         this.logger,
       );
-      this.settings = resolveMailboxSettings(
-        validateOverrides(rawOverrides, this.logger, this.mailbox.id),
+      const validated = validateOverrides(
+        rawOverrides,
+        this.logger,
+        this.mailbox.id,
       );
+      this.overrides = validated ?? {};
+      this.settings = resolveMailboxSettings(validated, this.mailbox.aiEnabled);
 
       const folders = await resolveMailboxFolders(imap, {
         ...this.settings.folders,

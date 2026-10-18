@@ -4,22 +4,22 @@ import { AppConfigSchema } from './app-config.schema.js';
 import {
   AiConfig,
   ApiAuthConfig,
-  MailboxConnectionsConfig,
   RspamdConfig,
   ScanConfig,
   ServerConfig,
   LoggingConfig,
+  SpamScannerDataConfig,
   type AppConfigService,
 } from './app-config.js';
 
 const sections = [
+  SpamScannerDataConfig,
   RspamdConfig,
   AiConfig,
   ScanConfig,
   LoggingConfig,
   ServerConfig,
   ApiAuthConfig,
-  MailboxConnectionsConfig,
 ];
 
 /**

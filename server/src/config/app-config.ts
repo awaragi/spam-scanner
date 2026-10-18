@@ -1,9 +1,7 @@
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { ConfigService } from '@nestjs/config';
-import type {
-  AppConfig,
-  MailboxConnectionConfig,
-} from './app-config.schema.js';
-export type { MailboxConnectionConfig } from './app-config.schema.js';
+import type { AppConfig } from './app-config.schema.js';
 
 /**
  * Every typed config section below is built from this same
@@ -131,18 +129,20 @@ export class ApiAuthConfig {
 }
 
 /**
- * Every configured mailbox's connection info, in slot order (see the
- * `server/mailbox-registry` capability) - `MAILBOX_<n>_*` env keys are a
- * temporary env-backed registry, not app settings (see design.md D5).
- * `AppConfigSchema`'s `MAILBOXES` field already did the work of discovering
- * how many slots are configured (scanning the raw env for `MAILBOX_<n>_*`
- * keys with no fixed limit on `n`) and validating/coercing each one, so this
- * is a single `config.get()` call rather than a per-slot loop.
+ * The external data directory (`persistent-mailbox-accounts` design.md D1) -
+ * used by docker-compose for rspamd/Redis state and directly by the server
+ * for the mailbox accounts file. `AppConfigSchema`'s own `SPAM_SCANNER_DATA`
+ * field is left at `''` when unset (see that field's own doc comment) so
+ * this class, not the schema, owns the "falls back to `~/.spam-scanner`"
+ * default - keeping a machine-specific home directory out of the schema's
+ * own `.default()` (and therefore out of the generated `.env.example`).
  */
-export class MailboxConnectionsConfig {
-  readonly mailboxes: readonly MailboxConnectionConfig[];
+export class SpamScannerDataConfig {
+  /** Absolute path to the data directory. */
+  readonly path: string;
 
   constructor(config: AppConfigService) {
-    this.mailboxes = config.get('MAILBOXES', { infer: true });
+    const raw = config.get('SPAM_SCANNER_DATA', { infer: true }).trim();
+    this.path = raw !== '' ? raw : join(homedir(), '.spam-scanner');
   }
 }

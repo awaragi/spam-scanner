@@ -1,16 +1,18 @@
 import { describe, test, expect, vi } from 'vitest';
+import type { Response } from 'express';
 import { AdminController, type AdminSettings } from './admin.controller.js';
 import type { RunnerRegistry } from '../../runtime/runner-registry.js';
+import type { AccountAdminService } from '../../application/accounts/account-admin.service.js';
 import type { HealthService } from '../health/health.service.js';
 import {
   AiConfig,
   ApiAuthConfig,
   LoggingConfig,
-  MailboxConnectionsConfig,
   RspamdConfig,
   ScanConfig,
   ServerConfig,
 } from '../../config/app-config.js';
+import { PreconditionRequiredException } from '../common/http-exceptions.js';
 
 function fixtureRspamdConfig(): RspamdConfig {
   return {
@@ -67,36 +69,14 @@ function fixtureApiAuthConfig(): ApiAuthConfig {
   } as ApiAuthConfig;
 }
 
-function fixtureMailboxConnectionsConfig(): MailboxConnectionsConfig {
-  return {
-    mailboxes: [
-      {
-        id: 'owner@example.com',
-        imapHost: 'imap.example.com',
-        imapPort: 993,
-        imapUser: 'owner@example.com',
-        imapPassword: 'super-secret-imap-password',
-        imapTls: true,
-        imapAllowInsecure: false,
-        stateFolder: 'INBOX.scanner.state',
-        enabled: true,
-      },
-      {
-        id: 'second@example.com',
-        imapHost: 'imap.example.com',
-        imapPort: 993,
-        imapUser: 'second@example.com',
-        imapPassword: 'super-secret-second-imap-password',
-        imapTls: true,
-        imapAllowInsecure: false,
-        stateFolder: 'INBOX.scanner.state',
-        enabled: true,
-      },
-    ],
-  } as MailboxConnectionsConfig;
+function fixtureResponse(): Response {
+  return { setHeader: vi.fn() } as unknown as Response;
 }
 
-function build(runnerRegistry: Partial<RunnerRegistry> = {}) {
+function build(
+  runnerRegistry: Partial<RunnerRegistry> = {},
+  accountAdminService: Partial<AccountAdminService> = {},
+) {
   const registry = {
     getStatus: () => ({
       mailboxes: [
@@ -110,13 +90,22 @@ function build(runnerRegistry: Partial<RunnerRegistry> = {}) {
         { mailboxId: 'second@example.com', enabled: false },
       ],
     }),
-    enableMailbox: () => undefined,
-    disableMailbox: async () => undefined,
+    enableMailbox: vi.fn(),
+    disableMailbox: vi.fn().mockResolvedValue(undefined),
     ...runnerRegistry,
+  };
+
+  const accountAdmin = {
+    setEnabled: vi.fn().mockResolvedValue({
+      listing: { version: 2, accounts: [] },
+      mailbox: { id: 'second@example.com' },
+    }),
+    ...accountAdminService,
   };
 
   const controller = new AdminController(
     registry as RunnerRegistry,
+    accountAdmin as unknown as AccountAdminService,
     {} as HealthService,
     fixtureRspamdConfig(),
     fixtureAiConfig(),
@@ -124,10 +113,9 @@ function build(runnerRegistry: Partial<RunnerRegistry> = {}) {
     fixtureLoggingConfig(),
     fixtureServerConfig(),
     fixtureApiAuthConfig(),
-    fixtureMailboxConnectionsConfig(),
   );
 
-  return { controller };
+  return { controller, accountAdmin, registry };
 }
 
 const SECRET_VALUES = [
@@ -135,8 +123,6 @@ const SECRET_VALUES = [
   'super-secret-ai-key',
   'super-secret-admin-password',
   'super-secret-jwt-signing-key',
-  'super-secret-imap-password',
-  'super-secret-second-imap-password',
 ];
 
 describe('AdminController', () => {
@@ -157,16 +143,42 @@ describe('AdminController', () => {
     });
   });
 
-  test('PUT /admin/mailboxes/:id/enabled delegates to RunnerRegistry', async () => {
-    const disableMailbox = vi.fn().mockResolvedValue(undefined);
-    const enableMailbox = vi.fn();
-    const { controller } = build({ disableMailbox, enableMailbox });
+  describe('PUT /admin/mailboxes/:id/enabled', () => {
+    test('rejects without an If-Match header, before AccountAdminService runs', async () => {
+      const { controller, accountAdmin } = build();
+      const res = fixtureResponse();
 
-    await controller.setMailboxEnabled('second@example.com', { enabled: false });
-    expect(disableMailbox).toHaveBeenCalledWith('second@example.com');
+      await expect(
+        controller.setMailboxEnabled(
+          'second@example.com',
+          { enabled: true },
+          undefined,
+          res,
+        ),
+      ).rejects.toThrow(PreconditionRequiredException);
+      expect(accountAdmin.setEnabled).not.toHaveBeenCalled();
+    });
 
-    await controller.setMailboxEnabled('second@example.com', { enabled: true });
-    expect(enableMailbox).toHaveBeenCalledWith('second@example.com');
+    test('delegates to AccountAdminService.setEnabled then syncs the runner registry', async () => {
+      const { controller, accountAdmin, registry } = build();
+      const res = fixtureResponse();
+
+      const result = await controller.setMailboxEnabled(
+        'second@example.com',
+        { enabled: true },
+        '"1"',
+        res,
+      );
+
+      expect(accountAdmin.setEnabled).toHaveBeenCalledWith(
+        'second@example.com',
+        true,
+        1,
+      );
+      expect(registry.enableMailbox).toHaveBeenCalledWith('second@example.com');
+      expect(result).toEqual({ updated: true });
+      expect(res.setHeader).toHaveBeenCalledWith('ETag', '"2"');
+    });
   });
 
   test('GET /admin/settings never includes any secret field', () => {
@@ -182,8 +194,18 @@ describe('AdminController', () => {
     expect(settings).not.toHaveProperty('ai.apiKey');
     expect(settings).not.toHaveProperty('apiAuth.adminPassword');
     expect(settings).not.toHaveProperty('apiAuth.jwtSecret');
-    expect(settings).not.toHaveProperty('mailboxes.0.imapPassword');
-    expect(settings).not.toHaveProperty('mailboxes.1.imapPassword');
+  });
+
+  test('GET /admin/settings omits mailbox connection fields and account lists entirely', () => {
+    const { controller } = build();
+
+    const settings = controller.getSettings() as unknown as Record<
+      string,
+      unknown
+    >;
+
+    expect(settings).not.toHaveProperty('mailboxes');
+    expect(settings).not.toHaveProperty('accounts');
   });
 
   test('GET /admin/settings returns the expected non-secret fields', () => {
@@ -222,26 +244,6 @@ describe('AdminController', () => {
       },
       server: { port: 3000 },
       apiAuth: { adminTokenTtlSeconds: 3600, mailboxTokenTtlSeconds: 3600 },
-      mailboxes: [
-        {
-          id: 'owner@example.com',
-          imapHost: 'imap.example.com',
-          imapPort: 993,
-          imapUser: 'owner@example.com',
-          imapTls: true,
-          imapAllowInsecure: false,
-          stateFolder: 'INBOX.scanner.state',
-        },
-        {
-          id: 'second@example.com',
-          imapHost: 'imap.example.com',
-          imapPort: 993,
-          imapUser: 'second@example.com',
-          imapTls: true,
-          imapAllowInsecure: false,
-          stateFolder: 'INBOX.scanner.state',
-        },
-      ],
     });
   });
 });

@@ -18,6 +18,7 @@ function fixtureMailbox(overrides: Partial<Mailbox> = {}): Mailbox {
     imapAllowInsecure: false,
     stateFolder: 'INBOX.scanner.state',
     enabled: true,
+    aiEnabled: true,
     ...overrides,
   };
 }

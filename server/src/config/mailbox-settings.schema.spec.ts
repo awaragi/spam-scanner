@@ -79,14 +79,28 @@ describe('validateOverrides', () => {
     const result = validateOverrides({
       folders: { spam: 'INBOX.custom-spam' },
       thresholds: { clean: 40 },
-      aiEnabled: false,
     });
 
     expect(result).toEqual({
       folders: { spam: 'INBOX.custom-spam' },
       thresholds: { clean: 40 },
-      aiEnabled: false,
     });
+  });
+
+  test('aiEnabled in a stored settings message is dropped with a warning, like any other global-only key', () => {
+    const warn = vi.fn();
+
+    const result = validateOverrides(
+      { thresholds: { clean: 40 }, aiEnabled: false },
+      { warn } as any,
+      'mailbox@example.com',
+    );
+
+    expect(result).toEqual({ thresholds: { clean: 40 } });
+    expect(warn).toHaveBeenCalledWith(
+      { mailboxId: 'mailbox@example.com', key: 'aiEnabled' },
+      'Ignoring unrecognized or global-only settings key',
+    );
   });
 
   test('works with no logger passed at all', () => {

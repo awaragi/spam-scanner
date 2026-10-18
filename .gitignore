@@ -53,5 +53,9 @@ rspamd/config/worker-controller.inc
 dist/
 *.tsbuildinfo
 
+# Angular build copied in by server/Dockerfile's front-builder stage -
+# never populated outside Docker, never checked in
+server/public/
+
 # Turborepo local cache
 .turbo

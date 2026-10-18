@@ -40,8 +40,8 @@ describe('resolveMailboxSettings', () => {
     });
   });
 
-  test('overriding aiEnabled alone leaves every other top-level scalar at default', () => {
-    const resolved = resolveMailboxSettings({ aiEnabled: false });
+  test('aiEnabled comes from the second parameter, not from overrides, and leaves every other top-level scalar at default', () => {
+    const resolved = resolveMailboxSettings(undefined, false);
 
     expect(resolved.aiEnabled).toBe(false);
     expect(resolved.scanRead).toBe(defaultMailboxSettings.scanRead);
@@ -52,11 +52,17 @@ describe('resolveMailboxSettings', () => {
   });
 
   test('overrides for groups not mentioned fall back entirely to their own default group', () => {
-    const resolved = resolveMailboxSettings({ aiEnabled: false });
+    const resolved = resolveMailboxSettings(undefined, false);
 
     expect(resolved.folders).toEqual(defaultMailboxSettings.folders);
     expect(resolved.labels).toEqual(defaultMailboxSettings.labels);
     expect(resolved.thresholds).toEqual(defaultMailboxSettings.thresholds);
     expect(resolved.aiEscalation).toEqual(defaultMailboxSettings.aiEscalation);
+  });
+
+  test('aiEnabled defaults to defaultMailboxSettings.aiEnabled when omitted', () => {
+    const resolved = resolveMailboxSettings({ scanRead: true });
+
+    expect(resolved.aiEnabled).toBe(defaultMailboxSettings.aiEnabled);
   });
 });

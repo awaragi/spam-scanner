@@ -66,6 +66,7 @@ function fixtureMailbox(overrides: Partial<Mailbox> = {}): Mailbox {
     imapAllowInsecure: false,
     stateFolder: 'INBOX.scanner.state',
     enabled: true,
+    aiEnabled: true,
     ...overrides,
   };
 }
@@ -214,14 +215,15 @@ describe('RunnerRegistry', () => {
 
     // The bad mailbox's bootstrap now retries forever with backoff
     // (`4-mailbox-settings-email` design.md D4), so its `start()` call never
-    // resolves while it keeps failing. `onApplicationBootstrap` itself is
-    // synchronous and fires every runner's `start()` without awaiting it
-    // (exactly to avoid hanging on a permanently-unreachable mailbox), so the
-    // runner map is populated the moment this call returns, and
+    // resolves while it keeps failing. `onApplicationBootstrap` only awaits
+    // the (now async) `MailboxRepository.findAll()` call itself, firing
+    // every runner's `start()` without awaiting it (exactly to avoid
+    // hanging on a permanently-unreachable mailbox), so the runner map is
+    // populated the moment this call returns, and
     // `getStatus()`/`triggerNow()` are already usable regardless of whether
     // either runner's bootstrap has resolved yet - exactly the "does not
     // block" property this test exercises.
-    registry.onApplicationBootstrap();
+    await registry.onApplicationBootstrap();
 
     const status = registry.getStatus();
     const mailboxIds = status.mailboxes.map((m) => m.mailboxId).sort();
@@ -242,7 +244,10 @@ describe('RunnerRegistry', () => {
 
   describe('mailbox enable/disable (mailbox-runner-enable-toggle)', () => {
     test('bootstrap starts a runner only for enabled mailboxes', async () => {
-      const enabled = fixtureMailbox({ id: 'enabled@example.com', enabled: true });
+      const enabled = fixtureMailbox({
+        id: 'enabled@example.com',
+        enabled: true,
+      });
       const disabled = fixtureMailbox({
         id: 'disabled@example.com',
         enabled: false,
@@ -251,7 +256,7 @@ describe('RunnerRegistry', () => {
       const { registry } = await buildRegistry({
         mailboxes: [enabled, disabled],
       });
-      registry.onApplicationBootstrap();
+      await registry.onApplicationBootstrap();
 
       expect(registry.getMailboxStatus('enabled@example.com').enabled).toBe(
         true,
@@ -269,7 +274,7 @@ describe('RunnerRegistry', () => {
 
     test('disableMailbox awaits runner.stop() and is idempotent', async () => {
       const { registry } = await buildRegistry();
-      registry.onApplicationBootstrap();
+      await registry.onApplicationBootstrap();
 
       let resolveStop!: () => void;
       const stopSpy = vi
@@ -309,21 +314,63 @@ describe('RunnerRegistry', () => {
       const { registry } = await buildRegistry({
         mailboxes: [fixtureMailbox({ enabled: false })],
       });
-      registry.onApplicationBootstrap();
+      await registry.onApplicationBootstrap();
 
       expect(registry.getMailboxStatus('owner@example.com').enabled).toBe(
         false,
       );
 
-      registry.enableMailbox('owner@example.com');
+      await registry.enableMailbox('owner@example.com');
       const firstStatus = registry.getMailboxStatus('owner@example.com');
       expect(firstStatus.enabled).toBe(true);
 
-      registry.enableMailbox('owner@example.com');
+      await registry.enableMailbox('owner@example.com');
       expect(registry.getMailboxStatus('owner@example.com')).toEqual(
         firstStatus,
       );
 
+      await registry.onApplicationShutdown();
+    });
+
+    test('a disableMailbox/enableMailbox pair for the same mailbox is serialized, not interleaved', async () => {
+      const { registry } = await buildRegistry();
+      await registry.onApplicationBootstrap();
+
+      let resolveStop!: () => void;
+      const stopSpy = vi
+        .spyOn(MailboxRunner.prototype, 'stop')
+        .mockImplementation(
+          () =>
+            new Promise<void>((resolve) => {
+              resolveStop = resolve;
+            }),
+        );
+      // Installed after bootstrap's own (real) start() call, so this only
+      // tracks a *second* runner being constructed and started.
+      const startSpy = vi
+        .spyOn(MailboxRunner.prototype, 'start')
+        .mockResolvedValue(undefined);
+
+      const disabling = registry.disableMailbox('owner@example.com');
+      await Promise.resolve();
+      expect(stopSpy).toHaveBeenCalledTimes(1);
+
+      // Queued behind the in-flight disable - must not construct/start a
+      // fresh runner until disableMailbox's stop() actually resolves.
+      const enabling = registry.enableMailbox('owner@example.com');
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(startSpy).not.toHaveBeenCalled();
+
+      resolveStop();
+      await disabling;
+      await enabling;
+
+      expect(startSpy).toHaveBeenCalledTimes(1);
+      expect(registry.getMailboxStatus('owner@example.com').enabled).toBe(true);
+
+      stopSpy.mockRestore();
+      startSpy.mockRestore();
       await registry.onApplicationShutdown();
     });
 
@@ -334,7 +381,7 @@ describe('RunnerRegistry', () => {
           fixtureMailbox({ id: 'disabled@example.com', enabled: false }),
         ],
       });
-      registry.onApplicationBootstrap();
+      await registry.onApplicationBootstrap();
 
       const { mailboxes } = registry.getStatus();
       expect(mailboxes).toHaveLength(2);
@@ -359,7 +406,7 @@ describe('RunnerRegistry', () => {
   describe('getStatus()', () => {
     test('returns both the per-mailbox array and the top-level AI status field', async () => {
       const { registry, aiFailureTracker } = await buildRegistry();
-      registry.onApplicationBootstrap();
+      await registry.onApplicationBootstrap();
 
       aiFailureTracker.recordFailure(new Error('rate limited'), 3);
 
@@ -377,7 +424,7 @@ describe('RunnerRegistry', () => {
 
     test("ai status reflects a fresh tracker's empty state when nothing has failed", async () => {
       const { registry } = await buildRegistry();
-      registry.onApplicationBootstrap();
+      await registry.onApplicationBootstrap();
 
       const status = registry.getStatus();
 
@@ -394,7 +441,7 @@ describe('RunnerRegistry', () => {
     test('delegates to the matching mailbox runner', async () => {
       const mailbox = fixtureMailbox();
       const { registry } = await buildRegistry({ mailboxes: [mailbox] });
-      registry.onApplicationBootstrap();
+      await registry.onApplicationBootstrap();
 
       // Assert delegation indirectly through the targeted runner's own
       // status update after triggering (no HTTP layer exists yet to
@@ -410,7 +457,7 @@ describe('RunnerRegistry', () => {
 
     test('throws a clear error for an unknown mailboxId', async () => {
       const { registry } = await buildRegistry();
-      registry.onApplicationBootstrap();
+      await registry.onApplicationBootstrap();
 
       await expect(
         registry.triggerNow('does-not-exist@example.com', 'scan'),
@@ -424,7 +471,7 @@ describe('RunnerRegistry', () => {
     test('returns the matching mailbox runner status', async () => {
       const mailbox = fixtureMailbox();
       const { registry } = await buildRegistry({ mailboxes: [mailbox] });
-      registry.onApplicationBootstrap();
+      await registry.onApplicationBootstrap();
 
       const status = registry.getMailboxStatus(mailbox.id);
 
@@ -433,7 +480,7 @@ describe('RunnerRegistry', () => {
 
     test('throws a clear error for an unknown mailboxId', async () => {
       const { registry } = await buildRegistry();
-      registry.onApplicationBootstrap();
+      await registry.onApplicationBootstrap();
 
       expect(() =>
         registry.getMailboxStatus('does-not-exist@example.com'),
@@ -441,29 +488,44 @@ describe('RunnerRegistry', () => {
     });
   });
 
-  describe('getMailboxSettings()', () => {
-    test('delegates to the matching mailbox runner', async () => {
+  describe('getMailboxSettingsView()', () => {
+    test('returns resolved settings alongside which top-level keys are an actual stored override', async () => {
       const mailbox = fixtureMailbox();
+      mockReadSettingsOverrides.mockResolvedValue({ thresholds: { clean: 10 } });
       const { registry } = await buildRegistry({ mailboxes: [mailbox] });
-      registry.onApplicationBootstrap();
+      await registry.onApplicationBootstrap();
 
-      const settingsSpy = vi.spyOn(MailboxRunner.prototype, 'getSettings');
-      try {
-        const settings = registry.getMailboxSettings(mailbox.id);
+      // `onApplicationBootstrap` only awaits `MailboxRepository.findAll()`
+      // itself - each runner's `start()`/`bootstrap()` fires without being
+      // awaited (see the "does not block" test above), so settings aren't
+      // necessarily resolved yet the instant this call returns.
+      await vi.waitFor(() => {
+        expect(registry.getMailboxSettingsView(mailbox.id).overriddenKeys).toEqual([
+          'thresholds',
+        ]);
+      });
 
-        expect(settingsSpy).toHaveBeenCalledTimes(1);
-        expect(settings.folders.inbox).toBeDefined();
-      } finally {
-        settingsSpy.mockRestore();
-      }
+      expect(registry.getMailboxSettingsView(mailbox.id).settings.thresholds.clean).toBe(10);
+    });
+
+    test('reports no overridden keys for a mailbox with no settings message', async () => {
+      const mailbox = fixtureMailbox();
+      mockReadSettingsOverrides.mockResolvedValue(undefined);
+      const { registry } = await buildRegistry({ mailboxes: [mailbox] });
+      await registry.onApplicationBootstrap();
+
+      await vi.waitFor(() => {
+        expect(mockReadSettingsOverrides).toHaveBeenCalled();
+      });
+      expect(registry.getMailboxSettingsView(mailbox.id).overriddenKeys).toEqual([]);
     });
 
     test('throws a clear error for an unknown mailboxId', async () => {
       const { registry } = await buildRegistry();
-      registry.onApplicationBootstrap();
+      await registry.onApplicationBootstrap();
 
       expect(() =>
-        registry.getMailboxSettings('does-not-exist@example.com'),
+        registry.getMailboxSettingsView('does-not-exist@example.com'),
       ).toThrow('Unknown mailbox: does-not-exist@example.com');
     });
   });
@@ -474,7 +536,7 @@ describe('RunnerRegistry', () => {
       const { registry, initFolders } = await buildRegistry({
         mailboxes: [mailbox],
       });
-      registry.onApplicationBootstrap();
+      await registry.onApplicationBootstrap();
       // Bootstrap's own `initFolders` call (fired but not awaited by
       // `onApplicationBootstrap`) must settle before clearing the mock,
       // otherwise its call can land after the clear and be miscounted
@@ -489,7 +551,7 @@ describe('RunnerRegistry', () => {
 
     test('rejects with the same "Unknown mailbox" error for an unknown mailboxId', async () => {
       const { registry } = await buildRegistry();
-      registry.onApplicationBootstrap();
+      await registry.onApplicationBootstrap();
 
       await expect(
         registry.triggerInitFolders('does-not-exist@example.com'),
@@ -506,7 +568,7 @@ describe('RunnerRegistry', () => {
         fixtureMailbox({ id: 'b@example.com' }),
       ];
       const { registry } = await buildRegistry({ mailboxes });
-      registry.onApplicationBootstrap();
+      await registry.onApplicationBootstrap();
 
       await expect(registry.onApplicationShutdown()).resolves.toBeUndefined();
 
@@ -524,7 +586,7 @@ describe('RunnerRegistry', () => {
     test('a valid update stops the old runner, writes the new settings message, and replaces the map entry with a fresh runner using the new settings', async () => {
       const mailbox = fixtureMailbox();
       const { registry } = await buildRegistry({ mailboxes: [mailbox] });
-      registry.onApplicationBootstrap();
+      await registry.onApplicationBootstrap();
 
       // Run a job on the pre-update runner so it accumulates observable
       // state (`lastResult`) a brand-new replacement runner would not have.
@@ -580,7 +642,7 @@ describe('RunnerRegistry', () => {
     test('an invalid update (a recognized key with the wrong type) rejects without stopping or writing anything', async () => {
       const mailbox = fixtureMailbox();
       const { registry } = await buildRegistry({ mailboxes: [mailbox] });
-      registry.onApplicationBootstrap();
+      await registry.onApplicationBootstrap();
 
       await registry.triggerNow(mailbox.id, 'scan');
       expect(registry.getStatus().mailboxes[0]?.jobs.scan.lastResult).toBe(
@@ -610,7 +672,7 @@ describe('RunnerRegistry', () => {
 
     test('rejects with the same "Unknown mailbox" error triggerNow uses, for an unknown mailboxId', async () => {
       const { registry } = await buildRegistry();
-      registry.onApplicationBootstrap();
+      await registry.onApplicationBootstrap();
 
       await expect(
         registry.updateSettings('does-not-exist@example.com', {
@@ -624,7 +686,7 @@ describe('RunnerRegistry', () => {
     test('a hand-edited settings message is overwritten completely, not merged, by the next update', async () => {
       const mailbox = fixtureMailbox();
       const { registry } = await buildRegistry({ mailboxes: [mailbox] });
-      registry.onApplicationBootstrap();
+      await registry.onApplicationBootstrap();
 
       // Simulate a settings message that exists in the mailbox's state
       // folder because of a hand edit made directly, bypassing
@@ -655,6 +717,113 @@ describe('RunnerRegistry', () => {
     });
   });
 
+  // --- registerAccount()/updateAccount()/removeAccount(): runtime account
+  // lifecycle without a process restart (persistent-mailbox-accounts) -----
+
+  describe('registerAccount()', () => {
+    test('starts a runner for a newly-registered enabled mailbox', async () => {
+      const { registry } = await buildRegistry({ mailboxes: [] });
+      await registry.onApplicationBootstrap();
+
+      await registry.registerAccount(fixtureMailbox({ id: 'new@example.com' }));
+
+      expect(registry.getMailboxStatus('new@example.com').enabled).toBe(true);
+      await registry.onApplicationShutdown();
+    });
+
+    test('registers a disabled mailbox without starting a runner', async () => {
+      const { registry } = await buildRegistry({ mailboxes: [] });
+      await registry.onApplicationBootstrap();
+
+      await registry.registerAccount(
+        fixtureMailbox({ id: 'new@example.com', enabled: false }),
+      );
+
+      expect(registry.getMailboxStatus('new@example.com')).toEqual({
+        mailboxId: 'new@example.com',
+        enabled: false,
+      });
+    });
+  });
+
+  describe('updateAccount()', () => {
+    test('stops the old runner and starts a fresh one with the updated mailbox', async () => {
+      const mailbox = fixtureMailbox();
+      const { registry } = await buildRegistry({ mailboxes: [mailbox] });
+      await registry.onApplicationBootstrap();
+      await registry.triggerNow(mailbox.id, 'scan');
+      expect(registry.getStatus().mailboxes[0]?.jobs.scan.lastResult).toBe(
+        'success',
+      );
+
+      const stopSpy = vi.spyOn(MailboxRunner.prototype, 'stop');
+      try {
+        await registry.updateAccount({
+          ...mailbox,
+          imapHost: 'imap.updated.example.com',
+        });
+
+        expect(stopSpy).toHaveBeenCalledTimes(1);
+        // A brand-new runner replaced the map entry - no job history yet.
+        expect(
+          registry.getStatus().mailboxes[0]?.jobs.scan.lastResult,
+        ).toBeUndefined();
+      } finally {
+        stopSpy.mockRestore();
+      }
+      await registry.onApplicationShutdown();
+    });
+
+    test('updating to disabled stops the runner without starting a new one', async () => {
+      const mailbox = fixtureMailbox();
+      const { registry } = await buildRegistry({ mailboxes: [mailbox] });
+      await registry.onApplicationBootstrap();
+
+      await registry.updateAccount({ ...mailbox, enabled: false });
+
+      expect(registry.getMailboxStatus(mailbox.id)).toEqual({
+        mailboxId: mailbox.id,
+        enabled: false,
+      });
+    });
+
+    test('updating a mailbox with no existing runner (previously disabled) starts one when now enabled', async () => {
+      const mailbox = fixtureMailbox({ enabled: false });
+      const { registry } = await buildRegistry({ mailboxes: [mailbox] });
+      await registry.onApplicationBootstrap();
+
+      await registry.updateAccount({ ...mailbox, enabled: true });
+
+      expect(registry.getMailboxStatus(mailbox.id).enabled).toBe(true);
+      await registry.onApplicationShutdown();
+    });
+  });
+
+  describe('removeAccount()', () => {
+    test('stops the runner and makes the mailbox fully unknown afterward', async () => {
+      const mailbox = fixtureMailbox();
+      const { registry } = await buildRegistry({ mailboxes: [mailbox] });
+      await registry.onApplicationBootstrap();
+
+      await registry.removeAccount(mailbox.id);
+
+      expect(() => registry.getMailboxStatus(mailbox.id)).toThrow(
+        `Unknown mailbox: ${mailbox.id}`,
+      );
+    });
+
+    test('removing an already-disabled mailbox (no runner) does not throw', async () => {
+      const mailbox = fixtureMailbox({ enabled: false });
+      const { registry } = await buildRegistry({ mailboxes: [mailbox] });
+      await registry.onApplicationBootstrap();
+
+      await expect(registry.removeAccount(mailbox.id)).resolves.toBeUndefined();
+      expect(() => registry.getMailboxStatus(mailbox.id)).toThrow(
+        'Unknown mailbox',
+      );
+    });
+  });
+
   // --- withRunnerPaused(): coordinates an external IMAP write against the
   // mailbox's own runner (MailboxAdminService's state/list writes) ---------
 
@@ -662,7 +831,7 @@ describe('RunnerRegistry', () => {
     test('stops the existing runner, runs fn, and replaces the map entry with a fresh runner once fn resolves', async () => {
       const mailbox = fixtureMailbox();
       const { registry } = await buildRegistry({ mailboxes: [mailbox] });
-      registry.onApplicationBootstrap();
+      await registry.onApplicationBootstrap();
 
       // Run a job on the pre-pause runner so it accumulates observable
       // state (`lastResult`) a brand-new replacement runner would not have.
@@ -695,7 +864,7 @@ describe('RunnerRegistry', () => {
     test("restarts a fresh runner even when fn rejects, and rethrows fn's error", async () => {
       const mailbox = fixtureMailbox();
       const { registry } = await buildRegistry({ mailboxes: [mailbox] });
-      registry.onApplicationBootstrap();
+      await registry.onApplicationBootstrap();
 
       await registry.triggerNow(mailbox.id, 'scan');
       expect(registry.getStatus().mailboxes[0]?.jobs.scan.lastResult).toBe(
@@ -723,7 +892,7 @@ describe('RunnerRegistry', () => {
 
     test('rejects with the same "Unknown mailbox" error triggerNow uses, without calling fn', async () => {
       const { registry } = await buildRegistry();
-      registry.onApplicationBootstrap();
+      await registry.onApplicationBootstrap();
 
       const fn = vi.fn();
 

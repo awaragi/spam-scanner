@@ -64,10 +64,10 @@ export class AuthService {
     return { token };
   }
 
-  exchangeForMailboxToken(mailboxId: string): { token: string } {
-    const known = this.mailboxRepository
-      .findAll()
-      .some((mailbox) => mailbox.id === mailboxId);
+  async exchangeForMailboxToken(mailboxId: string): Promise<{ token: string }> {
+    const known = (await this.mailboxRepository.findAll()).some(
+      (mailbox) => mailbox.id === mailboxId,
+    );
 
     if (!known) {
       throw new NotFoundException(`Unknown mailbox: ${mailboxId}`);

@@ -1,14 +1,21 @@
 import { describe, test, expect, vi } from 'vitest';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import type { Response } from 'express';
 import { MailboxController } from './mailbox.controller.js';
 import type { RunnerRegistry } from '../../runtime/runner-registry.js';
 import type { MailboxAdminService } from '../../application/mailbox-admin/mailbox-admin.service.js';
+import type { AccountAdminService } from '../../application/accounts/account-admin.service.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { settingsUpdateSchema } from './settings-update.schema.js';
 import { listReplaceSchema } from './list-replace.schema.js';
 import { mailboxEnabledSchema } from './mailbox-enabled.schema.js';
+import { PreconditionRequiredException } from '../common/http-exceptions.js';
 
 const MAILBOX_ID = 'owner@example.com';
+
+function fixtureResponse(): Response {
+  return { setHeader: vi.fn() } as unknown as Response;
+}
 
 function build() {
   const runnerRegistry = {
@@ -32,43 +39,106 @@ function build() {
     deleteState: vi.fn().mockResolvedValue(true),
     replaceList: vi.fn().mockResolvedValue(undefined),
   };
+  const accountAdminService = {
+    getEnabledState: vi.fn().mockResolvedValue({ enabled: true, version: 1 }),
+    setEnabled: vi.fn().mockResolvedValue({
+      listing: { version: 2, accounts: [] },
+      mailbox: { id: MAILBOX_ID },
+    }),
+  };
 
   const controller = new MailboxController(
     runnerRegistry as unknown as RunnerRegistry,
     mailboxAdminService as unknown as MailboxAdminService,
+    accountAdminService as unknown as AccountAdminService,
   );
 
-  return { controller, runnerRegistry, mailboxAdminService };
+  return {
+    controller,
+    runnerRegistry,
+    mailboxAdminService,
+    accountAdminService,
+  };
 }
 
 const UNKNOWN_MAILBOX_ERROR = new Error(`Unknown mailbox: ${MAILBOX_ID}`);
 
 describe('MailboxController', () => {
+  describe('getEnabled', () => {
+    test('returns the enabled state and sets the ETag header from the account version', async () => {
+      const { controller, accountAdminService } = build();
+      const res = fixtureResponse();
+
+      const result = await controller.getEnabled(MAILBOX_ID, res);
+
+      expect(accountAdminService.getEnabledState).toHaveBeenCalledWith(
+        MAILBOX_ID,
+      );
+      expect(result).toEqual({ enabled: true });
+      expect(res.setHeader).toHaveBeenCalledWith('ETag', '"1"');
+    });
+  });
+
   describe('setEnabled', () => {
-    test('disabling calls RunnerRegistry.disableMailbox', async () => {
-      const { controller, runnerRegistry } = build();
+    test('rejects without an If-Match header, before AccountAdminService runs', async () => {
+      const { controller, accountAdminService } = build();
+      const res = fixtureResponse();
 
-      const result = await controller.setEnabled(MAILBOX_ID, { enabled: false });
+      await expect(
+        controller.setEnabled(MAILBOX_ID, { enabled: false }, undefined, res),
+      ).rejects.toThrow(PreconditionRequiredException);
+      expect(accountAdminService.setEnabled).not.toHaveBeenCalled();
+    });
 
+    test('disabling delegates to AccountAdminService.setEnabled and syncs the runner registry', async () => {
+      const { controller, accountAdminService, runnerRegistry } = build();
+      const res = fixtureResponse();
+
+      const result = await controller.setEnabled(
+        MAILBOX_ID,
+        { enabled: false },
+        '"1"',
+        res,
+      );
+
+      expect(accountAdminService.setEnabled).toHaveBeenCalledWith(
+        MAILBOX_ID,
+        false,
+        1,
+      );
       expect(runnerRegistry.disableMailbox).toHaveBeenCalledWith(MAILBOX_ID);
       expect(result).toEqual({ updated: true });
     });
 
-    test('enabling calls RunnerRegistry.enableMailbox', async () => {
-      const { controller, runnerRegistry } = build();
+    test('enabling delegates to AccountAdminService.setEnabled with enabled: true and starts a runner', async () => {
+      const { controller, accountAdminService, runnerRegistry } = build();
+      const res = fixtureResponse();
 
-      const result = await controller.setEnabled(MAILBOX_ID, { enabled: true });
+      const result = await controller.setEnabled(
+        MAILBOX_ID,
+        { enabled: true },
+        '"1"',
+        res,
+      );
 
+      expect(accountAdminService.setEnabled).toHaveBeenCalledWith(
+        MAILBOX_ID,
+        true,
+        1,
+      );
       expect(runnerRegistry.enableMailbox).toHaveBeenCalledWith(MAILBOX_ID);
       expect(result).toEqual({ updated: true });
     });
 
-    test("translates disableMailbox's Unknown mailbox rejection to NotFoundException", async () => {
-      const { controller, runnerRegistry } = build();
-      runnerRegistry.disableMailbox.mockRejectedValue(UNKNOWN_MAILBOX_ERROR);
+    test("translates AccountAdminService's NotFoundException for an unknown mailbox", async () => {
+      const { controller, accountAdminService } = build();
+      accountAdminService.setEnabled.mockRejectedValue(
+        new NotFoundException(`Unknown mailbox: ${MAILBOX_ID}`),
+      );
+      const res = fixtureResponse();
 
       await expect(
-        controller.setEnabled(MAILBOX_ID, { enabled: false }),
+        controller.setEnabled(MAILBOX_ID, { enabled: false }, '"1"', res),
       ).rejects.toThrow(NotFoundException);
     });
   });
