@@ -99,9 +99,12 @@ export class LoggingConfig {
 /** The HTTP server, wired up in `main.ts` (task 7.2). */
 export class ServerConfig {
   readonly port: number;
+  /** `''` or `/segment...` - see `normalizeBaseUrl`. */
+  readonly baseUrl: string;
 
   constructor(config: AppConfigService) {
     this.port = config.get('PORT', { infer: true });
+    this.baseUrl = config.get('BASE_URL', { infer: true });
   }
 }
 
