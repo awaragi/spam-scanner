@@ -1,9 +1,11 @@
+import { join } from 'node:path';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
 import { ServerConfig } from './config/app-config.js';
 import { API_PREFIX } from './config/app-config.schema.js';
+import { mountFrontend } from './frontend/frontend.js';
 
 /**
  * Bootstraps the whole app (task 7.2).
@@ -32,11 +34,23 @@ async function bootstrap() {
   app.useLogger(app.get(Logger));
   app.enableShutdownHooks(undefined, { useProcessExit: true });
 
+  const { port, baseUrl } = app.get(ServerConfig);
+
   // Must run before `SwaggerModule.createDocument` below, which walks the
   // already-mounted routes - the generated doc would otherwise describe the
   // old unprefixed paths (`serve-frontend-from-server` design.md D4). Frees
-  // up every other path for the static frontend (D1).
-  app.setGlobalPrefix(API_PREFIX);
+  // up every other path for the static frontend (D1). `baseUrl` ('' by
+  // default) nests the whole app under `BASE_URL`.
+  const apiPrefix = `${baseUrl}/${API_PREFIX}`.slice(1);
+  app.setGlobalPrefix(apiPrefix);
+
+  // `public/` is empty at dev time (`npm run start:dev`); only the Docker
+  // build (D6) populates it, and `mountFrontend` is a no-op without it.
+  mountFrontend(
+    app.getHttpAdapter().getInstance(),
+    baseUrl,
+    join(import.meta.dirname, '..', 'public'),
+  );
 
   app.enableCors({
     origin: ['http://localhost:4200', 'http://127.0.0.1:4200'],
@@ -57,9 +71,8 @@ async function bootstrap() {
     )
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup(`${API_PREFIX}/docs`, app, document);
+  SwaggerModule.setup(`${apiPrefix}/docs`, app, document);
 
-  const { port } = app.get(ServerConfig);
   await app.listen(port);
 }
 await bootstrap();

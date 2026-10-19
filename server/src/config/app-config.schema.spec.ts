@@ -291,4 +291,32 @@ describe('AppConfigSchema', () => {
       expect(paths).toContain('SCAN_INTERVAL');
     });
   });
+
+  describe('BASE_URL', () => {
+    const parse = (value?: string) =>
+      AppConfigSchema.safeParse({
+        ...requiredOnlyEnv(),
+        ...(value === undefined ? {} : { BASE_URL: value }),
+      });
+
+    test.each([
+      [undefined, ''],
+      ['', ''],
+      ['/', ''],
+      ['spam', '/spam'],
+      ['/spam/', '/spam'],
+      [' /tools/spam-scanner/ ', '/tools/spam-scanner'],
+    ])('%j normalizes to %j', (input, expected) => {
+      const result = parse(input);
+      expect(result.success).toBe(true);
+      if (result.success) expect(asConfig(result.data).BASE_URL).toBe(expected);
+    });
+
+    test.each(['http://host/spam', '/a//b', '/a/../b', '/a b', '/a?x=1', '/.'])(
+      '%j is rejected',
+      (input) => {
+        expect(parse(input).success).toBe(false);
+      },
+    );
+  });
 });

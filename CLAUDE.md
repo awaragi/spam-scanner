@@ -138,6 +138,12 @@ force test changes.
 - Config comes from `process.env`, validated once at bootstrap by
   `AppConfigModule`. Inject a typed config section; never read `process.env`
   elsewhere.
+- `BASE_URL` (default empty) nests the whole app: UI at `BASE_URL/`, API at
+  `BASE_URL/api`, docs at `BASE_URL/api/docs`. The Angular build is
+  base-agnostic (`<base href="/">` plus a relative `api` URL); the server
+  rewrites `<base href>` at runtime (`server/src/frontend/`), so one image
+  serves any base. Local dev is assumed to run with `BASE_URL` empty
+  (`ng serve` at `/`, proxying `/api` to the server).
 - Structured logging via pino (`nestjs-pino`). Never log credentials, tokens,
   or email content.
 - IMAP operations use UIDs, not sequence numbers. Always log out in a

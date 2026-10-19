@@ -11,12 +11,28 @@ const DEFAULT_AI_BASE_URL = 'https://api.openai.com/v1';
 export const ACCOUNTS_FILENAME = 'accounts.json';
 
 /**
- * The global route prefix every API route is mounted under
- * (`main.ts`'s `setGlobalPrefix`/Swagger path and `app.module.ts`'s
- * SPA-fallback `exclude` regex both derive from this one constant, so they
+ * The route prefix every API route is mounted under, relative to
+ * `BASE_URL` (`main.ts`'s `setGlobalPrefix`/Swagger path and the frontend
+ * SPA fallback's API exclusion all derive from this one constant, so they
  * can't silently desync from a future prefix change).
  */
 export const API_PREFIX = 'api';
+
+/**
+ * Normalizes a `BASE_URL` value to `''` (served at the origin root) or
+ * `/segment[/segment...]` - leading slash, no trailing slash. Rejects
+ * anything that isn't a plain path (a full URL, query, fragment, `//`, `.`
+ * segments or characters needing URL-escaping), since the value is spliced
+ * into route prefixes and `<base href>`.
+ */
+export function normalizeBaseUrl(raw: string): string | null {
+  const trimmed = raw.trim().replace(/^\/+|\/+$/g, '');
+  if (trimmed === '') return '';
+  return /^[A-Za-z0-9._~-]+(\/[A-Za-z0-9._~-]+)*$/.test(trimmed) &&
+    !trimmed.split('/').some((segment) => /^\.+$/.test(segment))
+    ? `/${trimmed}`
+    : null;
+}
 
 /**
  * Explicit, hand-written authoritative type for the merged runtime config -
@@ -50,6 +66,7 @@ export interface AppConfig {
   LOG_FILTER_INCLUDES: string;
   LOG_FILTER_EXCLUDES: string;
   PORT: number;
+  BASE_URL: string;
   API_ADMIN_PASSWORD: string;
   API_JWT_SECRET: string;
   API_ADMIN_TOKEN_TTL: number;
@@ -320,6 +337,25 @@ const serverGroup: ConfigGroupDef = {
     PORT: intField(3000).describe(
       'PORT: TCP port the HTTP server listens on. Default: 3000',
     ),
+    BASE_URL: z
+      .string()
+      .default('')
+      .transform((raw, ctx) => {
+        const normalized = normalizeBaseUrl(raw);
+        if (normalized === null) {
+          ctx.addIssue({
+            code: 'custom',
+            message:
+              'BASE_URL must be a plain URL path such as /spam-scanner (letters, digits, "-", "_", ".", "~" and "/" only)',
+          });
+          return z.NEVER;
+        }
+        return normalized;
+      })
+      .describe(
+        `BASE_URL: URL path prefix the whole app is served under - the UI at BASE_URL/, the API at BASE_URL/api and the API docs at BASE_URL/api/docs. Use it behind a reverse proxy that forwards the prefix unchanged. Example: /spam-scanner
+Default: empty (served at the origin root)`,
+      ),
   }),
 };
 
