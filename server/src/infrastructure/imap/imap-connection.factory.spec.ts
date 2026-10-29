@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events';
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 
 const { mockImapFlowConstructor } = vi.hoisted(() => {
@@ -19,9 +20,26 @@ import {
 describe('newClient', () => {
   beforeEach(() => {
     mockImapFlowConstructor.mockClear();
+    // A real EventEmitter, like `ImapFlow`: it throws on an `error` event
+    // that has no listener.
     mockImapFlowConstructor.mockImplementation(function (config) {
-      return { __config: config };
+      return Object.assign(new EventEmitter(), { __config: config });
     });
+  });
+
+  test('an error event with no other listener does not throw (idle-socket timeout must not crash the process)', () => {
+    const client = newClient({
+      imapHost: 'imap.example.com',
+      imapPort: 993,
+      imapUser: 'user@example.com',
+      imapPassword: 'password',
+      imapTls: true,
+      imapAllowInsecure: false,
+    });
+
+    expect(() =>
+      client.emit('error', new Error('Socket timeout')),
+    ).not.toThrow();
   });
 
   test('sets secure: true and doSTARTTLS: undefined when imapTls is true', () => {
@@ -179,6 +197,7 @@ describe('withSession', () => {
     const mockCallback = vi.fn().mockResolvedValue('result');
 
     const mockImap = {
+      on: vi.fn(),
       connect: mockConnect,
       logout: mockLogout,
     };
@@ -213,6 +232,7 @@ describe('withSession', () => {
       .mockRejectedValue(new Error('callback failed'));
 
     const mockImap = {
+      on: vi.fn(),
       connect: mockConnect,
       logout: mockLogout,
     };
@@ -244,6 +264,7 @@ describe('withSession', () => {
     const mockCallback = vi.fn();
 
     const mockImap = {
+      on: vi.fn(),
       connect: mockConnect,
       logout: mockLogout,
     };
@@ -276,6 +297,7 @@ describe('withSession', () => {
     const mockCallback = vi.fn().mockResolvedValue({ messageCount: 42 });
 
     const mockImap = {
+      on: vi.fn(),
       connect: mockConnect,
       logout: mockLogout,
     };

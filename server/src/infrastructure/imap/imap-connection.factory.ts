@@ -55,7 +55,7 @@ export function newClient(
   const logFatal = logger?.fatal.bind(logger) ?? (() => {});
   const logTrace = logger?.trace.bind(logger) ?? (() => {});
 
-  return new ImapFlow({
+  const client = new ImapFlow({
     host: connection.imapHost,
     port: connection.imapPort,
     secure: connection.imapTls === true,
@@ -79,6 +79,18 @@ export function newClient(
     maxIdleTime: 29 * 60 * 1000,
     disableAutoIdle: options?.disableAutoIdle,
   });
+
+  // `imapflow` emits socket failures (e.g. an idle-connection "Socket
+  // timeout") as an `error` event, and an EventEmitter with no `error`
+  // listener throws, killing the process. `waitForNewMail` only listens while
+  // it is waiting, so the IDLE client is unguarded during the scan between
+  // waits. This permanent listener keeps such an event non-fatal; callers
+  // still see the failure through their own listeners and rejected calls.
+  client.on('error', (err: Error) => {
+    logger?.warn({ error: err.message }, 'IMAP client error');
+  });
+
+  return client;
 }
 
 /**
