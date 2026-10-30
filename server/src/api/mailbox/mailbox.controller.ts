@@ -99,9 +99,10 @@ export class MailboxController {
   }
 
   @Get('settings')
-  getSettings(
-    @Param('mailboxId') mailboxId: string,
-  ): { settings: MailboxSettings; overriddenKeys: string[] } {
+  getSettings(@Param('mailboxId') mailboxId: string): {
+    settings: MailboxSettings;
+    overriddenKeys: string[];
+  } {
     return withUnknownMailboxAsNotFound(() =>
       this.runnerRegistry.getMailboxSettingsView(mailboxId),
     );

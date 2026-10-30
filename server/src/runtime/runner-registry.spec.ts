@@ -491,7 +491,9 @@ describe('RunnerRegistry', () => {
   describe('getMailboxSettingsView()', () => {
     test('returns resolved settings alongside which top-level keys are an actual stored override', async () => {
       const mailbox = fixtureMailbox();
-      mockReadSettingsOverrides.mockResolvedValue({ thresholds: { clean: 10 } });
+      mockReadSettingsOverrides.mockResolvedValue({
+        thresholds: { clean: 10 },
+      });
       const { registry } = await buildRegistry({ mailboxes: [mailbox] });
       await registry.onApplicationBootstrap();
 
@@ -500,12 +502,14 @@ describe('RunnerRegistry', () => {
       // awaited (see the "does not block" test above), so settings aren't
       // necessarily resolved yet the instant this call returns.
       await vi.waitFor(() => {
-        expect(registry.getMailboxSettingsView(mailbox.id).overriddenKeys).toEqual([
-          'thresholds',
-        ]);
+        expect(
+          registry.getMailboxSettingsView(mailbox.id).overriddenKeys,
+        ).toEqual(['thresholds']);
       });
 
-      expect(registry.getMailboxSettingsView(mailbox.id).settings.thresholds.clean).toBe(10);
+      expect(
+        registry.getMailboxSettingsView(mailbox.id).settings.thresholds.clean,
+      ).toBe(10);
     });
 
     test('reports no overridden keys for a mailbox with no settings message', async () => {
@@ -517,7 +521,9 @@ describe('RunnerRegistry', () => {
       await vi.waitFor(() => {
         expect(mockReadSettingsOverrides).toHaveBeenCalled();
       });
-      expect(registry.getMailboxSettingsView(mailbox.id).overriddenKeys).toEqual([]);
+      expect(
+        registry.getMailboxSettingsView(mailbox.id).overriddenKeys,
+      ).toEqual([]);
     });
 
     test('throws a clear error for an unknown mailboxId', async () => {
